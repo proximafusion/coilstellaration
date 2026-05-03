@@ -6,20 +6,16 @@ import numpy as np
 import pytest
 
 _SKIP_REASON = (
-    "requires constellaration_update.types (Task 8)"
-    " and constellaration_update.metrics (Task 4)"
+    "requires desc env with compatible jax (tree_broadcast missing in current env)"
 )
 
-constellaration_update_types = pytest.importorskip(
-    "constellaration_update.types",
-    reason=_SKIP_REASON,
-)
+from constellaration_update import types as constellaration_update_types  # noqa: E402
+
 coilset_utils = pytest.importorskip(
     "constellaration_update.coilset.utils",
     reason=_SKIP_REASON,
+    exc_type=ImportError,
 )
-
-pytestmark = pytest.mark.skip(reason=_SKIP_REASON)
 
 try:
     from desc.coils import CoilSet as DescCoilSet

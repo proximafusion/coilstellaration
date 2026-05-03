@@ -2,20 +2,17 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-_SKIP_REASON = "requires constellaration_update.types (Task 8)"
-
-pytest.importorskip(
-    "constellaration_update.types",
-    reason=_SKIP_REASON,
-    exc_type=ImportError,
+_SKIP_REASON = (
+    "requires desc env with compatible jax (tree_broadcast missing in current env)"
 )
+
+from constellaration_update import types  # noqa: F401, E402
+
 metrics_utils = pytest.importorskip(
     "constellaration_update.metrics.metrics",
     reason=_SKIP_REASON,
     exc_type=ImportError,
 )
-
-pytestmark = pytest.mark.skip(reason=_SKIP_REASON)
 
 try:
     from desc.coils import CoilSet, FourierXYZCoil
