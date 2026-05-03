@@ -114,3 +114,7 @@ profile = "black"
 typeCheckingMode = "basic"
 venvPath = "."
 venv = "venv"
+# Ignore files that import modules not yet ported; remove entries as tasks complete.
+ignore = [
+  "src/constellaration_update/coilset/utils.py",  # metrics (Task 4), types (Task 8)
+]
