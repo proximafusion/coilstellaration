@@ -25,6 +25,21 @@ classifiers = [
 dependencies = [
   "constellaration==0.2.6",
   "beartype",
+  # Pulled in transitively by ML files (and used directly):
+  "flax",
+  "optax",
+  "orbax-checkpoint",
+  # Used in metrics, plotting, data_generation:
+  "matplotlib",
+  "plotly",
+  "tabulate",
+  "tqdm",
+  # Used in held_out_set / data publishing:
+  "huggingface_hub",
+  "datasets",
+  # Used in held_out_set / metrics:
+  "scikit-image",
+  "netCDF4",
 ]
 
 [tool.hatch.metadata]
