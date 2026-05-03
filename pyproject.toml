@@ -23,7 +23,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "constellaration==0.2.6"
+  "constellaration==0.2.6",
+  "beartype",
 ]
 
 [tool.hatch.metadata]
