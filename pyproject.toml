@@ -118,4 +118,7 @@ venv = "venv"
 ignore = [
   "src/constellaration_update/coilset/utils.py",  # metrics (Task 4), types (Task 8)
   "src/constellaration_update/coilset/optimization.py",  # types (Task 8)
+  "src/constellaration_update/metrics/metrics.py",  # types (Task 8)
+  "tests/metrics/metrics_validation_test.py",  # geometry.curve stubs produce None-type errors
+  "tests/metrics/metrics_test.py",  # desc fallback None-types; unskipped in Task 8
 ]
