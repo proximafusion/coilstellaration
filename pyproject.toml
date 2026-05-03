@@ -126,4 +126,6 @@ ignore = [
   "tests/data_generation/tasks_test.py",  # desc unresolved in env until JAX compat fixed
   "src/constellaration_update/machine_learning/model.py",  # flax/nnx not in env until Task 16
   "src/constellaration_update/machine_learning/train.py",  # flax/optax/orbax/datasets not in env until Task 16
+  "src/constellaration_update/machine_learning/train_tasks.py",  # depends on train.py until Task 16
+  "src/constellaration_update/machine_learning/run.py",  # depends on train_tasks.py until Task 16
 ]
