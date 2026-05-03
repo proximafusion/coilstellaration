@@ -122,4 +122,6 @@ ignore = [
   "tests/checkpoint/flax_nnx_test.py",  # flax/orbax not in env until Task 16
   "src/constellaration_update/source_configurations.py",  # pandas-stubs noise; source-code semantics unchanged
   "src/constellaration_update/held_out_set.py",  # pandas-stubs noise; source-code semantics unchanged
+  "src/constellaration_update/data_generation/tasks.py",  # desc unresolved in env until JAX compat fixed
+  "tests/data_generation/tasks_test.py",  # desc unresolved in env until JAX compat fixed
 ]
