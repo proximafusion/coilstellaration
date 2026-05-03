@@ -124,4 +124,5 @@ ignore = [
   "src/constellaration_update/held_out_set.py",  # pandas-stubs noise; source-code semantics unchanged
   "src/constellaration_update/data_generation/tasks.py",  # desc unresolved in env until JAX compat fixed
   "tests/data_generation/tasks_test.py",  # desc unresolved in env until JAX compat fixed
+  "src/constellaration_update/machine_learning/model.py",  # flax/nnx not in env until Task 16
 ]
