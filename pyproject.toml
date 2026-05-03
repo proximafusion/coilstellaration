@@ -116,12 +116,8 @@ venvPath = "."
 venv = "venv"
 # Ignore files that import modules not yet ported; remove entries as tasks complete.
 ignore = [
-  "src/constellaration_update/coilset/utils.py",  # metrics (Task 4), types (Task 8)
-  "src/constellaration_update/coilset/optimization.py",  # types (Task 8)
-  "src/constellaration_update/metrics/metrics.py",  # types (Task 8)
   "tests/metrics/metrics_validation_test.py",  # geometry.curve stubs produce None-type errors
   "tests/metrics/metrics_test.py",  # desc fallback None-types; unskipped in Task 8
   "src/constellaration_update/checkpoint/flax_nnx.py",  # flax/orbax not in env until Task 16
   "tests/checkpoint/flax_nnx_test.py",  # flax/orbax not in env until Task 16
-  "src/constellaration_update/visualization.py",  # types (Task 8)
 ]
