@@ -14,9 +14,10 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 from constellaration.mhd import vmec_utils
 
-from constellaration_update.settings import DescFromVmecSettings
+from coilstellaration.ideal_mhd.desc_types import DescFromVmecSettings
 
 # DESC is imported lazily because importing the package is slow and its plotting
 # submodule has side effects (creates a blank matplotlib canvas).
@@ -24,6 +25,30 @@ if TYPE_CHECKING:
     import desc.equilibrium
 
 logger = logging.getLogger(__name__)
+
+
+def _pad_empty_arrays_for_save(
+    wout: vmec_utils.VmecppWOut,
+) -> vmec_utils.VmecppWOut:
+    """Workaround for vmecpp 0.4.x ``VmecWOut.save``.
+
+    Wouts deserialized from JSON (e.g. the ``proxima-fusion/constellaration``
+    HuggingFace dataset) keep diagnostic time-traces as zero-length 1D arrays.
+    NetCDF treats a zero-sized dimension as ``UNLIMITED``, and only one
+    unlimited dimension is allowed per file, so the writer fails on the second
+    such field. Pad each empty 1D array to a single placeholder entry; this is
+    discarded when DESC re-reads the file, since the affected fields are not
+    used by ``VMECIO.load``.
+    """
+    updates: dict[str, np.ndarray] = {}
+    for name in type(wout).model_fields:
+        value = getattr(wout, name, None)
+        if not isinstance(value, (list, np.ndarray)):
+            continue
+        arr = np.asarray(value)
+        if arr.ndim == 1 and arr.shape[0] == 0:
+            updates[name] = np.array([0.0])
+    return wout.model_copy(update=updates) if updates else wout
 
 
 def instantiate_desc_equilibrium_from_vmecpp_wout(
@@ -39,7 +64,7 @@ def instantiate_desc_equilibrium_from_vmecpp_wout(
 
     with tempfile.TemporaryDirectory() as tmp:
         wout_path = Path(tmp) / "wout.nc"
-        wout.save(wout_path)
+        _pad_empty_arrays_for_save(wout).save(wout_path)
         eq = desc.vmec.VMECIO.load(str(wout_path), profile=settings.profile)
 
     if settings.L_grid is not None:
