@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "constellaration_update"
+name = "coilstellaration"
 dynamic = ["version"]
 description = 'Code for analyzing and evaluating stellarator boundaries and coilsets'
 readme = "README.md"
@@ -23,22 +23,35 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "constellaration==0.2.6"
+  "constellaration==0.2.6",
+  "beartype",
+  "flax",
+  "optax",
+  "orbax-checkpoint",
+  "matplotlib",
+  "plotly",
+  "tabulate",
+  "tqdm",
+  "huggingface_hub",
+  "datasets",
+  "scikit-image",
+  "netCDF4",
+  "desc-opt==0.14.2",
 ]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [project.urls]
-Documentation = "https://github.com/proximafusion/constellaration_update#readme"
-Issues = "https://github.com/proximafusion/constellaration_update/issues"
-Source = "https://github.com/proximafusion/constellaration_update"
+Documentation = "https://github.com/proximafusion/coilstellaration#readme"
+Issues = "https://github.com/proximafusion/coilstellaration/issues"
+Source = "https://github.com/proximafusion/coilstellaration"
 
 [tool.hatch.version]
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/constellaration_update/__about__.py"
+version-file = "src/coilstellaration/__about__.py"
 
 [project.optional-dependencies]
 test = ["pytest"]
@@ -59,24 +72,24 @@ extra-dependencies = [
 testpaths = ["tests"]
 
 [tool.hatch.build]
-packages = ["src/constellaration_update"]
+packages = ["src/coilstellaration"]
 include = [
-  "src/constellaration_update/**",
+  "src/coilstellaration/**",
   "README.md",
   "LICENSE",
 ]
 
 [tool.coverage.run]
-source_pkgs = ["constellaration_update", "tests"]
+source_pkgs = ["coilstellaration", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/constellaration_update/__about__.py",
+  "src/coilstellaration/__about__.py",
 ]
 
 [tool.coverage.paths]
-constellaration_update = ["src/constellaration_update", "*/constellaration_update/src/constellaration_update"]
-tests = ["tests", "*/constellaration_update/tests"]
+coilstellaration = ["src/coilstellaration", "*/coilstellaration/src/coilstellaration"]
+tests = ["tests", "*/coilstellaration/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -113,3 +126,18 @@ profile = "black"
 typeCheckingMode = "basic"
 venvPath = "."
 venv = "venv"
+# Ignore files that import modules not yet ported; remove entries as tasks complete.
+ignore = [
+  "tests/metrics/metrics_validation_test.py",  # geometry.curve stubs produce None-type errors
+  "tests/metrics/metrics_test.py",  # desc fallback None-types; unskipped in Task 8
+  "src/constellaration_update/checkpoint/flax_nnx.py",  # flax/orbax not in env until Task 16
+  "tests/checkpoint/flax_nnx_test.py",  # flax/orbax not in env until Task 16
+  "src/constellaration_update/source_configurations.py",  # pandas-stubs noise; source-code semantics unchanged
+  "src/constellaration_update/held_out_set.py",  # pandas-stubs noise; source-code semantics unchanged
+  "src/constellaration_update/data_generation/tasks.py",  # desc unresolved in env until JAX compat fixed
+  "tests/data_generation/tasks_test.py",  # desc unresolved in env until JAX compat fixed
+  "src/constellaration_update/machine_learning/model.py",  # flax/nnx not in env until Task 16
+  "src/constellaration_update/machine_learning/train.py",  # flax/optax/orbax/datasets not in env until Task 16
+  "src/constellaration_update/machine_learning/train_tasks.py",  # depends on train.py until Task 16
+  "src/constellaration_update/machine_learning/run.py",  # depends on train_tasks.py until Task 16
+]

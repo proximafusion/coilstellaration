@@ -35,6 +35,12 @@ ENV EDITOR=vim
 # but the base image only ships 3.12.
 RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh
 
+# Install Claude
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Install bun (for Claude)
+RUN curl -fsSL https://bun.sh/install | bash
+
 # Install Python 3.10 system-wide and expose python3.10 in PATH.
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN uv python install 3.10 \
