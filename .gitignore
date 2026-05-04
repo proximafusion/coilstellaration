@@ -144,3 +144,6 @@ docs/superpowers/
 
 # IDE
 .vscode/
+
+# Local data store written by constellaration_update.data_util
+data/

@@ -17,7 +17,8 @@ The build pulls in `constellaration==0.2.6` and its scientific-Python dependenci
 - `checkpoint/` — Flax NNX model checkpoint helpers
 - `data_generation/` — data-generation entry points
 - `machine_learning/` — coil-predictor model, training, and example driver
-- `held_out_set.py`, `sampling.py`, `source_configurations.py`, `types.py`, `visualization.py` — top-level helpers
+- `data_util.py` — local-file `read` / `write` API mirroring `dapper`; default store is `./data/` (overridable via `CONSTELLARATION_UPDATE_DATA_ROOT`)
+- `held_out_set.py`, `sampling.py`, `source_configurations.py`, `phase_1_settings.py`, `types.py`, `visualization.py` — top-level helpers
 
 ## Develop
 

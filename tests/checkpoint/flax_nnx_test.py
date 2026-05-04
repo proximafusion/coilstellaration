@@ -22,6 +22,7 @@ _ORBAX_JAX_INCOMPAT = not hasattr(jax.monitoring, "record_scalar")
 
 from flax import nnx  # noqa: E402
 
+from constellaration_update import data_util  # noqa: E402
 from constellaration_update.checkpoint import (  # noqa: E402
     flax_nnx as flax_nnx_checkpoint,
 )
@@ -85,15 +86,21 @@ def test_to_from_checkpoint_roundtrip_preserves_params():
     np.testing.assert_allclose(np.asarray(model(x)), np.asarray(restored(x)), atol=0)
 
 
-# TODO(migration): dapper storage layer is removed; reintroduce a serialization
-# roundtrip test once a persistence layer is chosen (e.g., HF Hub upload). Body
-# kept as a stub so the future implementer sees the shape of the round-trip.
-@pytest.mark.skip(reason="dapper storage layer removed in migration")
-def test_roundtrip_through_dapper_storage():
-    raise NotImplementedError(
-        "dapper.write / dapper.read replaced with pydantic + a future persistence "
-        "layer; see TODO(migration) above."
+@_skip_if_orbax_jax_incompat
+def test_roundtrip_through_data_util_storage(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    monkeypatch.setenv(data_util._DATA_ROOT_ENV, str(tmp_path))
+
+    model = _make_simple_mlp(hidden=8)
+    checkpoint = flax_nnx_checkpoint.to_checkpoint(
+        model, _SimpleMlpConfig(hidden=8), _SimpleMlpCheckpoint
     )
+    object_id = data_util.write(checkpoint)
+
+    reloaded = data_util.read(_SimpleMlpCheckpoint, object_id)
+    restored = flax_nnx_checkpoint.from_checkpoint(reloaded, _SimpleMlp)
+
+    x = jnp.ones((1, 4))
+    np.testing.assert_allclose(np.asarray(model(x)), np.asarray(restored(x)), atol=0)
 
 
 class _PlainLinearConfig(pydantic.BaseModel):
