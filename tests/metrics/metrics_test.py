@@ -13,6 +13,11 @@ metrics_utils = pytest.importorskip(
     reason=_SKIP_REASON,
     exc_type=ImportError,
 )
+metrics_utils_v2 = pytest.importorskip(
+    "constellaration_update.metrics.metrics_v2",
+    reason=_SKIP_REASON,
+    exc_type=ImportError,
+)
 
 try:
     from desc.coils import CoilSet, FourierXYZCoil
@@ -96,3 +101,24 @@ def test_compute_on_axis_average_magnetic_field(desc_eq_and_coilset):
     d_avg = np.sqrt(R_coil**2 + R0**2)
     expected_B = n_coils * mu_0 * total_coils_current * a_coil**2 / (4 * d_avg**3)
     np.testing.assert_allclose(float(B_avg), expected_B, rtol=0.5)
+
+
+def test_equivalence(desc_eq_and_coilset):
+    eq, coilset = desc_eq_and_coilset
+    metrics = metrics_utils.evaluate_coilset_metrics(
+        coilset=coilset, eq=eq
+    ).model_dump()
+    metrics_v2 = metrics_utils_v2.evaluate_coilset_metrics(
+        coilset=coilset, eq=eq
+    ).model_dump()
+
+    for (key, v1), v2 in zip(metrics.items(), metrics_v2.values()):
+        if isinstance(v1, str):
+            continue
+        np.testing.assert_allclose(
+            v1,
+            v2,
+            rtol=1e-12,
+            atol=1e-12,
+            err_msg=f"Mismatch in metric '{key}'",
+        )
