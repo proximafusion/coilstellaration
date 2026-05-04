@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "constellaration_update"
+name = "coilstellaration"
 dynamic = ["version"]
 description = 'Code for analyzing and evaluating stellarator boundaries and coilsets'
 readme = "README.md"
@@ -25,36 +25,33 @@ classifiers = [
 dependencies = [
   "constellaration==0.2.6",
   "beartype",
-  # Pulled in transitively by ML files (and used directly):
   "flax",
   "optax",
   "orbax-checkpoint",
-  # Used in metrics, plotting, data_generation:
   "matplotlib",
   "plotly",
   "tabulate",
   "tqdm",
-  # Used in held_out_set / data publishing:
   "huggingface_hub",
   "datasets",
-  # Used in held_out_set / metrics:
   "scikit-image",
   "netCDF4",
+  "desc-opt==0.14.2",
 ]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [project.urls]
-Documentation = "https://github.com/proximafusion/constellaration_update#readme"
-Issues = "https://github.com/proximafusion/constellaration_update/issues"
-Source = "https://github.com/proximafusion/constellaration_update"
+Documentation = "https://github.com/proximafusion/coilstellaration#readme"
+Issues = "https://github.com/proximafusion/coilstellaration/issues"
+Source = "https://github.com/proximafusion/coilstellaration"
 
 [tool.hatch.version]
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/constellaration_update/__about__.py"
+version-file = "src/coilstellaration/__about__.py"
 
 [project.optional-dependencies]
 test = ["pytest"]
@@ -75,24 +72,24 @@ extra-dependencies = [
 testpaths = ["tests"]
 
 [tool.hatch.build]
-packages = ["src/constellaration_update"]
+packages = ["src/coilstellaration"]
 include = [
-  "src/constellaration_update/**",
+  "src/coilstellaration/**",
   "README.md",
   "LICENSE",
 ]
 
 [tool.coverage.run]
-source_pkgs = ["constellaration_update", "tests"]
+source_pkgs = ["coilstellaration", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/constellaration_update/__about__.py",
+  "src/coilstellaration/__about__.py",
 ]
 
 [tool.coverage.paths]
-constellaration_update = ["src/constellaration_update", "*/constellaration_update/src/constellaration_update"]
-tests = ["tests", "*/constellaration_update/tests"]
+coilstellaration = ["src/coilstellaration", "*/coilstellaration/src/coilstellaration"]
+tests = ["tests", "*/coilstellaration/tests"]
 
 [tool.coverage.report]
 exclude_lines = [

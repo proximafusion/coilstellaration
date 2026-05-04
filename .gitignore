@@ -141,3 +141,6 @@ src/constellaration_update/__about__.py
 
 # Coding agent plans
 docs/superpowers/
+
+# IDE
+.vscode/
