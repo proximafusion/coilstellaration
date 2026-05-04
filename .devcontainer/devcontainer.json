@@ -1,0 +1,72 @@
+{
+    "name": "constellaration_update",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "..",
+        "options": [
+            "--platform=linux/amd64"
+        ]
+    },
+    "runArgs": [
+        "--init",
+        "--platform=linux/amd64",
+        "--shm-size=16g"
+    ],
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/prulloac/devcontainer-features/pre-commit:1": {}
+    },
+    "remoteUser": "vscode",
+    "containerEnv": {
+        "PYTHONPATH": "${containerWorkspaceFolder}/src"
+    },
+    "mounts": [
+        {
+            "source": "constellaration-devcontainer-home",
+            "target": "/home/vscode",
+            "type": "volume"
+        },
+        {
+            "source": "${localEnv:HOME}/tmp/outputs",
+            "target": "/home/vscode/tmp/outputs",
+            "type": "bind"
+        },
+        {
+            "source": "${localEnv:HOME}/repo",
+            "target": "/home/jhewers/repo",
+            "type": "bind",
+            "readonly": true
+        },
+        {
+            "source": "${localEnv:HOME}/constellaration",
+            "target": "/home/jhewers/constellaration",
+            "type": "bind",
+            "readonly": true
+        }
+    ],
+    "initializeCommand": "mkdir -p ${localEnv:HOME}/tmp/outputs",
+    "onCreateCommand": "pipx install hatch && pre-commit install",
+    "updateContentCommand": "hatch env create && hatch env create test && hatch env create lint",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-pyright.pyright",
+                "charliermarsh.ruff",
+                "ms-python.black-formatter",
+                "redhat.vscode-yaml",
+                "streetsidesoftware.code-spell-checker",
+                "Anthropic.claude-code"
+            ],
+            "settings": {
+                "python-envs.terminal.autoActivationType": "shellStartup",
+                "python.defaultInterpreterPath": "${containerWorkspaceFolder}/venv/bin/python",
+                "[python]": {
+                    "editor.defaultFormatter": "ms-python.black-formatter",
+                    "editor.formatOnSave": true
+                }
+            }
+        }
+    }
+}
