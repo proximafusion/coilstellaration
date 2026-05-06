@@ -1,0 +1,11 @@
+__defaults__(
+    all={
+        "skip_pyright": False,
+    }
+)
+
+python_sources()
+
+python_tests(
+    name="tests",
+)

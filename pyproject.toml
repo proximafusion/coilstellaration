@@ -7,7 +7,7 @@ name = "coilstellaration"
 dynamic = ["version"]
 description = 'Code for analyzing and evaluating stellarator boundaries and coilsets'
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "MIT"
 keywords = []
 authors = [
@@ -16,16 +16,15 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "constellaration==0.2.6",
+  "constellaration @ file:///workspaces/constellaration",
   "beartype",
   "flax",
+  "jax>=0.6.2",
   "optax",
   "orbax-checkpoint",
   "matplotlib",
@@ -36,7 +35,11 @@ dependencies = [
   "datasets",
   "scikit-image",
   "netCDF4",
-  "desc-opt==0.14.2",
+  "desc-opt==0.17.1",
+  # equinox <0.13.1 ships a Flatten class without __weakref__ in __slots__,
+  # which breaks lineax under jax >=0.9 with "cannot create weak reference
+  # to 'Flatten' object". Upper bound matches desc-opt 0.17.1's metadata.
+  "equinox>=0.13.1,<=0.13.6",
 ]
 
 [tool.hatch.metadata]
@@ -127,17 +130,4 @@ typeCheckingMode = "basic"
 venvPath = "."
 venv = "venv"
 # Ignore files that import modules not yet ported; remove entries as tasks complete.
-ignore = [
-  "tests/metrics/metrics_validation_test.py",  # geometry.curve stubs produce None-type errors
-  "tests/metrics/metrics_test.py",  # desc fallback None-types; unskipped in Task 8
-  "src/constellaration_update/checkpoint/flax_nnx.py",  # flax/orbax not in env until Task 16
-  "tests/checkpoint/flax_nnx_test.py",  # flax/orbax not in env until Task 16
-  "src/constellaration_update/source_configurations.py",  # pandas-stubs noise; source-code semantics unchanged
-  "src/constellaration_update/held_out_set.py",  # pandas-stubs noise; source-code semantics unchanged
-  "src/constellaration_update/data_generation/tasks.py",  # desc unresolved in env until JAX compat fixed
-  "tests/data_generation/tasks_test.py",  # desc unresolved in env until JAX compat fixed
-  "src/constellaration_update/machine_learning/model.py",  # flax/nnx not in env until Task 16
-  "src/constellaration_update/machine_learning/train.py",  # flax/optax/orbax/datasets not in env until Task 16
-  "src/constellaration_update/machine_learning/train_tasks.py",  # depends on train.py until Task 16
-  "src/constellaration_update/machine_learning/run.py",  # depends on train_tasks.py until Task 16
-]
+ignore = []

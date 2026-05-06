@@ -137,7 +137,7 @@ poetry.toml
 pyrightconfig.json
 
 # Generated info files
-src/constellaration_update/__about__.py
+__about__.py
 
 # Coding agent plans
 docs/superpowers/

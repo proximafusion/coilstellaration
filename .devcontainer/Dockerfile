@@ -22,9 +22,29 @@ RUN apt-get update \
         libnetcdf-dev \
         ninja-build \
         pkg-config \
+        # Build deps for REGCOIL (Fortran NetCDF bindings + BLAS/LAPACK).
+        libnetcdff-dev \
+        libopenblas-dev \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd \
     && ln -s /usr/bin/batcat /usr/local/bin/bat
+
+# Build REGCOIL from source (https://github.com/landreman/regcoil).
+# Upstream's makefile has no Debian/Ubuntu host config, so we override
+# FC/EXTRA_*_FLAGS on the make command line. -fallow-argument-mismatch is
+# required for gfortran >= 10 to compile the legacy mini_libstell sources.
+ARG REGCOIL_REF=6f5e3f73027954e6be7bb7de8c63bb44ea2741f1
+RUN set -eux; \
+    git clone https://github.com/landreman/regcoil.git /tmp/regcoil; \
+    cd /tmp/regcoil && git checkout "${REGCOIL_REF}"; \
+    NF_CFLAGS="$(nf-config --fflags)"; \
+    NF_LIBS="$(nf-config --flibs)"; \
+    make -j"$(nproc)" \
+        FC=gfortran \
+        EXTRA_COMPILE_FLAGS="-O2 -ffree-line-length-none -fexternal-blas -fopenmp -fallow-argument-mismatch ${NF_CFLAGS}" \
+        EXTRA_LINK_FLAGS="-fopenmp -lopenblas ${NF_LIBS}"; \
+    install -m 0755 regcoil /usr/local/bin/regcoil; \
+    rm -rf /tmp/regcoil
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
@@ -41,7 +61,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Install bun (for Claude)
 RUN curl -fsSL https://bun.sh/install | bash
 
-# Install Python 3.10 system-wide and expose python3.10 in PATH.
+# Install Python 3.12 system-wide and expose python3.12 in PATH.
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
-RUN uv python install 3.10 \
-    && ln -sf "$(uv python find 3.10)" /usr/local/bin/python3.10
+RUN uv python install 3.12 \
+    && ln -sf "$(uv python find 3.12)" /usr/local/bin/python3.12

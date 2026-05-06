@@ -1,5 +1,5 @@
 {
-    "name": "constellaration_update",
+    "name": "coilstellaration",
     "build": {
         "dockerfile": "Dockerfile",
         "context": "..",
@@ -22,7 +22,7 @@
     },
     "mounts": [
         {
-            "source": "constellaration-devcontainer-home",
+            "source": "coilstellaration-devcontainer-home",
             "target": "/home/vscode",
             "type": "volume"
         },
@@ -33,13 +33,13 @@
         },
         {
             "source": "${localEnv:HOME}/repo",
-            "target": "/home/jhewers/repo",
+            "target": "/workspaces/repo",
             "type": "bind",
             "readonly": true
         },
         {
             "source": "${localEnv:HOME}/constellaration",
-            "target": "/home/jhewers/constellaration",
+            "target": "/workspaces/constellaration",
             "type": "bind",
             "readonly": true
         }
