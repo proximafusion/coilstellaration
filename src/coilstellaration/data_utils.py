@@ -1,25 +1,61 @@
 from __future__ import annotations
 
 import functools
+import itertools
 import logging
+import queue
+import threading
+import time
 import typing
-from collections.abc import Mapping
-from typing import Any, Literal
+import warnings
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from typing import Hashable, Literal
 
 import datasets
 import huggingface_hub
+import jax
+import jax.numpy as jnp
+import jaxtyping as jt
+import numpy as np
+import optax
+import orjson
 import pandas as pd
 import pydantic
+import shortuuid
+from beartype.typing import Any
+from constellaration.geometry import surface_rz_fourier
 from constellaration.mhd import vmec_utils
+from flax import nnx
 
+import wandb
 from coilstellaration import (
+    coilset_utils,
+    data_utils,
+    flax_nnx_checkpoint_util,
     types,
 )
+from coilstellaration.machine_learning import (
+    model_definition,
+)
+from coilstellaration.types import NpOrJaxArray
 
 logger = logging.getLogger(__name__)
 
 
 T = typing.TypeVar("T", bound=pydantic.BaseModel)
+
+
+Strata = Literal["loose", "medium", "tight"]
+StratificationColumn = "benchmark/stratification"
+StaticShapeTrackColumn = "benchmark/fixed_shape_track"
+VariableShapeTrackColumn = "benchmark/variable_shape_track"
+
+
+def get_unique_id() -> str:
+    """Generate a unique ID string."""
+
+    uuid_str = shortuuid.ShortUUID().uuid()
+    return f"D{uuid_str}"
 
 
 def load_object_by_id(
@@ -162,7 +198,7 @@ def load_dataframes(
         columns={"boundary.json": "json_constellaration_boundary"}
     )
     constellaration_df = constellaration_df[
-        ["json_constellaration_boundary", "boundary.n_field_periods", "vmecpp_wout_id"]
+        ["json_constellaration_boundary"]
         + [
             col
             for col in constellaration_df.columns
@@ -175,18 +211,102 @@ def load_dataframes(
         .join(constellaration_df, on="constellaration_boundary_id")
     )
 
-    if not filtered:
-        return merged_df
+    merged_df = merged_df.dropna(
+        axis=0, how="any", subset=list(JSON_COLUMNS + REQUIREMENT_METRICS_COLUMNS)
+    )
 
-    filtered_df = merged_df.loc[
-        merged_df["additional_label/is_suitable_for_ml_baseline"].fillna(False)
-    ].dropna(axis=0, how="any", subset=list(JSON_COLUMNS + REQUIREMENT_METRICS_COLUMNS))
+    return merged_df
+
+
+def load_benchmark_dataframe(
+    track: Literal["fixed_shape", "variable_shape"],
+    stratum: Literal["loose", "medium", "tight"] = "tight",
+    split: Literal["train", "eval"] = "eval",
+) -> pd.DataFrame:
+    df = load_dataframes(split=split, filtered=False)
+
+    track_column = (
+        StaticShapeTrackColumn if track == "fixed_shape" else VariableShapeTrackColumn
+    )
+
+    filtered_df = df.loc[df[track_column] & (df[StratificationColumn] == stratum)]
 
     return filtered_df
 
 
+def load_ml_baseline_dataframe(
+    split: Literal["train", "eval"] = "eval",
+) -> pd.DataFrame:
+    df = load_dataframes(split=split, filtered=False)
+    filtered_df = df.loc[df["baseline_labels/used_for_ml_baseline"].fillna(False)]
+    return filtered_df
+
+
+def load_dataset(
+    df: pd.DataFrame,
+    n: int = 0,
+) -> list[types.EvalData]:
+    """Materialize the deterministic eval split as per-sample lists."""
+    eval_datas = []
+    logger.info("Processing eval rows to build dataset artifacts...")
+    for i, (_, row) in enumerate(df.iterrows()):
+        if n > 0 and i >= n:
+            break
+        eval_data = types.EvalData(
+            boundary=surface_rz_fourier.SurfaceRZFourier.model_validate(
+                orjson.loads(row["json_constellaration_boundary"])
+            ),
+            boundary_id=row["constellaration_boundary_id"],
+            true_coilset=types.Coilset.model_validate(
+                orjson.loads(row["json_desc_coilset"])
+            ),
+            true_metrics=row["desc_metrics_id"],
+            requirement_metrics=data_utils.row_to_requirement_metrics(row.to_dict()),
+        )
+        eval_datas.append(eval_data)
+    logger.info("Assembled evaluation dataset with %d samples.", len(eval_datas))
+    return eval_datas
+
+
+def load_ml_baseline_dataset(
+    split: Literal["train", "eval"] = "eval",
+    n: int = 0,
+) -> list[types.EvalData]:
+    df = data_utils.load_ml_baseline_dataframe(split=split)
+    eval_datas = load_dataset(df, n=n)
+    return eval_datas
+
+
+def load_benchmark_dataset(
+    track: Literal["fixed_shape", "variable_shape"],
+    stratum: Literal["loose", "medium", "tight"] = "tight",
+    split: Literal["train", "eval"] = "eval",
+    n: int = 0,
+) -> list[types.EvalData]:
+    df = data_utils.load_benchmark_dataframe(track=track, stratum=stratum, split=split)
+    eval_datas = load_dataset(df, n=n)
+    return eval_datas
+
+
+def metrics_to_requirement_metrics(metrics: types.Metrics) -> types.RequirementMetrics:
+    return types.RequirementMetrics(
+        min_normalized_coil_to_coil_distance=float(
+            np.min(np.asarray(metrics.normalized_coil_to_coil_min_distances))
+        ),
+        min_normalized_coil_to_plasma_distance=float(
+            np.min(np.asarray(metrics.normalized_coil_to_plasma_min_distances))
+        ),
+        max_normalized_coil_curvature=float(
+            np.max(np.asarray(metrics.normalized_coil_curvatures))
+        ),
+        max_normalized_field_error=float(
+            np.max(np.asarray(metrics.normalized_field_error))
+        ),
+    )
+
+
 def row_to_requirement_metrics(
-    row: Mapping[str, Any],
+    row: Mapping[Hashable, float],
 ) -> types.RequirementMetrics:
     """Build a `RequirementMetrics` from `results.parquet`'s flattened columns."""
     values = [float(row[c]) for c in REQUIREMENT_METRICS_COLUMNS]

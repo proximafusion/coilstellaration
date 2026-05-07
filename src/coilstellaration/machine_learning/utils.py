@@ -1,50 +1,17 @@
 import functools
-import importlib
 import logging
+import pathlib
+from typing import Literal
 
 import jax.numpy as jnp
 import jaxtyping as jt
 import orjson
+import pandas as pd
 from constellaration.geometry import surface_rz_fourier
 
-from coilstellaration import path, types
+from coilstellaration import data_utils, paths, types
 
 logger = logging.getLogger(__name__)
-
-
-@functools.lru_cache(maxsize=10)
-def load_dataset(
-    split: Literal["train", "eval"],
-    n: int = 0,
-) -> list[types.EvalData]:
-    """Materialize the deterministic eval split as per-sample lists."""
-    logger.info(
-        "Loading dataset for split=%r...",
-        split,
-    )
-    eval_df = load_dataframes(
-        split,
-        filtered=True,
-    )
-    eval_datas = []
-    logger.info("Processing eval rows to build dataset artifacts...")
-    for i, (_, row) in enumerate(eval_df.iterrows()):
-        if n > 0 and i >= n:
-            break
-        eval_data = types.EvalData(
-            boundary=surface_rz_fourier.SurfaceRZFourier.model_validate(
-                orjson.loads(row["json_constellaration_boundary"])
-            ),
-            boundary_id=row["constellaration_boundary_id"],
-            true_coilset=types.Coilset.model_validate(
-                orjson.loads(row["json_desc_coilset"])
-            ),
-            true_metrics=row["desc_metrics_id"],
-            requirement_metrics=row_to_requirement_metrics(row.to_dict()),
-        )
-        eval_datas.append(eval_data)
-    logger.info("Assembled evaluation dataset with %d samples.", len(eval_datas))
-    return eval_datas
 
 
 @types.runtime_check_array_sizes
@@ -94,6 +61,7 @@ def calculate_exponential_spectral_scaling_surface(
     return reference_surface.model_copy(update=updates)
 
 
+@types.runtime_check_array_sizes
 def forward_boundary_to_flat(
     boundary: surface_rz_fourier.SurfaceRZFourier,
     *,
@@ -120,6 +88,7 @@ def forward_boundary_to_flat(
     return jnp.concatenate(parts)
 
 
+@types.runtime_check_array_sizes
 def forward_coilset_to_flat(
     coilset: types.Coilset,
     *,
@@ -143,6 +112,7 @@ def forward_coilset_to_flat(
     )
 
 
+@types.runtime_check_array_sizes
 def backward_flat_to_coilset(
     flat: jt.Float[jt.Array, " n_flat_coilset"],
     *,
@@ -175,15 +145,16 @@ def backward_flat_to_coilset(
     )
 
 
+@types.runtime_check_array_sizes
 def read_checkpoint_from_id(
     model_type: types.AnyModelLiteral,
     checkpoint_id: str,
-    model_data_path: str | None = None,
+    model_data_path: pathlib.Path | None = None,
 ) -> types.AnyModelCheckpoint:
     """Read the checkpoint stored at `checkpoint_id` with its declared type."""
 
     if model_data_path is None:
-        model_data_path = path.model_path(checkpoint_id)
+        model_data_path = paths.model_path(checkpoint_id)
 
     match model_type:
         case "mlp":
@@ -193,7 +164,8 @@ def read_checkpoint_from_id(
         case "res_mlp":
             ckpt = types.ResMlpCoilPredictorCheckpoint
         case "res_mlp_ensemble":
-            ckpt = types.ResMlpEnsembleCoilPredictorCheckpoint, checkpoint_id
-
+            ckpt = types.ResMlpEnsembleCoilPredictorCheckpoint
         case _:
             raise ValueError(f"Unsupported model_type: {model_type}")
+    ckpt = ckpt.model_validate_json(model_data_path.read_text())
+    return ckpt

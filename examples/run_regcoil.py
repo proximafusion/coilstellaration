@@ -5,14 +5,12 @@ from coilstellaration import (
     data_generation_tasks_no_proxima,
     data_utils,
     desc_utils,
+    paths,
     plot_utils,
     types,
 )
 
 logging.basicConfig(level=logging.INFO)
-
-OUTPUTS_PATH = pathlib.Path("/home/vscode/tmp/outputs/coilstellaration")
-OUTPUTS_PATH.mkdir(parents=True, exist_ok=True)
 
 if __name__ == "__main__":
     logger = logging.getLogger(__file__)
@@ -49,12 +47,12 @@ if __name__ == "__main__":
         )
     )
     logger.info("Writing coilset to regcoil_coilset.json")
-    with pathlib.Path(OUTPUTS_PATH / "regcoil_coilset.json").open("w") as f:
+    with pathlib.Path(paths.OUTPUTS_PATH / "regcoil_coilset.json").open("w") as f:
         f.write(coilset_with_B_1_T.model_dump_json())
 
     logger.info("Plotting initial coilset and equilibrium...")
     figure = plot_utils.plot_coilset_and_equilibrium(desc_eq, coilset_with_B_1_T)
-    figure.write_html(OUTPUTS_PATH / "regcoil_coilset_and_equilibrium.html")
+    figure.write_html(paths.OUTPUTS_PATH / "regcoil_coilset_and_equilibrium.html")
 
     logger.info("Evaluating coilset metrics...")
     metrics = data_generation_tasks_no_proxima.evaluate_coilset_metrics(
@@ -66,5 +64,7 @@ if __name__ == "__main__":
     )
 
     logger.info("Writing metrics to desc_coilset_metrics.json")
-    with pathlib.Path(OUTPUTS_PATH / "regcoil_coilset_metrics.json").open("w") as f:
+    with pathlib.Path(paths.OUTPUTS_PATH / "regcoil_coilset_metrics.json").open(
+        "w"
+    ) as f:
         f.write(metrics.model_dump_json())

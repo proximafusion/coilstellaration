@@ -15,57 +15,25 @@ logging.getLogger("storage.google_cloud").setLevel(logging.ERROR)
 logging.getLogger("absl").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
-from coilstellaration import types
-from coilstellaration.machine_learning import train_tasks
-
-
-def main() -> None:
-    base_config = types.TrainConfig(
-        steps=40000,
-        warmup_steps=100,
-        batch_size=64,
-        eval_batch_size=2213,
-        eval_every=10,
-        max_wall_time_s=60 * 60,
-        early_stopping_patience=4000,
-    )
-
-    configs_to_run = [
-        base_config.model_copy(update={"model_type": "mlp_ensemble"}),
-        base_config.model_copy(update={"model_type": "mlp"}),
-        base_config.model_copy(update={"model_type": "res_mlp_ensemble"}),
-        base_config.model_copy(update={"model_type": "res_mlp"}),
-    ] * 3
-
-    checkpoints = defaultdict(list)
-    for train_config in configs_to_run:
-        train_config = train_config.model_copy(
-            update={
-                "seed": int(time.time_ns() % (2**32)),
-            }
-        )
-        match train_config.model_type:
-            case "mlp":
-                train_task = train_tasks.train_coil_predictor
-            case "mlp_ensemble":
-                train_task = train_tasks.train_mlp_ensemble_coil_predictor
-            case "res_mlp":
-                train_task = train_tasks.train_res_mlp_coil_predictor
-            case "res_mlp_ensemble":
-                train_task = train_tasks.train_res_mlp_ensemble_coil_predictor
-            case _:
-                raise ValueError(f"Unsupported model_type: {train_config.model_type}")
-        checkpoint = train_task.stored(train_config)
-        logger.info("Saved model checkpoint with ID: %s", checkpoint.dapper_storage_id)
-        checkpoints[train_config.model_type].append(checkpoint)
-        logger.info(
-            "Checkpoints: %s",
-            {k: [c.dapper_storage_id for c in v] for k, v in checkpoints.items()},
-        )
-        jax.clear_caches()
-    logger.info("All done!")
-    return
-
+from coilstellaration import data_utils, paths, types
+from coilstellaration.machine_learning import train, train_tasks
 
 if __name__ == "__main__":
-    main()
+    train_config = types.TrainConfig(
+        steps=4000,
+        warmup_steps=100,
+        batch_size=64,
+        eval_batch_size=2266,  # full eval set
+        eval_every=10,
+        max_wall_time_s=60 * 60,
+        model_type="mlp",
+    )
+
+    checkpoint = train.train(train_config)
+
+    model_path = (paths.OUTPUTS_PATH / data_utils.get_unique_id()).with_suffix(".json")
+    logger.info("Saving trained model checkpoint to %s", model_path)
+    with model_path.open("w") as f:
+        f.write(checkpoint.model_dump_json())
+
+    logger.info("All done!")

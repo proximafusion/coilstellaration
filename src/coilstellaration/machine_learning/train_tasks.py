@@ -2,16 +2,16 @@
 
 import logging
 
-import dapper
+from coilstellaration import (
+    types,
+)
 from coilstellaration.machine_learning import (
     train,
-    types,
 )
 
 logger = logging.getLogger(__name__)
 
 
-@dapper.task
 def train_coil_predictor(
     train_config: types.TrainConfig,
 ) -> types.CoilPredictorCheckpoint:
@@ -24,13 +24,12 @@ def train_coil_predictor(
         )
         train_config = train_config.model_copy(update={"model_type": "mlp"})
     checkpoint = train.train(train_config)
-    assert isinstance(checkpoint.config, types.CoilPredictorConfig), (
-        "train() returned a non-MLP checkpoint despite model_type='mlp'"
-    )
+    assert isinstance(
+        checkpoint.config, types.CoilPredictorConfig
+    ), "train() returned a non-MLP checkpoint despite model_type='mlp'"
     return checkpoint  # type: ignore[return-value]
 
 
-@dapper.task
 def train_mlp_ensemble_coil_predictor(
     train_config: types.TrainConfig,
 ) -> types.MlpEnsembleCoilPredictorCheckpoint:
@@ -50,7 +49,6 @@ def train_mlp_ensemble_coil_predictor(
     return checkpoint  # type: ignore[return-value]
 
 
-@dapper.task
 def train_res_mlp_coil_predictor(
     train_config: types.TrainConfig,
 ) -> types.ResMlpCoilPredictorCheckpoint:
@@ -63,13 +61,12 @@ def train_res_mlp_coil_predictor(
         )
         train_config = train_config.model_copy(update={"model_type": "res_mlp"})
     checkpoint = train.train(train_config)
-    assert isinstance(checkpoint.config, types.ResMlpCoilPredictorConfig), (
-        "train() returned a non-ResMLP checkpoint despite model_type='res_mlp'"
-    )
+    assert isinstance(
+        checkpoint.config, types.ResMlpCoilPredictorConfig
+    ), "train() returned a non-ResMLP checkpoint despite model_type='res_mlp'"
     return checkpoint  # type: ignore[return-value]
 
 
-@dapper.task
 def train_res_mlp_ensemble_coil_predictor(
     train_config: types.TrainConfig,
 ) -> types.ResMlpEnsembleCoilPredictorCheckpoint:

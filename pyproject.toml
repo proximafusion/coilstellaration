@@ -35,11 +35,13 @@ dependencies = [
   "datasets",
   "scikit-image",
   "netCDF4",
+  "shortuuid",
   "desc-opt==0.17.1",
   # equinox <0.13.1 ships a Flatten class without __weakref__ in __slots__,
   # which breaks lineax under jax >=0.9 with "cannot create weak reference
   # to 'Flatten' object". Upper bound matches desc-opt 0.17.1's metadata.
   "equinox>=0.13.1,<=0.13.6",
+  "wandb"
 ]
 
 [tool.hatch.metadata]

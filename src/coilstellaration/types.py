@@ -1,9 +1,11 @@
 import base64
 import time
 from pathlib import Path
-from typing import Annotated, Any, Literal, Self
+from typing import Annotated, Any, Iterable, Literal, Self
 
 import beartype
+import jax
+import jaxtyping as jt
 import numpy as np
 import pydantic
 from constellaration.geometry import surface_rz_fourier
@@ -19,15 +21,131 @@ RangeT = tuple[ScalarT, ScalarT]
 ChoicesT = frozenset[ScalarT]
 Binary = object()
 
+pytree.register_pydantic_data(surface_rz_fourier.SurfaceRZFourier)
+
 
 def runtime_check_array_sizes(f):
     return jaxtyped(typechecker=beartype.beartype)(f)
+
+
+def _jax_to_python(value: Any) -> Any:
+    if isinstance(value, jt.Array):
+        np_value = np.asarray(value)
+        return np_value.item() if np_value.ndim == 0 else np_value.tolist()
+    if isinstance(value, dict):
+        return {k: _jax_to_python(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return type(value)(_jax_to_python(v) for v in value)
+    return value
 
 
 class BaseModel(pydantic_numpy.BaseModelWithNumpy):
     model_config = pydantic.ConfigDict(
         arbitrary_types_allowed=True,
     )
+
+    @pydantic.field_serializer("*", mode="wrap", when_used="json")
+    def _serialize_field(
+        self,
+        value: Any,
+        default_handler: pydantic.SerializerFunctionWrapHandler,
+        info: pydantic.FieldSerializationInfo,
+    ):
+        value = pydantic_numpy.serialize_special_field(
+            type(self), info.field_name, value
+        )
+        value = _jax_to_python(value)
+        return default_handler(value)
+
+
+def pydantic_flatten[T: BaseModel](
+    something: T,
+    meta_fields: list[str] | None = None,
+) -> tuple[
+    tuple,
+    tuple[type[T], tuple[str, ...], tuple[str, ...], tuple[Any, ...]],
+]:
+    """A jax pytree compatible implementation of flattening pydantic objects.
+
+    A general pydantic.BaseModel is flattened into a tuple of children and aux_data.
+    aux_data is used to reconstruct the same type of Pydantic in unflatten. meta_fields
+    are used to specify fields that should not be visible to pytree operations. See
+    https://jax.readthedocs.io/en/latest/_autosummary/jax.tree_util.register_dataclass.html
+    for details.
+    """
+
+    if meta_fields is None:
+        meta_fields = []
+
+    data_fields = [
+        field for field in type(something).model_fields if field not in meta_fields
+    ]
+
+    aux_data = (
+        type(something),
+        tuple(data_fields),
+        tuple(meta_fields),
+        tuple(getattr(something, field) for field in meta_fields),
+    )
+    children = tuple(
+        (jax.tree_util.GetAttrKey(field), getattr(something, field))
+        for field in data_fields
+    )
+    return children, aux_data
+
+
+def pydantic_unflatten[T: BaseModel](
+    aux_data: tuple[type[T], tuple[str, ...], tuple[str, ...], tuple[Any, ...]],
+    children: Iterable[Any],
+) -> T:
+    """A jax pytree compatible implementation of un-flattening Pydantic objects.
+
+    pydantic_unflatten is the inverse of pydantic_flatten. Using the type annotation
+    and children-meta_fields split in aux_data, it constructs a new Pydantic object.
+
+    Note that this object will typically not validate against the Pydantic
+    specification. Pytrees are used to manipulate the data stored in leafs and thus can
+    contain anything. Pytrees only make statements about the structure of the data, not
+    the content. An example of data manipulation might be to filter data in a pytree by
+    type:
+
+    ```
+    my_data = MyModel(...)
+    strings = jax.tree_map(lambda x: x if isinstance(x, str) else None, my_data)
+    ```
+
+    See
+    https://jax.readthedocs.io/en/latest/pytrees.html#custom-pytrees-and-initialization
+    for details.
+    """
+    cls, data_fields, meta_fields, metas = aux_data
+    kwargs = {
+        **dict(zip(data_fields, children)),
+        **dict(zip(meta_fields, metas)),
+    }
+    return cls.model_construct(**kwargs)
+
+
+def register_pydantic_data[T: BaseModel](
+    cls: type[T], meta_fields: list[str] | None = None
+) -> type[T]:
+    """Register a pydantic.BaseModel class for jax pytree compatibility.
+
+    Args:
+        cls: The pydantic.BaseModel class to register.
+        meta_fields: Fields that should be part of aux_data rather becoming children.
+            Defaults to None.
+
+    Returns:
+        The registered class, to enable the function to be used as a decorator.
+    """
+    jax.tree_util.register_pytree_with_keys(
+        cls,
+        lambda x: pydantic_flatten(x, meta_fields),
+        pydantic_unflatten,
+    )
+
+    return cls
 
 
 class Blob(pydantic.BaseModel):
@@ -234,7 +352,7 @@ class DescOptimizerSettings(
     """Additional options to pass to the DESC optimizer."""
 
 
-@pytree.register_pydantic_data
+@register_pydantic_data
 class Coilset(
     BaseModel,
 ):
@@ -359,7 +477,7 @@ class DescOutput(
     """Convergence diagnostics from the DESC optimization."""
 
 
-@pytree.register_pydantic_data
+@register_pydantic_data
 class Metrics(
     BaseModel,
 ):
@@ -764,7 +882,6 @@ ResMlpEnsembleCoilPredictorCheckpoint = FlaxNnxCheckpoint[
 ]
 
 
-@pytree.register_pydantic_data
 class Batch(BaseModel):
     boundaries: surface_rz_fourier.SurfaceRZFourier
     """Batched surface; leaves have leading dim ``batch_size``."""
@@ -785,6 +902,8 @@ class Batch(BaseModel):
     Every coilset in the batch is padded to `(2*N + 1)` modes.
     """
 
+
+pytree.register_pydantic_data(Batch, meta_fields=["batch_max_fourier_order"])
 
 AnyModelLiteral = Literal["mlp", "res_mlp", "mlp_ensemble", "res_mlp_ensemble"]
 AnyModelConfig = (

@@ -20,15 +20,15 @@ import numpy as np
 import pandas as pd
 
 from coilstellaration import types
-from coilstellaration.benchmark import _types
+from coilstellaration.benchmark import types as benchmark_types
 
 
 def score_instance(
     boundary_id: str,
     achieved: types.RequirementMetrics,
     target: types.RequirementMetrics,
-    settings: _types.ScoringSettings,
-) -> _types.InstanceScore:
+    settings: benchmark_types.ScoringSettings,
+) -> benchmark_types.InstanceScore:
     """End-to-end scoring of one test instance.
 
     Args:
@@ -44,12 +44,12 @@ def score_instance(
     violations = compute_violations(achieved, target, settings.target_floor)
     soft = apply_soft_score(violations, settings)
     aggregate = aggregate_metrics(soft, settings)
-    metric_scores = _types.MetricScores(
+    metric_scores = benchmark_types.MetricScores(
         violations=violations,
         soft_scores=soft,
         strictly_feasible=all(v == 0.0 for v in violations.values()),
     )
-    return _types.InstanceScore(
+    return benchmark_types.InstanceScore(
         boundary_id=boundary_id,
         metric_scores=metric_scores,
         aggregate=aggregate,
@@ -59,8 +59,8 @@ def score_instance(
 def score_eval_data(
     eval_data: types.EvalData,
     achieved: types.RequirementMetrics,
-    settings: _types.ScoringSettings,
-) -> _types.InstanceScore:
+    settings: benchmark_types.ScoringSettings,
+) -> benchmark_types.InstanceScore:
     """`score_instance` driven by an `EvalData`.
 
     Uses `eval_data.boundary_id` and `eval_data.requirement_metrics` (the
@@ -76,12 +76,12 @@ def score_eval_data(
 
 
 def score_benchmark(
-    instance_scores: Iterable[_types.InstanceScore],
-    settings: _types.ScoringSettings,
-) -> _types.BenchmarkScore:
+    instance_scores: Iterable[benchmark_types.InstanceScore],
+    settings: benchmark_types.ScoringSettings,
+) -> benchmark_types.BenchmarkScore:
     """Aggregate per-instance scores into headline + diagnostic summaries."""
     instances = list(instance_scores)
-    return _types.BenchmarkScore(
+    return benchmark_types.BenchmarkScore(
         per_instance=instances,
         summaries=aggregate_instances(instances, settings),
     )
@@ -98,7 +98,7 @@ def compute_violations(
     for lower-bound constraints `v_i = max(0, (tau - g) / max(|tau|, floor))`.
     """
     violations: dict[str, float] = {}
-    for field, direction in _types.REQUIREMENT_METRIC_DIRECTIONS.items():
+    for field, direction in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS.items():
         g = float(getattr(achieved, field))
         tau = float(getattr(target, field))
         denom = max(abs(tau), target_floor)
@@ -111,7 +111,7 @@ def compute_violations(
 
 def apply_soft_score(
     violations: dict[str, float],
-    settings: _types.ScoringSettings,
+    settings: benchmark_types.ScoringSettings,
 ) -> dict[str, float]:
     """Map `v_i >= 0` to `s_i in [0, 1]` per `settings.soft_score`."""
     soft: dict[str, float] = {}
@@ -126,7 +126,7 @@ def apply_soft_score(
 
 def aggregate_metrics(
     soft_scores: dict[str, float],
-    settings: _types.ScoringSettings,
+    settings: benchmark_types.ScoringSettings,
 ) -> float:
     """Collapse per-metric soft scores to a per-instance scalar."""
     fields = list(soft_scores)
@@ -152,8 +152,8 @@ def aggregate_metrics(
 
 
 def aggregate_instances(
-    instance_scores: Iterable[_types.InstanceScore],
-    settings: _types.ScoringSettings,
+    instance_scores: Iterable[benchmark_types.InstanceScore],
+    settings: benchmark_types.ScoringSettings,
 ) -> dict[str, float]:
     """Compute the diagnostics named in `settings.instance_aggregations`."""
     instances = list(instance_scores)
@@ -178,7 +178,7 @@ def aggregate_instances(
 
 
 def instance_score_to_row(
-    instance_score: _types.InstanceScore,
+    instance_score: benchmark_types.InstanceScore,
 ) -> dict[str, int | float | bool]:
     """Flatten an `InstanceScore` into a row for an analysis dataframe.
 
@@ -199,7 +199,7 @@ def instance_score_to_row(
 
 
 def instance_scores_to_dataframe(
-    instance_scores: Iterable[_types.InstanceScore],
+    instance_scores: Iterable[benchmark_types.InstanceScore],
     weights: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """Wide dataframe with every per-metric value and every aggregation variant.

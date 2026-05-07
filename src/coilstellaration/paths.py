@@ -1,3 +1,4 @@
+import pathlib
 from pathlib import Path
 
 _PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -25,3 +26,7 @@ def model_path(name: str) -> Path:
     if not candidate.exists():
         raise FileNotFoundError(f"No checkpoint at {candidate}")
     return candidate
+
+
+OUTPUTS_PATH = pathlib.Path.home() / "tmp" / "outputs" / "coilstellaration"
+OUTPUTS_PATH.mkdir(parents=True, exist_ok=True)

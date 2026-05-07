@@ -1,5 +1,6 @@
 from typing import Protocol
 
+import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 from constellaration.geometry import surface_rz_fourier
@@ -604,3 +605,39 @@ def read_model_from_checkpoint(
     model.eval()
 
     return model
+
+
+@types.runtime_check_array_sizes
+def predict_coilsets(
+    model: AnyModel,
+    eval_dataset: list[types.EvalData],
+) -> list[types.EvalData]:
+    """Restore the model and run it on every eval boundary in one batched call."""
+    n_modes_coils_max = model.config.n_modes_coils_max
+    n_max_fourier_order = (n_modes_coils_max - 1) // 2
+    batched_call = jax.jit(
+        jax.vmap(jax.tree_util.Partial(model, fourier_order=n_max_fourier_order))
+    )
+    boundaries = [eval_data.boundary for eval_data in eval_dataset]
+    batched_boundaries = jax.tree.map(lambda *xs: jnp.stack(xs, axis=0), *boundaries)
+    requirement_metrics = [eval_data.requirement_metrics for eval_data in eval_dataset]
+    batched_requirement_metrics = jax.tree.map(
+        lambda *xs: jnp.stack(xs, axis=0), *requirement_metrics
+    )
+    predicted_batched = batched_call(batched_boundaries, batched_requirement_metrics)
+
+    leaves, treedef = jax.tree.flatten(predicted_batched)
+
+    leaves = [jnp.moveaxis(x, 0, 0) for x in leaves]
+    stack_length = leaves[0].shape[0]
+    predicted_list = [
+        jax.tree.unflatten(treedef, [x[i] for x in leaves]) for i in range(stack_length)
+    ]
+
+    updated_eval_dataset = []
+    for eval_data, predicted in zip(eval_dataset, predicted_list, strict=True):
+        updated_eval_data = eval_data.model_copy(
+            update=dict(predicted_coilset=predicted)
+        )
+        updated_eval_dataset.append(updated_eval_data)
+    return updated_eval_dataset

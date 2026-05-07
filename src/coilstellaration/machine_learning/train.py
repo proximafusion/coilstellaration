@@ -5,7 +5,8 @@ import logging
 import queue
 import threading
 import time
-from collections.abc import Iterator, Sequence
+import warnings
+from collections.abc import Callable, Iterator, Sequence
 from typing import Literal
 
 import jax
@@ -14,13 +15,11 @@ import jaxtyping as jt
 import optax
 import orjson
 import pandas as pd
+import pydantic
 import wandb
+from beartype.typing import Any
+from constellaration.geometry import surface_rz_fourier
 from flax import nnx
-from geometry.surface import surface_types
-from util import pytree
-from util.types import NpOrJaxArray
-from util.wandb import wandb_types
-from version_control import git
 
 from coilstellaration import (
     coilset_utils,
@@ -30,8 +29,8 @@ from coilstellaration import (
 )
 from coilstellaration.machine_learning import (
     model_definition,
-    types,
 )
+from coilstellaration.types import NpOrJaxArray
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ def compute_coil_currents_stats(
 
     logger.info("Computing mean currents from %d training rows...", len(train_df))
     for json_str in train_df["json_desc_coilset"].dropna():
-        c = types.CoilStellarationCoilset.model_validate(orjson.loads(json_str))
+        c = types.Coilset.model_validate(orjson.loads(json_str))
         currents = jnp.asarray(c.currents)
         welford.update(values=currents)
     stats = welford.compute()
@@ -56,13 +55,11 @@ def compute_coil_currents_stats(
 def _decode_coilset(
     row: pd.Series,
 ) -> types.Coilset:
-    return types.CoilStellarationCoilset.model_validate(
-        orjson.loads(row["json_desc_coilset"])
-    )
+    return types.Coilset.model_validate(orjson.loads(row["json_desc_coilset"]))
 
 
-def _decode_boundary(row: pd.Series) -> surface_types.SurfaceRZFourier:
-    return surface_types.SurfaceRZFourier.model_validate(
+def _decode_boundary(row: pd.Series) -> surface_rz_fourier.SurfaceRZFourier:
+    return surface_rz_fourier.SurfaceRZFourier.model_validate(
         orjson.loads(row["json_constellaration_boundary"])
     )
 
@@ -79,6 +76,27 @@ def tree_unstack[T](tree: T, axis: int = 0) -> list[T]:
     return [
         jax.tree.unflatten(treedef, [x[i] for x in leaves]) for i in range(stack_length)
     ]
+
+
+def tree_map[T](
+    f: Callable[..., Any],
+    tree: T,
+    *rest,
+    is_leaf: Callable[[Any], bool] | None = None,
+) -> T:
+    if not isinstance(tree, pydantic.BaseModel):
+        return jax.tree_util.tree_map(f, tree, *rest, is_leaf=is_leaf)
+
+    TreeType = type(tree)
+    rest = [
+        (
+            TreeType.model_construct(**r.__dict__)
+            if not jax.tree.structure(tree) == jax.tree.structure(r)
+            else r
+        )
+        for r in rest
+    ]
+    return jax.tree.map(f, tree, *rest, is_leaf=is_leaf)
 
 
 def make_batches(
@@ -138,7 +156,7 @@ def make_batches(
                 subset_coilsets,
                 subset_masks,
                 subset_requirement_metrics,
-            ) = pytree.tree_map(
+            ) = tree_map(
                 lambda a: a[batch_indices],
                 (all_boundaries, all_coilsets, all_masks, all_requirement_metrics),
             )
@@ -192,7 +210,7 @@ def infer_max_fourier_order(train_df: pd.DataFrame) -> int:
         raise ValueError("train_df is empty (no decodable coilsets)")
     max_order = 0
     for _, json_str in series.items():
-        coilset = types.CoilStellarationCoilset.model_validate(orjson.loads(json_str))
+        coilset = types.Coilset.model_validate(orjson.loads(json_str))
         max_order = max(max_order, int(coilset.fourier_order))
     return max_order
 
@@ -274,17 +292,17 @@ def _resolve_model_config(
     rows = train_df.dropna(subset=list(data_utils.JSON_COLUMNS)).head(2)
     if len(rows) < 1:
         raise RuntimeError("training set is empty after filtering")
-    boundary_a = surface_types.SurfaceRZFourier.model_validate(
+    boundary_a = surface_rz_fourier.SurfaceRZFourier.model_validate(
         orjson.loads(rows.iloc[0]["json_constellaration_boundary"])
     )
-    coilset_a = types.CoilStellarationCoilset.model_validate(
+    coilset_a = types.Coilset.model_validate(
         orjson.loads(rows.iloc[0]["json_desc_coilset"])
     )
     if len(rows) >= 2:
-        boundary_b = surface_types.SurfaceRZFourier.model_validate(
+        boundary_b = surface_rz_fourier.SurfaceRZFourier.model_validate(
             orjson.loads(rows.iloc[1]["json_constellaration_boundary"])
         )
-        coilset_b = types.CoilStellarationCoilset.model_validate(
+        coilset_b = types.Coilset.model_validate(
             orjson.loads(rows.iloc[1]["json_desc_coilset"])
         )
         if (
@@ -328,17 +346,11 @@ def train(
     The returned checkpoint type matches the chosen architecture.
     """
     if jax.config.read("jax_enable_x64"):
-        raise RuntimeError(
+        warnings.warn(
             "JAX is configured for float64 (jax_enable_x64=True). Training in "
             "float64 roughly halves CPU throughput vs float32. Unset "
             "JAX_ENABLE_X64 or call jax.config.update('jax_enable_x64', False) "
             "before importing this module."
-        )
-
-    wandb_settings = train_config.wandb_settings
-    if wandb_settings is None:
-        wandb_settings = wandb_types.WandBSettings(
-            project="constellaration_update_coil_predictor"
         )
 
     logger.info("Loading data frames...")
@@ -459,13 +471,9 @@ def train(
         return _loss_fn(model, batch)
 
     wandb.init(
-        project=wandb_settings.project,
-        id=wandb_settings.id,
-        name=wandb_settings.id,
-        mode=wandb_settings.mode,
+        project="coilstellaration",
         config={
             "train_config": resolved_train_config.model_dump(mode="json"),
-            "git_sha": git.get_git_info().commit or "unknown",
             "jax_version": jax.__version__,
             "jax_devices": [str(d) for d in jax.devices()],
             "param_count": int(
@@ -611,7 +619,7 @@ def _current_mse_unmasked(
 @nnx.vmap(in_axes=(None, 0, 0, None))
 def _eval_model(
     model: nnx.Module,
-    boundary: surface_types.SurfaceRZFourier,
+    boundary: surface_rz_fourier.SurfaceRZFourier,
     requirement_metrics: types.RequirementMetrics,
     max_fourier_order: int,
 ) -> types.Coilset:
@@ -622,7 +630,7 @@ def _eval_model(
 @nnx.vmap(in_axes=(None, 0, 0, None))
 def _eval_per_member(
     model: model_definition.AnyEnsembleModel,
-    boundary: surface_types.SurfaceRZFourier,
+    boundary: surface_rz_fourier.SurfaceRZFourier,
     requirement_metrics: types.RequirementMetrics,
     max_fourier_order: int,
 ) -> types.Coilset:

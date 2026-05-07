@@ -6,8 +6,9 @@ the package `README.md` for the rationale behind each design choice.
 
 from typing import Literal, Self
 
-import dapper
 import pydantic
+
+from coilstellaration.types import BaseModel
 
 ConstraintDirection = Literal["lower_bound", "upper_bound"]
 """Direction of a `RequirementMetrics` constraint.
@@ -29,7 +30,7 @@ canonical order used by all scoring outputs.
 """
 
 
-class ScoringSettings(dapper.DapperData):
+class ScoringSettings(BaseModel):
     """Soft-feasibility scoring of a predicted coilset against `RequirementMetrics`.
 
     See `scoring.score_instance` for the full pipeline: per-metric normalized
@@ -122,7 +123,7 @@ class ScoringSettings(dapper.DapperData):
         return self
 
 
-class MetricScores(dapper.DapperData):
+class MetricScores(BaseModel):
     """Per-metric soft-feasibility scores for one instance."""
 
     violations: dict[str, float]
@@ -133,7 +134,7 @@ class MetricScores(dapper.DapperData):
     """True iff every `v_i == 0` (all hard bounds satisfied)."""
 
 
-class InstanceScore(dapper.DapperData):
+class InstanceScore(BaseModel):
     """Per-instance score for one test boundary + requirements pair."""
 
     boundary_id: str
@@ -142,14 +143,9 @@ class InstanceScore(dapper.DapperData):
     """Per-instance scalar produced by `ScoringSettings.metric_aggregation`."""
 
 
-class BenchmarkScore(dapper.DapperData):
+class BenchmarkScore(BaseModel):
     """Aggregate score across the eval set for a single model."""
 
     per_instance: list[InstanceScore]
     summaries: dict[str, float]
     """Keyed by entries in `ScoringSettings.instance_aggregations`."""
-
-
-# Note: `ScoreModelBatchSpec` and `ScoreModelBatchResult` (and `EvalSet`) live
-# in `_batch_types.py` to keep this module's import graph light for notebook
-# users. Cloud-only callers should import them directly from `_batch_types`.
