@@ -1,0 +1,135 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "coilstellaration"
+dynamic = ["version"]
+description = 'Code for analyzing and evaluating stellarator boundaries and coilsets'
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "Jan-Hendrik Ewers", email = "jhewers@proximafusion.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "constellaration @ git+https://github.com/jhewers-pf/constellaration.git",
+  "beartype",
+  "flax",
+  "jax>=0.6.2",
+  "optax",
+  "orbax-checkpoint",
+  "matplotlib",
+  "plotly",
+  "tabulate",
+  "tqdm",
+  "huggingface_hub",
+  "datasets",
+  "scikit-image",
+  "netCDF4",
+  "shortuuid",
+  "desc-opt==0.17.1",
+  # equinox <0.13.1 ships a Flatten class without __weakref__ in __slots__,
+  # which breaks lineax under jax >=0.9 with "cannot create weak reference
+  # to 'Flatten' object". Upper bound matches desc-opt 0.17.1's metadata.
+  "equinox>=0.13.1,<=0.13.6",
+  "wandb"
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[project.urls]
+Documentation = "https://github.com/proximafusion/coilstellaration#readme"
+Issues = "https://github.com/proximafusion/coilstellaration/issues"
+Source = "https://github.com/proximafusion/coilstellaration"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/coilstellaration/__about__.py"
+
+[project.optional-dependencies]
+test = ["pytest"]
+lint = ["pre-commit"]
+
+[tool.hatch.envs.default]
+path = "venv"
+
+[tool.hatch.envs.test]
+dependencies = ["pytest"]
+
+[tool.hatch.envs.lint]
+extra-dependencies = [
+  "ruff"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.build]
+packages = ["src/coilstellaration"]
+include = [
+  "src/coilstellaration/**",
+  "README.md",
+  "LICENSE",
+]
+
+[tool.coverage.run]
+source_pkgs = ["coilstellaration", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/coilstellaration/__about__.py",
+]
+
+[tool.coverage.paths]
+coilstellaration = ["src/coilstellaration", "*/coilstellaration/src/coilstellaration"]
+tests = ["tests", "*/coilstellaration/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+extend-select = [
+  "ARG",      # flake8-unused-arguments
+  "EXE",      # flake8-executable
+  "E501",     # line-too-long
+  "FURB",     # refurb
+  "G",        # flake8-logging-format
+  "ICN",      # flake8-import-conventions
+  "NPY",      # NumPy specific rules
+  "PD",       # pandas-vet
+  "PT",       # flake8-pytest-style
+  "PTH",      # flake8-use-pathlib
+  "YTT",      # flake8-2020
+]
+ignore = [
+  "F722",     # Disable 'forward-annotation-syntax-error' for jaxtyping compatibility, see https://docs.kidger.site/jaxtyping/faq/#flake8-or-ruff-are-throwing-an-error
+]
+
+[tool.isort]
+profile = "black"
+
+[tool.pyright]
+typeCheckingMode = "basic"
+venvPath = "."
+venv = "venv"
+# Ignore files that import modules not yet ported; remove entries as tasks complete.
+ignore = []
