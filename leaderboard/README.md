@@ -1,5 +1,5 @@
 ---
-title: Example Leaderboard Template
+title: Coilstellaration Bench
 emoji: 🥇
 colorFrom: green
 colorTo: indigo
