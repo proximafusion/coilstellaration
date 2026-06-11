@@ -25,6 +25,7 @@ dependencies = [
     "tokenizers>=0.15.0",
     "sentencepiece",
     "coilstellaration @ git+ssh://git@github.com/proximafusion/coilstellaration.git@03d1dc2",
+    "onnxruntime",
 ]
 
 [dependency-groups]
@@ -33,6 +34,8 @@ dev = [
     "isort",
     "ruff",
     "pre-commit",
+    "pytest",
+    "onnx",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -54,3 +57,7 @@ line_length = 119
 
 [tool.black]
 line-length = 119
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: end-to-end tests that hit the network and run physics"]

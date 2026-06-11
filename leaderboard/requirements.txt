@@ -8,6 +8,7 @@ gradio_client
 huggingface-hub>=0.18.0
 matplotlib
 numpy
+onnxruntime
 pandas
 python-dateutil
 tqdm
