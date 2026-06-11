@@ -10,14 +10,15 @@ from src.leaderboard.read_evals import get_raw_eval_results
 
 def get_leaderboard_df(results_path: str, requests_path: str, cols: list, benchmark_cols: list) -> pd.DataFrame:
     """Creates a dataframe from all the individual experiment results"""
-    raw_data = get_raw_eval_results(results_path, requests_path)
-    all_data_json = [v.to_dict() for v in raw_data]
+    all_data_json = get_raw_eval_results(results_path)
 
     df = pd.DataFrame.from_records(all_data_json)
-    df = df.sort_values(by=[AutoEvalColumn.average.name], ascending=False)
-    df = df[cols].round(decimals=2)
+    if df.empty:
+        return df
+    df = df.sort_values(by=[AutoEvalColumn.overall.name], ascending=False)
+    df = df[cols].round(decimals=3)
 
-    # filter out if any of the benchmarks have not been produced
+    # filter out rows missing a track mean
     df = df[has_no_nan_values(df, benchmark_cols)]
     return df
 
