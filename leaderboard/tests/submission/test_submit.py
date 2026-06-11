@@ -58,6 +58,7 @@ def test_submission_rejects_non_onnx_path(tmp_path, monkeypatch):
 
     assert ".onnx" in out
     assert "entry" not in captured  # nothing queued
+    assert "download" not in captured  # suffix check runs before any download
 
 
 def test_submission_rejects_duplicate(tmp_path, monkeypatch):
@@ -73,3 +74,4 @@ def test_submission_rejects_duplicate(tmp_path, monkeypatch):
 
     assert "already" in out.lower()
     assert "entry" not in captured
+    assert "download" not in captured  # dedup fires before the download

@@ -21,8 +21,8 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     if not submitter:
         return styled_error("Please enter a submitter name or contact.")
     revision = revision or "main"
-    onnx_path = (onnx_path or ONNX_FILENAME).strip()
-    if not onnx_path.endswith(".onnx"):
+    onnx_path = (onnx_path or ONNX_FILENAME).strip().lstrip("/")
+    if not onnx_path.lower().endswith(".onnx"):
         return styled_error("The model file path must end in `.onnx`.")
     k_samples = int(k_samples) if stochastic else 1
 
@@ -45,6 +45,9 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     except Exception as exc:  # noqa: BLE001
         logger.warning("Repo info check failed for %s: %s", model, exc)
         return styled_error(f'Model "{model}" was not found or is not accessible: {exc}')
+    if not commit_hash:
+        logger.warning("Could not resolve a commit hash for %s@%s", model, revision)
+        return styled_error(f'Could not resolve a commit hash for "{model}" at revision "{revision}".')
 
     # Reject an identical (model, commit, file) submission already in the queue.
     if submission_key(model, commit_hash, onnx_path) in already_submitted_models(EVAL_REQUESTS_PATH):
@@ -84,7 +87,8 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
 
     out_dir = f"{EVAL_REQUESTS_PATH}/{user_name}"
     os.makedirs(out_dir, exist_ok=True)
-    out_path = f"{out_dir}/{model_path}_eval_request_{revision}.json"
+    onnx_slug = onnx_path.replace("/", "-").removesuffix(".onnx")
+    out_path = f"{out_dir}/{model_path}_eval_request_{revision}_{onnx_slug}.json"
     with open(out_path, "w") as f:
         f.write(json.dumps(eval_entry))
 
