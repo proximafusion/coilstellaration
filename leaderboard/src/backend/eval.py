@@ -33,10 +33,15 @@ def _evaluate_achieved(
     return data_utils.metrics_to_requirement_metrics(metrics)
 
 
-def _load_track(track: str) -> list[types.EvalData]:
-    """Load benchmark instances for a track. Isolated for monkeypatching."""
+def _load_track(track: str, n: int) -> list[types.EvalData]:
+    """Load benchmark instances for a track. Isolated for monkeypatching.
+
+    `n` caps the instances per track (0 = full split). If `n` exceeds the
+    number of available instances the loader simply stops early and returns
+    them all.
+    """
     return data_utils.load_benchmark_dataset(
-        track=track, stratum=config.STRATUM, split=config.SPLIT, n=config.N_INSTANCES
+        track=track, stratum=config.STRATUM, split=config.SPLIT, n=n
     )
 
 
@@ -96,15 +101,24 @@ def evaluate_model(
     stochastic: bool,
     k_samples: int,
     submitted_time: str,
+    n_instances: int = config.N_INSTANCES,
 ) -> dict:
-    """Evaluate a model on all tracks and assemble the result record (spec §6)."""
-    logger.info("Evaluating model %s (revision %s)", model_name, revision)
+    """Evaluate a model on all tracks and assemble the result record (spec §6).
+
+    `n_instances` caps the number of instances scored per track (0 = full
+    split). Values larger than the available instance count harmlessly score
+    the full split. Defaults to the `COILBENCH_N` env override.
+    """
+    logger.info(
+        "Evaluating model %s (revision %s, n_instances=%s)",
+        model_name, revision, n_instances,
+    )
     tracks: dict[str, dict] = {}
     total_instances = 0
     total_failed = 0
     for track in config.TRACKS:
         logger.info("Loading track %s", track)
-        eval_datas = _load_track(track)
+        eval_datas = _load_track(track, n_instances)
         score, n_failed = evaluate_track(model, eval_datas)
         summary = {k: float(score.summaries[k]) for k in SUMMARY_KEYS}
         summary["n"] = len(score.per_instance)

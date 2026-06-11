@@ -31,6 +31,22 @@ from src.submission.submit import add_new_eval
 def restart_space():
     API.restart_space(repo_id=REPO_ID)
 
+
+# Submission-form radio labels. Each radio toggles its companion slider on/off.
+DETERMINISTIC, STOCHASTIC = "Deterministic", "Stochastic"
+FULL_SET, LIMIT_N = "Full set", "Limit to N"
+
+
+def submit_eval(model, revision, submitter, model_type, k_samples, instance_mode, n_instances):
+    """Adapt the radio/slider controls to `add_new_eval`'s arguments.
+
+    A disabled slider still submits its last value, so the radio is the source
+    of truth: deterministic forces a single sample, full-set forces n=0.
+    """
+    stochastic = model_type == STOCHASTIC
+    n = int(n_instances) if instance_mode == LIMIT_N else -1
+    return add_new_eval(model, revision, submitter, stochastic, int(k_samples), n)
+
 ### Space initialisation
 try:
     print(EVAL_REQUESTS_PATH)
@@ -140,19 +156,48 @@ with demo:
                     revision_name_textbox = gr.Textbox(label="Revision", placeholder="main")
                     submitter_textbox = gr.Textbox(label="Submitter / contact")
                 with gr.Column():
-                    stochastic_checkbox = gr.Checkbox(label="Stochastic model", value=False)
-                    k_samples_number = gr.Number(label="K samples (if stochastic)", value=1, precision=0)
+                    stochastic_radio = gr.Radio(
+                        choices=[DETERMINISTIC, STOCHASTIC],
+                        value=DETERMINISTIC,
+                        label="Model type",
+                    )
+                    k_samples_slider = gr.Slider(
+                        minimum=1, maximum=20, step=1, value=1,
+                        label="K samples", interactive=False,
+                    )
+                    instance_radio = gr.Radio(
+                        choices=[FULL_SET, LIMIT_N],
+                        value=FULL_SET,
+                        label="Instances per track (larger than the split scores all)",
+                    )
+                    n_instances_slider = gr.Slider(
+                        minimum=1, maximum=1000, step=1, value=10,
+                        label="N instances per track", interactive=False,
+                    )
+
+                    stochastic_radio.change(
+                        lambda mode: gr.update(interactive=mode == STOCHASTIC),
+                        inputs=stochastic_radio,
+                        outputs=k_samples_slider,
+                    )
+                    instance_radio.change(
+                        lambda mode: gr.update(interactive=mode == LIMIT_N),
+                        inputs=instance_radio,
+                        outputs=n_instances_slider,
+                    )
 
             submit_button = gr.Button("Submit Eval")
             submission_result = gr.Markdown()
             submit_button.click(
-                add_new_eval,
+                submit_eval,
                 [
                     model_name_textbox,
                     revision_name_textbox,
                     submitter_textbox,
-                    stochastic_checkbox,
-                    k_samples_number,
+                    stochastic_radio,
+                    k_samples_slider,
+                    instance_radio,
+                    n_instances_slider,
                 ],
                 submission_result,
             )

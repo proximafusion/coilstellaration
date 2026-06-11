@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 ONNX_FILENAME = "model.onnx"
 
 
-def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_samples: int):
+def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_samples: int, n_instances: int = -1):
     if not model or "/" not in model:
         return styled_error("Please enter a model id of the form `org/model`.")
     if not submitter:
@@ -23,8 +23,16 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     revision = revision or "main"
     k_samples = int(k_samples) if stochastic else 1
 
+    # Instances per track to score: any value < 1 means the full split 
+    n_instances = int(n_instances)
+    if n_instances < 1:
+        n_instances = -1
+
     user_name, model_path = model.split("/", 1)
-    logger.info("New submission: model=%s revision=%s submitter=%s", model, revision, submitter)
+    logger.info(
+        "New submission: model=%s revision=%s submitter=%s n_instances=%s",
+        model, revision, submitter, n_instances,
+    )
 
     # 1) Repo exists and is publicly accessible. Submissions are ONNX-only (no
     #    config.json), so we must NOT use a transformers AutoConfig check here.
@@ -57,6 +65,7 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
         "submitter": submitter,
         "stochastic": bool(stochastic),
         "k_samples": k_samples,
+        "n_instances": n_instances,
         "status": "PENDING",
         "submitted_time": current_time,
         "private": False,

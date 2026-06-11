@@ -73,7 +73,7 @@ def test_failed_instance_scores_zero_and_continues(monkeypatch):
 def test_evaluate_model_builds_record(monkeypatch):
     data = [_eval_data("b0")]
     _patch_physics(monkeypatch, data[0].requirement_metrics)
-    monkeypatch.setattr(beval, "_load_track", lambda track: data)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: data)
 
     record = beval.evaluate_model(
         model=FakeModel(), model_name="org/m", revision="abc",
@@ -87,11 +87,26 @@ def test_evaluate_model_builds_record(monkeypatch):
     assert record["tracks"]["fixed_shape"]["n"] == 1
 
 
+def test_evaluate_model_forwards_n_instances(monkeypatch):
+    data = [_eval_data("b0")]
+    _patch_physics(monkeypatch, data[0].requirement_metrics)
+    seen_n = []
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: (seen_n.append(n) or data))
+
+    beval.evaluate_model(
+        model=FakeModel(), model_name="org/m", revision="abc",
+        submitter="me", stochastic=False, k_samples=1,
+        submitted_time="2026-06-11T00:00:00Z", n_instances=7,
+    )
+    # One call per track, each receiving the requested cap.
+    assert seen_n == [7, 7]
+
+
 def test_evaluate_model_all_instances_fail_raises(monkeypatch):
     import pytest
 
     data = [_eval_data("b0")]
-    monkeypatch.setattr(beval, "_load_track", lambda track: data)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: data)
 
     def always_fail(boundary, coilset):
         raise RuntimeError("physics blew up")

@@ -10,6 +10,7 @@ import tempfile
 
 from huggingface_hub import hf_hub_download, snapshot_download
 
+from src.backend import config
 from src.backend import eval as beval
 from src.backend.onnx_model import OnnxModel
 from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, RESULTS_REPO, TOKEN
@@ -70,6 +71,7 @@ def run_once():
                     model=model, model_name=req["model"], revision=req["revision"],
                     submitter=req.get("submitter", ""), stochastic=req.get("stochastic", False),
                     k_samples=req.get("k_samples", 1), submitted_time=req.get("submitted_time", ""),
+                    n_instances=req.get("n_instances", config.N_INSTANCES),
                 )
             _push_result(record)
             req["status"] = "FINISHED"
@@ -82,5 +84,6 @@ def run_once():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger("src").setLevel(logging.DEBUG)
     run_once()
