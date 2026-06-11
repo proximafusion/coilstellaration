@@ -37,7 +37,7 @@ DETERMINISTIC, STOCHASTIC = "Deterministic", "Stochastic"
 FULL_SET, LIMIT_N = "Full set", "Limit to N"
 
 
-def submit_eval(model, revision, submitter, model_type, k_samples, instance_mode, n_instances):
+def submit_eval(model, revision, onnx_path, submitter, model_type, k_samples, instance_mode, n_instances):
     """Adapt the radio/slider controls to `add_new_eval`'s arguments.
 
     A disabled slider still submits its last value, so the radio is the source
@@ -45,7 +45,7 @@ def submit_eval(model, revision, submitter, model_type, k_samples, instance_mode
     """
     stochastic = model_type == STOCHASTIC
     n = int(n_instances) if instance_mode == LIMIT_N else -1
-    return add_new_eval(model, revision, submitter, stochastic, int(k_samples), n)
+    return add_new_eval(model, revision, submitter, stochastic, int(k_samples), n, onnx_path)
 
 ### Space initialisation
 try:
@@ -154,6 +154,7 @@ with demo:
                 with gr.Column():
                     model_name_textbox = gr.Textbox(label="Model repo (org/model)")
                     revision_name_textbox = gr.Textbox(label="Revision", placeholder="main")
+                    onnx_path_textbox = gr.Textbox(label="ONNX file path", placeholder="model.onnx")
                     submitter_textbox = gr.Textbox(label="Submitter / contact")
                 with gr.Column():
                     stochastic_radio = gr.Radio(
@@ -193,6 +194,7 @@ with demo:
                 [
                     model_name_textbox,
                     revision_name_textbox,
+                    onnx_path_textbox,
                     submitter_textbox,
                     stochastic_radio,
                     k_samples_slider,
