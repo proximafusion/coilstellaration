@@ -6,7 +6,7 @@ from huggingface_hub import HfApi
 # ----------------------------------
 TOKEN = os.environ.get("HF_TOKEN") # A read/write token for your org
 
-OWNER = "demo-leaderboard-backend" # Change to your org - don't forget to create a results and request dataset, with the correct format!
+OWNER = os.environ.get("COILBENCH_OWNER", "proximafusion")  # HF org owning the leaderboard/requests/results datasets
 # ----------------------------------
 
 REPO_ID = f"{OWNER}/leaderboard"

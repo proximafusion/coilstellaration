@@ -1,72 +1,39 @@
-from dataclasses import dataclass
-from enum import Enum
-
-@dataclass
-class Task:
-    benchmark: str
-    metric: str
-    col_name: str
-
-
-# Select your tasks here
-# ---------------------------------------------------
-class Tasks(Enum):
-    # task_key in the json file, metric_key in the json file, name to display in the leaderboard 
-    task0 = Task("anli_r1", "acc", "ANLI")
-    task1 = Task("logiqa", "acc_norm", "LogiQA")
-
-NUM_FEWSHOT = 0 # Change with your few shot
-# ---------------------------------------------------
-
-
-
 # Your leaderboard name
-TITLE = """<h1 align="center" id="space-title">Demo leaderboard</h1>"""
+TITLE = """<h1 align="center" id="space-title">Coilstellaration Benchmark Leaderboard</h1>"""
 
-# What does your leaderboard evaluate?
 INTRODUCTION_TEXT = """
-Intro text
+Submit an ONNX model that predicts a stellarator **coilset** from a plasma boundary
+(`SurfaceRZFourier`) and a set of requirement metrics. Each model is evaluated on both
+benchmark tracks (`fixed_shape`, `variable_shape`) at the `tight` stratum; the headline
+**Overall** score is the mean across tracks of the per-instance geometric-mean soft score.
 """
 
-# Which evaluations are you running? how can people reproduce what you have?
-LLM_BENCHMARKS_TEXT = f"""
+LLM_BENCHMARKS_TEXT = """
 ## How it works
+For each benchmark instance the harness feeds your model the raw boundary Fourier
+coefficients and the 4 requirement metrics, reconstructs a coilset from the model output,
+evaluates it with the `coilstellaration` physics pipeline, and scores feasibility against
+the instance's requirements.
 
-## Reproducibility
-To reproduce our results, here is the commands you can run:
-
+## ONNX contract
+**Inputs** (raw, no scaling): `boundary_r_cos`, `boundary_z_sin` `[n_pol, n_tor]`
+(+ `boundary_r_sin`, `boundary_z_cos` for non-stellarator-symmetric instances),
+`requirement_metrics` `[4]` (order: min coil-coil dist, min coil-plasma dist,
+max coil curvature, max field error).
+**Outputs**: `coil_x_n`, `coil_y_n`, `coil_z_n` `[n_unique_coils, n_modes]`,
+`currents` `[n_unique_coils]`. Use dynamic axes for shapes that vary per instance.
+`n_field_periods` and stellarator symmetry are taken from the instance boundary.
 """
 
 EVALUATION_QUEUE_TEXT = """
-## Some good practices before submitting a model
-
-### 1) Make sure you can load your model and tokenizer using AutoClasses:
-```python
-from transformers import AutoConfig, AutoModel, AutoTokenizer
-config = AutoConfig.from_pretrained("your model name", revision=revision)
-model = AutoModel.from_pretrained("your model name", revision=revision)
-tokenizer = AutoTokenizer.from_pretrained("your model name", revision=revision)
-```
-If this step fails, follow the error messages to debug your model before submitting it. It's likely your model has been improperly uploaded.
-
-Note: make sure your model is public!
-Note: if your model needs `use_remote_code=True`, we do not support this option yet but we are working on adding it, stay posted!
-
-### 2) Convert your model weights to [safetensors](https://huggingface.co/docs/safetensors/index)
-It's a new format for storing weights which is safer and faster to load and use. It will also allow us to add the number of parameters of your model to the `Extended Viewer`!
-
-### 3) Make sure your model has an open license!
-This is a leaderboard for Open LLMs, and we'd love for as many people as possible to know they can use your model 🤗
-
-### 4) Fill up your model card
-When we add extra information about models to the leaderboard, it will be automatically taken from the model card
-
-## In case of model failure
-If your model is displayed in the `FAILED` category, its execution stopped.
-Make sure you have followed the above steps first.
-If everything is done, check you can launch the EleutherAIHarness on your model locally, using the above command without modifications (you can add `--limit` to limit the number of examples per task).
+## Submitting a model
+1. Push a public HF model repo containing `model.onnx` that conforms to the ONNX contract
+   in the About tab.
+2. Enter the repo id (`org/model`), revision, your name/contact, and whether the model is
+   stochastic (and K samples).
+3. On submit we verify the repo is public and that `model.onnx`'s input/output tensor names
+   match the contract. Physics evaluation runs on the backend; watch the queue below.
 """
 
 CITATION_BUTTON_LABEL = "Copy the following snippet to cite these results"
-CITATION_BUTTON_TEXT = r"""
-"""
+CITATION_BUTTON_TEXT = r""""""
