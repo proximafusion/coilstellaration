@@ -30,21 +30,26 @@ the variable `COILBENCH_OWNER`.
 ## Worker Space (the runner)
 
 The runner does NOT run automatically — a request stays `PENDING` until the
-worker picks it up. Host it like this:
+worker picks it up.
 
-1. **Duplicate this repo into a new Space** (Settings → Duplicate, or create a
-   new Space pointing at this code).
-2. In that Space's **README.md metadata**, set the entrypoint:
-   ```yaml
-   sdk: gradio
-   app_file: runner_app.py
-   ```
-3. Add Space **secrets / variables**:
+`app.py` is a single entrypoint for both roles and branches on the
+`COILBENCH_ROLE` variable, so the worker Space is a **pure mirror of this repo
+with no file edits** — you only set Space variables:
+
+1. **Duplicate/mirror this repo into a new Space** (Settings → Duplicate, or
+   create a new Space pointing at this code). Leave `README.md` as-is
+   (`app_file: app.py`).
+2. Add Space **secrets / variables**:
+   - `COILBENCH_ROLE` = `worker`  ← this flips the mirror into worker mode.
    - `HF_TOKEN` — write access to `<OWNER>/requests` + `<OWNER>/results`, read
      access to submitted model repos.
    - `COILBENCH_OWNER` — e.g. `jhewers-pf`.
    - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
    - `COILBENCH_N` (optional) — instances per track; `0` = full split.
+
+(With `COILBENCH_ROLE=worker`, `app.py` launches `runner_app.py` instead of the
+leaderboard. You can also point a Space's `app_file` directly at `runner_app.py`
+if you prefer an explicit entrypoint, but the variable approach needs no edits.)
 
 On boot the worker fires once, then polls every `COILBENCH_RUNNER_INTERVAL`
 seconds, moving each request `PENDING → RUNNING → FINISHED/FAILED` and pushing

@@ -5,7 +5,9 @@ status page and a background scheduler that polls the `requests` queue every
 `COILBENCH_RUNNER_INTERVAL` seconds, evaluating any PENDING submissions through
 the coilstellaration physics pipeline and pushing results.
 
-Space config (in the worker Space's README.md metadata):
+The recommended way to deploy is to mirror this repo unchanged and set the Space
+variable COILBENCH_ROLE=worker — `app.py` then imports and launches this module
+(see app.py). Alternatively, point the Space's README `app_file` here directly:
     sdk: gradio
     app_file: runner_app.py
 

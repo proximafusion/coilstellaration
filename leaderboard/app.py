@@ -1,8 +1,22 @@
+import os
+import sys
+
 import gradio as gr
 from gradio_leaderboard import Leaderboard, ColumnFilter, SelectColumns
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
 from huggingface_hub import snapshot_download
+
+# Single entrypoint for both Spaces. A mirror of this repo becomes the backend
+# worker simply by setting the Space variable COILBENCH_ROLE=worker — no file
+# edits needed. Default role is the leaderboard. The branch happens before any
+# leaderboard-only setup (dataset snapshots, table build) so worker mode never
+# touches the leaderboard datasets.
+if os.environ.get("COILBENCH_ROLE", "leaderboard").lower() == "worker":
+    from runner_app import demo as worker_demo
+
+    worker_demo.launch()
+    sys.exit(0)
 
 from src.about import (
     CITATION_BUTTON_LABEL,
