@@ -7,6 +7,13 @@ def make_clickable_model(model_name):
     return model_hyperlink(link, model_name)
 
 
+def make_clickable_commit(model_name, commit_hash):
+    if not commit_hash:
+        return ""
+    link = f"https://huggingface.co/{model_name}/commit/{commit_hash}"
+    return model_hyperlink(link, commit_hash[:7])
+
+
 def styled_error(error):
     return f"<p style='color: red; font-size: 20px; text-align: center;'>{error}</p>"
 
