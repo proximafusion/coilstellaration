@@ -14,3 +14,4 @@ tqdm
 transformers
 tokenizers>=0.15.0
 sentencepiece
+git+git@github.com:proximafusion/coilstellaration.git@03d1dc2
