@@ -65,6 +65,23 @@ empty/falls back to revision) so pre-existing results render without the fields.
 `evaluate_model` (`src/backend/eval.py`) includes `commit_hash` and `onnx_path`
 in the result record; the runner passes both through from the request.
 
+## 4. Submission deduplication
+
+`already_submitted_models` (`src/submission/check_validity.py`) is currently
+dead code: it is never called and keys on `info['precision']`, a field that no
+longer exists in the request schema (it would `KeyError`). Rewrite it and wire
+it in.
+
+- The dedup key becomes the triple `model` + `commit_hash` + `onnx_path`
+  (same model, same commit, same ONNX file = identical evaluation). `revision`
+  is excluded, since two named refs can resolve to the same commit — the hash
+  is the canonical identity.
+- `add_new_eval` builds the set of existing keys from the local requests dir
+  (`EVAL_REQUESTS_PATH`, already populated by the Space's startup
+  `snapshot_download`) and returns a `styled_error` if the new submission's
+  triple is already present.
+- The dedup check runs after the `commit_hash` is resolved (it needs the SHA).
+
 ## Out of scope (YAGNI)
 
 - No changes to the submission-queue tab columns (`EvalQueueColumn`).
