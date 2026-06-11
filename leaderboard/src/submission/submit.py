@@ -8,19 +8,22 @@ from huggingface_hub import hf_hub_download
 
 from src.display.formatting import styled_error, styled_message
 from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, TOKEN
-from src.submission.check_validity import validate_local_onnx
+from src.submission.check_validity import already_submitted_models, submission_key, validate_local_onnx
 
 logger = logging.getLogger(__name__)
 
 ONNX_FILENAME = "model.onnx"
 
 
-def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_samples: int, n_instances: int = -1):
+def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_samples: int, n_instances: int = -1, onnx_path: str = "model.onnx"):
     if not model or "/" not in model:
         return styled_error("Please enter a model id of the form `org/model`.")
     if not submitter:
         return styled_error("Please enter a submitter name or contact.")
     revision = revision or "main"
+    onnx_path = (onnx_path or ONNX_FILENAME).strip()
+    if not onnx_path.endswith(".onnx"):
+        return styled_error("The model file path must end in `.onnx`.")
     k_samples = int(k_samples) if stochastic else 1
 
     # Instances per track to score: any value < 1 means the full split 
@@ -37,23 +40,29 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     # 1) Repo exists and is publicly accessible. Submissions are ONNX-only (no
     #    config.json), so we must NOT use a transformers AutoConfig check here.
     try:
-        API.repo_info(repo_id=model, revision=revision, repo_type="model", token=TOKEN)
+        info = API.repo_info(repo_id=model, revision=revision, repo_type="model", token=TOKEN)
+        commit_hash = info.sha
     except Exception as exc:  # noqa: BLE001
         logger.warning("Repo info check failed for %s: %s", model, exc)
         return styled_error(f'Model "{model}" was not found or is not accessible: {exc}')
 
+    # Reject an identical (model, commit, file) submission already in the queue.
+    if submission_key(model, commit_hash, onnx_path) in already_submitted_models(EVAL_REQUESTS_PATH):
+        logger.info("Duplicate submission for %s@%s:%s", model, commit_hash, onnx_path)
+        return styled_error("This exact model commit and file has already been submitted.")
+
     # 2) Download model.onnx and validate the I/O contract.
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            logger.debug("Downloading %s from %s for validation", ONNX_FILENAME, model)
+            logger.debug("Downloading %s from %s for validation", onnx_path, model)
             local = hf_hub_download(
-                repo_id=model, filename=ONNX_FILENAME, revision=revision,
+                repo_id=model, filename=onnx_path, revision=commit_hash,
                 local_dir=tmp, token=TOKEN,
             )
             ok, msg = validate_local_onnx(local)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not download %s from %s: %s", ONNX_FILENAME, model, exc)
-        return styled_error(f"Could not download `{ONNX_FILENAME}` from the repo: {exc}")
+        logger.warning("Could not download %s from %s: %s", onnx_path, model, exc)
+        return styled_error(f"Could not download `{onnx_path}` from the repo: {exc}")
     if not ok:
         logger.info("ONNX contract check failed for %s: %s", model, msg)
         return styled_error(f"ONNX contract check failed: {msg}")
@@ -62,6 +71,8 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     eval_entry = {
         "model": model,
         "revision": revision,
+        "commit_hash": commit_hash,
+        "onnx_path": onnx_path,
         "submitter": submitter,
         "stochastic": bool(stochastic),
         "k_samples": k_samples,
