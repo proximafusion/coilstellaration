@@ -5,8 +5,8 @@ from huggingface_hub import HfApi
 # Info to change for your repository
 # ----------------------------------
 TOKEN = os.environ.get("HF_TOKEN") # A read/write token for your org
-OWNER = os.environ.get("COILBENCH_OWNER", "proximafusion") 
-REPO_NAME = os.environ.get("COILBENCH_REPO", "coilbench")
+OWNER = os.environ.get("COILBENCH_OWNER", "jhewers-pf") 
+REPO_NAME = os.environ.get("COILBENCH_REPO", "coilstellaration-bench")
 # ----------------------------------
 
 REPO_ID = f"{OWNER}/{REPO_NAME}"
