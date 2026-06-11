@@ -12,8 +12,10 @@ license = { text = "Apache-2.0" }
 dependencies = [
     "APScheduler",
     "datasets",
-    "gradio[oauth]",
-    "gradio_leaderboard==0.0.13",
+    # Pin gradio to the 5.35 line the gradio_leaderboard 0.0.14 frontend bundle
+    # was built against; newer gradio breaks the bundle (tab-switch freeze).
+    "gradio[oauth]>=5.35,<5.36",
+    "gradio_leaderboard==0.0.14",
     "gradio_client",
     "huggingface-hub>=0.18.0",
     "matplotlib",

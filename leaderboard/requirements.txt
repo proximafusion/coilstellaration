@@ -1,9 +1,11 @@
 APScheduler
 black
 datasets
-gradio
-gradio[oauth]
-gradio_leaderboard==0.0.13
+# gradio is pinned to the 5.35 line because the prebuilt gradio_leaderboard
+# 0.0.14 frontend bundle was built against it; newer gradio (e.g. 5.50) renames
+# svelte helpers the bundle imports, freezing the page on tab switch.
+gradio[oauth]>=5.35,<5.36
+gradio_leaderboard==0.0.14
 gradio_client
 huggingface-hub>=0.18.0
 matplotlib
