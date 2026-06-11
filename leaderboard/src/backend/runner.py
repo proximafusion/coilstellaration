@@ -63,15 +63,18 @@ def run_once():
         _push_request(req, rel_path)
         try:
             with tempfile.TemporaryDirectory() as tmp:
-                logger.debug("Downloading %s from %s", ONNX_FILENAME, req["model"])
-                local = hf_hub_download(repo_id=req["model"], filename=ONNX_FILENAME,
-                                        revision=req["revision"], local_dir=tmp, token=TOKEN)
+                onnx_path = req.get("onnx_path", ONNX_FILENAME)
+                ref = req.get("commit_hash") or req["revision"]
+                logger.debug("Downloading %s from %s at %s", onnx_path, req["model"], ref)
+                local = hf_hub_download(repo_id=req["model"], filename=onnx_path,
+                                        revision=ref, local_dir=tmp, token=TOKEN)
                 model = OnnxModel(local)
                 record = beval.evaluate_model(
                     model=model, model_name=req["model"], revision=req["revision"],
                     submitter=req.get("submitter", ""), stochastic=req.get("stochastic", False),
                     k_samples=req.get("k_samples", 1), submitted_time=req.get("submitted_time", ""),
                     n_instances=req.get("n_instances", config.N_INSTANCES),
+                    commit_hash=req.get("commit_hash", ""), onnx_path=onnx_path,
                 )
             _push_result(record)
             req["status"] = "FINISHED"
