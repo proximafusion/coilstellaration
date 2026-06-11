@@ -102,6 +102,8 @@ def evaluate_model(
     k_samples: int,
     submitted_time: str,
     n_instances: int = config.N_INSTANCES,
+    commit_hash: str = "",
+    onnx_path: str = "model.onnx",
 ) -> dict:
     """Evaluate a model on all tracks and assemble the result record (spec §6).
 
@@ -140,6 +142,8 @@ def evaluate_model(
     return {
         "model": model_name,
         "revision": revision,
+        "commit_hash": commit_hash,
+        "onnx_path": onnx_path,
         "submitter": submitter,
         "submitted_time": submitted_time,
         "stochastic": stochastic,

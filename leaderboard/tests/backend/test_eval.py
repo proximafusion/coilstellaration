@@ -119,3 +119,18 @@ def test_evaluate_model_all_instances_fail_raises(monkeypatch):
             submitter="me", stochastic=False, k_samples=1,
             submitted_time="2026-06-11T00:00:00Z",
         )
+
+
+def test_evaluate_model_records_commit_and_onnx_path(monkeypatch):
+    data = [_eval_data("b0")]
+    _patch_physics(monkeypatch, data[0].requirement_metrics)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: data)
+
+    record = beval.evaluate_model(
+        model=FakeModel(), model_name="org/m", revision="main",
+        submitter="me", stochastic=False, k_samples=1,
+        submitted_time="2026-06-11T00:00:00Z",
+        commit_hash="deadbeefcafebabe", onnx_path="models/best.onnx",
+    )
+    assert record["commit_hash"] == "deadbeefcafebabe"
+    assert record["onnx_path"] == "models/best.onnx"
