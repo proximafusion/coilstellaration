@@ -19,10 +19,7 @@ from src.display.utils import (
     EVAL_COLS,
     EVAL_TYPES,
     AutoEvalColumn,
-    ModelType,
     fields,
-    WeightType,
-    Precision
 )
 from src.envs import API, EVAL_REQUESTS_PATH, EVAL_RESULTS_PATH, QUEUE_REPO, REPO_ID, RESULTS_REPO, TOKEN
 from src.populate import get_evaluation_queue_df, get_leaderboard_df
@@ -68,21 +65,10 @@ def init_leaderboard(dataframe):
             cant_deselect=[c.name for c in fields(AutoEvalColumn) if c.never_hidden],
             label="Select Columns to Display:",
         ),
-        search_columns=[AutoEvalColumn.model.name, AutoEvalColumn.license.name],
+        search_columns=[AutoEvalColumn.model.name, AutoEvalColumn.submitter.name],
         hide_columns=[c.name for c in fields(AutoEvalColumn) if c.hidden],
         filter_columns=[
-            ColumnFilter(AutoEvalColumn.model_type.name, type="checkboxgroup", label="Model types"),
-            ColumnFilter(AutoEvalColumn.precision.name, type="checkboxgroup", label="Precision"),
-            ColumnFilter(
-                AutoEvalColumn.params.name,
-                type="slider",
-                min=0.01,
-                max=150,
-                label="Select the number of parameters (B)",
-            ),
-            ColumnFilter(
-                AutoEvalColumn.still_on_hub.name, type="boolean", label="Deleted/incomplete", default=True
-            ),
+            ColumnFilter(AutoEvalColumn.stochastic.name, type="checkboxgroup", label="Stochastic"),
         ],
         bool_checkboxgroup_label="Hide models",
         interactive=False,
@@ -95,7 +81,7 @@ with demo:
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
-        with gr.TabItem("🏅 LLM Benchmark", elem_id="llm-benchmark-tab-table", id=0):
+        with gr.TabItem("🏅 Coilstellaration Benchmark", elem_id="llm-benchmark-tab-table", id=0):
             leaderboard = init_leaderboard(LEADERBOARD_DF)
 
         with gr.TabItem("📝 About", elem_id="llm-benchmark-tab-table", id=2):
@@ -146,32 +132,12 @@ with demo:
 
             with gr.Row():
                 with gr.Column():
-                    model_name_textbox = gr.Textbox(label="Model name")
-                    revision_name_textbox = gr.Textbox(label="Revision commit", placeholder="main")
-                    model_type = gr.Dropdown(
-                        choices=[t.to_str(" : ") for t in ModelType if t != ModelType.Unknown],
-                        label="Model type",
-                        multiselect=False,
-                        value=None,
-                        interactive=True,
-                    )
-
+                    model_name_textbox = gr.Textbox(label="Model repo (org/model)")
+                    revision_name_textbox = gr.Textbox(label="Revision", placeholder="main")
+                    submitter_textbox = gr.Textbox(label="Submitter / contact")
                 with gr.Column():
-                    precision = gr.Dropdown(
-                        choices=[i.value.name for i in Precision if i != Precision.Unknown],
-                        label="Precision",
-                        multiselect=False,
-                        value="float16",
-                        interactive=True,
-                    )
-                    weight_type = gr.Dropdown(
-                        choices=[i.value.name for i in WeightType],
-                        label="Weights type",
-                        multiselect=False,
-                        value="Original",
-                        interactive=True,
-                    )
-                    base_model_name_textbox = gr.Textbox(label="Base model (for delta or adapter weights)")
+                    stochastic_checkbox = gr.Checkbox(label="Stochastic model", value=False)
+                    k_samples_number = gr.Number(label="K samples (if stochastic)", value=1, precision=0)
 
             submit_button = gr.Button("Submit Eval")
             submission_result = gr.Markdown()
@@ -179,11 +145,10 @@ with demo:
                 add_new_eval,
                 [
                     model_name_textbox,
-                    base_model_name_textbox,
                     revision_name_textbox,
-                    precision,
-                    weight_type,
-                    model_type,
+                    submitter_textbox,
+                    stochastic_checkbox,
+                    k_samples_number,
                 ],
                 submission_result,
             )
