@@ -41,3 +41,35 @@ def test_skips_unfinished(tmp_path):
     bad.write_text(json.dumps({"model": "org/m2", "status": "FAILED"}))
     rows = get_raw_eval_results(str(tmp_path))
     assert [r[AutoEvalColumn.model.name] for r in rows if "m2" in r[AutoEvalColumn.model.name]] == []
+
+
+def test_includes_commit_and_onnx_file(tmp_path):
+    record = {
+        "model": "org/m1", "revision": "main",
+        "commit_hash": "deadbeefcafebabe1234567890abcdef12345678",
+        "onnx_path": "models/best.onnx",
+        "submitter": "alice", "submitted_time": "2026-06-11T00:00:00Z",
+        "stochastic": False, "k_samples": 1, "status": "FINISHED",
+        "overall_score": 0.5,
+        "tracks": {
+            "fixed_shape": {"mean": 0.5, "median": 0.5, "p10": 0.2,
+                            "feasibility_rate_0p9": 0.3, "strict_feasibility": 0.1, "n": 2},
+            "variable_shape": {"mean": 0.5, "median": 0.4, "p10": 0.1,
+                               "feasibility_rate_0p9": 0.2, "strict_feasibility": 0.0, "n": 2},
+        },
+    }
+    sub = tmp_path / "org"
+    sub.mkdir(parents=True, exist_ok=True)
+    (sub / "m1.json").write_text(json.dumps(record))
+
+    rows = get_raw_eval_results(str(tmp_path))
+    row = rows[0]
+    assert "deadbee" in row[AutoEvalColumn.commit.name]
+    assert row[AutoEvalColumn.onnx_file.name] == "models/best.onnx"
+
+
+def test_defaults_when_fields_absent(tmp_path):
+    _write_result(tmp_path, "m1", 0.8)  # record without commit_hash / onnx_path
+    row = get_raw_eval_results(str(tmp_path))[0]
+    assert row[AutoEvalColumn.commit.name] == ""
+    assert row[AutoEvalColumn.onnx_file.name] == "model.onnx"
