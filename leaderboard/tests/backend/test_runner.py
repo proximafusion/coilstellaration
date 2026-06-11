@@ -41,3 +41,24 @@ def test_run_once_pins_commit_and_passes_onnx_path(tmp_path, monkeypatch):
     assert captured["filename"] == "models/best.onnx"
     assert captured["commit_hash"] == "deadbeefcafebabe"
     assert captured["onnx_path"] == "models/best.onnx"
+
+
+def test_push_result_path_disambiguates_by_commit_and_onnx(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(runner.API, "upload_file",
+                        lambda **kw: captured.update(path_in_repo=kw["path_in_repo"]))
+    runner._push_result({
+        "model": "org/m", "revision": "main",
+        "commit_hash": "deadbeefcafebabe", "onnx_path": "models/best.onnx",
+        "status": "FINISHED",
+    })
+    assert captured["path_in_repo"] == "org/m_deadbeefcafebabe_models-best.json"
+
+
+def test_push_result_falls_back_for_legacy_record(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(runner.API, "upload_file",
+                        lambda **kw: captured.update(path_in_repo=kw["path_in_repo"]))
+    runner._push_result({"model": "org/m", "revision": "main", "status": "FINISHED"})
+    # No commit_hash/onnx_path -> falls back to revision + default model file slug.
+    assert captured["path_in_repo"] == "org/m_main_model.json"

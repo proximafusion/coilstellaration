@@ -43,7 +43,9 @@ def _push_request(req: dict, rel_path: str):
 
 def _push_result(record: dict):
     org, model = record["model"].split("/", 1)
-    rel_path = f"{org}/{model}_{record['revision']}.json"
+    commit = record.get("commit_hash") or record.get("revision", "")
+    onnx_slug = record.get("onnx_path", "model.onnx").replace("/", "-").removesuffix(".onnx")
+    rel_path = f"{org}/{model}_{commit}_{onnx_slug}.json"
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(record, f)
         tmp = f.name
