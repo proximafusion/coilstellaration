@@ -55,8 +55,10 @@ LEADERBOARD_DF = get_leaderboard_df(EVAL_RESULTS_PATH, EVAL_REQUESTS_PATH, COLS,
 ) = get_evaluation_queue_df(EVAL_REQUESTS_PATH, EVAL_COLS)
 
 def init_leaderboard(dataframe):
+    # A fresh leaderboard with no submissions yet should render an empty table,
+    # not crash. Ensure the expected columns exist so the component can build.
     if dataframe is None or dataframe.empty:
-        raise ValueError("Leaderboard DataFrame is empty or None.")
+        dataframe = pd.DataFrame(columns=COLS)
     return Leaderboard(
         value=dataframe,
         datatype=[c.type for c in fields(AutoEvalColumn)],

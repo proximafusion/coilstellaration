@@ -12,9 +12,12 @@ def get_leaderboard_df(results_path: str, requests_path: str, cols: list, benchm
     """Creates a dataframe from all the individual experiment results"""
     all_data_json = get_raw_eval_results(results_path)
 
+    # No results yet (fresh leaderboard): return an empty frame that still has
+    # the expected columns so the table renders instead of erroring.
+    if not all_data_json:
+        return pd.DataFrame(columns=cols)
+
     df = pd.DataFrame.from_records(all_data_json)
-    if df.empty:
-        return df
     df = df.sort_values(by=[AutoEvalColumn.overall.name], ascending=False)
     df = df[cols].round(decimals=3)
 
