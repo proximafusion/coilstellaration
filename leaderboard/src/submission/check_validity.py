@@ -74,6 +74,19 @@ def get_model_arch(model_info: ModelInfo):
     """Gets the model architecture from the configuration"""
     return model_info.config.get("architectures", "Unknown")
 
+def validate_local_onnx(local_path: str) -> tuple[bool, str]:
+    """Open a downloaded ONNX file and check it against the I/O contract.
+
+    Returns (ok, message). No inference is run.
+    """
+    from src.backend.onnx_model import validate_onnx_contract
+
+    errors = validate_onnx_contract(local_path)
+    if errors:
+        return False, "; ".join(errors)
+    return True, "ONNX contract OK"
+
+
 def already_submitted_models(requested_models_dir: str) -> set[str]:
     """Gather a list of already submitted models to avoid duplicates"""
     depth = 1
