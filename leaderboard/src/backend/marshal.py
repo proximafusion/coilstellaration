@@ -3,12 +3,16 @@
 No scaling/normalization: raw Fourier coefficients in, raw coilset arrays out.
 The model owns all internal encoding (spec §4).
 """
+import logging
+
 import numpy as np
 
 from constellaration.geometry import surface_rz_fourier
 from coilstellaration import types
 
 from src.backend import config
+
+logger = logging.getLogger(__name__)
 
 
 def eval_data_to_inputs(
@@ -26,6 +30,7 @@ def eval_data_to_inputs(
     if not boundary.is_stellarator_symmetric:
         inputs["boundary_r_sin"] = np.asarray(boundary.r_sin, dtype=np.float32)
         inputs["boundary_z_cos"] = np.asarray(boundary.z_cos, dtype=np.float32)
+    logger.debug("Built ONNX feed dict with tensors: %s", list(inputs))
     return inputs
 
 
@@ -41,6 +46,7 @@ def outputs_to_coilset(
     for name in config.OUTPUT_NAMES:
         if name not in outputs:
             raise KeyError(f"Model output missing required tensor: {name!r}")
+    logger.debug("Reconstructing coilset from model outputs: %s", list(outputs))
     return types.Coilset(
         coil_x_n=np.asarray(outputs["coil_x_n"], dtype=float),
         coil_y_n=np.asarray(outputs["coil_y_n"], dtype=float),

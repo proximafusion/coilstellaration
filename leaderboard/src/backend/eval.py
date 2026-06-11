@@ -1,4 +1,6 @@
 """Run an ONNX model through the coilstellaration eval + scoring pipeline."""
+import logging
+
 import numpy as np
 
 from coilstellaration import coilset_utils, data_utils, metrics_utils_v2
@@ -9,6 +11,8 @@ from constellaration.geometry import surface_rz_fourier
 from constellaration.geometry import surface_utils_desc
 
 from src.backend import config, marshal
+
+logger = logging.getLogger(__name__)
 
 SUMMARY_KEYS = ("mean", "median", "p10", "feasibility_rate_0p9", "strict_feasibility")
 
@@ -61,6 +65,7 @@ def evaluate_track(
     """
     instances: list[benchmark_types.InstanceScore] = []
     n_failed = 0
+    logger.debug("Scoring %d instances", len(eval_datas))
     for data in eval_datas:
         try:
             inputs = marshal.eval_data_to_inputs(data.boundary, data.requirement_metrics)
@@ -70,10 +75,12 @@ def evaluate_track(
             if not _is_finite(achieved):
                 raise ValueError("achieved metrics contain NaN/inf")
             instances.append(scoring.score_eval_data(data, achieved, settings))
+            logger.debug("Instance %s scored", data.boundary_id)
         except Exception as exc:  # noqa: BLE001 - one bad instance must not abort the run
-            print(f"[eval] instance {data.boundary_id} failed: {exc}")
+            logger.warning("Instance %s failed: %s", data.boundary_id, exc)
             instances.append(_failed_instance(data.boundary_id))
             n_failed += 1
+    logger.debug("Track scored: %d/%d instances failed", n_failed, len(eval_datas))
     return scoring.score_benchmark(instances, settings), n_failed
 
 
@@ -91,10 +98,12 @@ def evaluate_model(
     submitted_time: str,
 ) -> dict:
     """Evaluate a model on all tracks and assemble the result record (spec §6)."""
+    logger.info("Evaluating model %s (revision %s)", model_name, revision)
     tracks: dict[str, dict] = {}
     total_instances = 0
     total_failed = 0
     for track in config.TRACKS:
+        logger.info("Loading track %s", track)
         eval_datas = _load_track(track)
         score, n_failed = evaluate_track(model, eval_datas)
         summary = {k: float(score.summaries[k]) for k in SUMMARY_KEYS}
@@ -102,6 +111,7 @@ def evaluate_model(
         tracks[track] = summary
         total_instances += len(eval_datas)
         total_failed += n_failed
+        logger.info("Track %s mean=%.4f (%d instances)", track, summary["mean"], summary["n"])
 
     # A model that errored on every instance is a broken submission, not a
     # legitimate 0.0 score: surface it as FAILED (the runner skips the results
@@ -112,6 +122,7 @@ def evaluate_model(
         )
 
     overall = float(np.mean([tracks[t]["mean"] for t in config.TRACKS]))
+    logger.info("Model %s FINISHED with overall score %.4f", model_name, overall)
     return {
         "model": model_name,
         "revision": revision,

@@ -1,4 +1,7 @@
+import logging
 import os
+
+logging.basicConfig(level=logging.DEBUG)
 
 coilbench_role = os.environ.get("COILBENCH_ROLE", "leaderboard").lower()
 

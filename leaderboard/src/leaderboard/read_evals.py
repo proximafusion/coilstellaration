@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 
 from src.display.formatting import make_clickable_model
 from src.display.utils import AutoEvalColumn
+
+logger = logging.getLogger(__name__)
 
 
 def _stochastic_label(record: dict) -> str:
@@ -37,6 +40,7 @@ def result_to_row(record: dict) -> dict:
 
 def get_raw_eval_results(results_path: str) -> list[dict]:
     """Walk the results dir; return one display row per FINISHED result."""
+    logger.debug("Reading eval results from %s", results_path)
     rows: list[dict] = []
     for root, _, files in os.walk(results_path):
         for fname in files:
@@ -49,5 +53,6 @@ def get_raw_eval_results(results_path: str) -> list[dict]:
             try:
                 rows.append(result_to_row(record))
             except KeyError as exc:
-                print(f"[read_evals] skipping malformed result {fname}: {exc}")
+                logger.warning("Skipping malformed result %s: missing key %s", fname, exc)
+    logger.debug("Loaded %d FINISHED result row(s)", len(rows))
     return rows

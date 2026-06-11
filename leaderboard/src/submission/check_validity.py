@@ -1,16 +1,21 @@
 import json
+import logging
 import os
 from collections import defaultdict
 
 import huggingface_hub
 from huggingface_hub import ModelCard
 
+logger = logging.getLogger(__name__)
+
 
 def check_model_card(repo_id: str) -> tuple[bool, str]:
     """Checks if the model card and license exist and have been filled"""
+    logger.debug("Checking model card for %s", repo_id)
     try:
         card = ModelCard.load(repo_id)
     except huggingface_hub.utils.EntryNotFoundError:
+        logger.info("No model card found for %s", repo_id)
         return False, "Please add a model card to your model to explain how you trained/fine-tuned it."
 
     # Enforce license metadata
@@ -34,8 +39,10 @@ def validate_local_onnx(local_path: str) -> tuple[bool, str]:
     """
     from src.backend.onnx_model import validate_onnx_contract
 
+    logger.debug("Validating local ONNX file %s", local_path)
     errors = validate_onnx_contract(local_path)
     if errors:
+        logger.info("Local ONNX validation failed: %s", "; ".join(errors))
         return False, "; ".join(errors)
     return True, "ONNX contract OK"
 
