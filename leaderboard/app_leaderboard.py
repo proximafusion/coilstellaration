@@ -2,7 +2,7 @@ import os
 import sys
 
 import gradio as gr
-from gradio_leaderboard import Leaderboard, ColumnFilter, SelectColumns
+from src.display.leaderboard import Leaderboard, ColumnFilter, SelectColumns
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
 from huggingface_hub import snapshot_download
@@ -95,8 +95,9 @@ def init_leaderboard(dataframe):
     )
 
 
-demo = gr.Blocks(css=custom_css)
+demo = gr.Blocks()
 with demo:
+    gr.HTML(f"<style>{custom_css}</style>")
     gr.HTML(TITLE)
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
@@ -211,7 +212,6 @@ with demo:
                 label=CITATION_BUTTON_LABEL,
                 lines=20,
                 elem_id="citation-button",
-                show_copy_button=True,
             )
 
 if os.environ.get("SPACE_ID"):

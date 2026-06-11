@@ -6,9 +6,9 @@ colorTo: indigo
 sdk: gradio
 app_file: app.py
 pinned: true
-license: apache-2.0
+license: mit
 short_description: Duplicate this leaderboard to initialize your own!
-sdk_version: 5.35.0
+sdk_version: 6.17.3
 tags:
 - leaderboard
 ---
