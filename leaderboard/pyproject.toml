@@ -21,9 +21,6 @@ dependencies = [
     "pandas",
     "python-dateutil",
     "tqdm",
-    "transformers",
-    "tokenizers>=0.15.0",
-    "sentencepiece",
     "coilstellaration @ git+ssh://git@github.com/proximafusion/coilstellaration.git@03d1dc2",
     "onnxruntime",
 ]
