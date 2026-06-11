@@ -35,6 +35,8 @@ auto_eval_column_dict.append(["var_p10", ColumnContent, ColumnContent("var: p10"
 auto_eval_column_dict.append(["stochastic", ColumnContent, ColumnContent("Stochastic (K)", "str", True)])
 auto_eval_column_dict.append(["submitted", ColumnContent, ColumnContent("Submitted", "str", False)])
 auto_eval_column_dict.append(["revision", ColumnContent, ColumnContent("Revision", "str", False)])
+auto_eval_column_dict.append(["commit", ColumnContent, ColumnContent("Commit", "markdown", False)])
+auto_eval_column_dict.append(["onnx_file", ColumnContent, ColumnContent("ONNX file", "str", False)])
 
 AutoEvalColumn = make_dataclass("AutoEvalColumn", auto_eval_column_dict, frozen=True)
 
