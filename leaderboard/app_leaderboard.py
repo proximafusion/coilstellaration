@@ -101,13 +101,13 @@ with demo:
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
-        with gr.TabItem("🏅 Coilstellaration Benchmark", elem_id="llm-benchmark-tab-table", id=0):
+        with gr.TabItem("🏅 Coilstellaration Benchmark", elem_id="benchmark-tab-table", id=0):
             leaderboard = init_leaderboard(LEADERBOARD_DF)
 
-        with gr.TabItem("📝 About", elem_id="llm-benchmark-tab-table", id=2):
+        with gr.TabItem("📝 About", elem_id="about-tab", id=2):
             gr.Markdown(LLM_BENCHMARKS_TEXT, elem_classes="markdown-text")
 
-        with gr.TabItem("🚀 Submit here! ", elem_id="llm-benchmark-tab-table", id=3):
+        with gr.TabItem("🚀 Submit here! ", elem_id="submit-tab", id=3):
             with gr.Column():
                 with gr.Row():
                     gr.Markdown(EVALUATION_QUEUE_TEXT, elem_classes="markdown-text")
