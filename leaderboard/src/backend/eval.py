@@ -51,9 +51,16 @@ def evaluate_track(
     model,
     eval_datas: list[types.EvalData],
     settings: benchmark_types.ScoringSettings = config.SCORING_SETTINGS,
-) -> benchmark_types.BenchmarkScore:
-    """Score one model on one track's instances. Single forward pass per instance."""
+) -> tuple[benchmark_types.BenchmarkScore, int]:
+    """Score one model on one track's instances. Single forward pass per instance.
+
+    Returns the aggregated `BenchmarkScore` and the number of instances that
+    failed (and were scored 0.0). The failure count lets `evaluate_model`
+    distinguish a model that genuinely scores 0 from one that errored on every
+    instance (which should be reported as FAILED, not FINISHED).
+    """
     instances: list[benchmark_types.InstanceScore] = []
+    n_failed = 0
     for data in eval_datas:
         try:
             inputs = marshal.eval_data_to_inputs(data.boundary, data.requirement_metrics)
@@ -66,7 +73,8 @@ def evaluate_track(
         except Exception as exc:  # noqa: BLE001 - one bad instance must not abort the run
             print(f"[eval] instance {data.boundary_id} failed: {exc}")
             instances.append(_failed_instance(data.boundary_id))
-    return scoring.score_benchmark(instances, settings)
+            n_failed += 1
+    return scoring.score_benchmark(instances, settings), n_failed
 
 
 def _is_finite(achieved: types.RequirementMetrics) -> bool:
@@ -84,12 +92,24 @@ def evaluate_model(
 ) -> dict:
     """Evaluate a model on all tracks and assemble the result record (spec §6)."""
     tracks: dict[str, dict] = {}
+    total_instances = 0
+    total_failed = 0
     for track in config.TRACKS:
         eval_datas = _load_track(track)
-        score = evaluate_track(model, eval_datas)
+        score, n_failed = evaluate_track(model, eval_datas)
         summary = {k: float(score.summaries[k]) for k in SUMMARY_KEYS}
         summary["n"] = len(score.per_instance)
         tracks[track] = summary
+        total_instances += len(eval_datas)
+        total_failed += n_failed
+
+    # A model that errored on every instance is a broken submission, not a
+    # legitimate 0.0 score: surface it as FAILED (the runner skips the results
+    # push and marks the request FAILED).
+    if total_instances > 0 and total_failed == total_instances:
+        raise RuntimeError(
+            f"Model failed on all {total_instances} instances across tracks"
+        )
 
     overall = float(np.mean([tracks[t]["mean"] for t in config.TRACKS]))
     return {

@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 
 from huggingface_hub import hf_hub_download
 
-from src.display.formatting import styled_error, styled_message, styled_warning
+from src.display.formatting import styled_error, styled_message
 from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, TOKEN
-from src.submission.check_validity import is_model_on_hub, validate_local_onnx
+from src.submission.check_validity import validate_local_onnx
 
 ONNX_FILENAME = "model.onnx"
 
@@ -22,10 +22,12 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
 
     user_name, model_path = model.split("/", 1)
 
-    # 1) Repo is public and loadable.
-    on_hub, error, _ = is_model_on_hub(model_name=model, revision=revision, token=TOKEN, test_tokenizer=False)
-    if not on_hub:
-        return styled_error(f'Model "{model}" {error}')
+    # 1) Repo exists and is publicly accessible. Submissions are ONNX-only (no
+    #    config.json), so we must NOT use a transformers AutoConfig check here.
+    try:
+        API.repo_info(repo_id=model, revision=revision, repo_type="model", token=TOKEN)
+    except Exception as exc:  # noqa: BLE001
+        return styled_error(f'Model "{model}" was not found or is not accessible: {exc}')
 
     # 2) Download model.onnx and validate the I/O contract.
     try:
@@ -60,7 +62,7 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
 
     API.upload_file(
         path_or_fileobj=out_path,
-        path_in_repo=out_path.split("eval-queue/")[1],
+        path_in_repo=os.path.relpath(out_path, EVAL_REQUESTS_PATH),
         repo_id=QUEUE_REPO,
         repo_type="dataset",
         commit_message=f"Add {model} to eval queue",

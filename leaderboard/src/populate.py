@@ -40,7 +40,11 @@ def get_evaluation_queue_df(save_path: str, cols: list) -> list[pd.DataFrame]:
             all_evals.append(data)
         elif ".md" not in entry:
             # this is a folder
-            sub_entries = [e for e in os.listdir(f"{save_path}/{entry}") if os.path.isfile(e) and not e.startswith(".")]
+            sub_entries = [
+                e
+                for e in os.listdir(f"{save_path}/{entry}")
+                if os.path.isfile(os.path.join(save_path, entry, e)) and not e.startswith(".")
+            ]
             for sub_entry in sub_entries:
                 file_path = os.path.join(save_path, entry, sub_entry)
                 with open(file_path) as fp:

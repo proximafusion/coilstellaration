@@ -45,10 +45,11 @@ def _patch_physics(monkeypatch, achieved):
 def test_evaluate_track_perfect_scores(monkeypatch):
     data = [_eval_data("b0"), _eval_data("b1")]
     _patch_physics(monkeypatch, data[0].requirement_metrics)
-    score = beval.evaluate_track(FakeModel(), data)
+    score, n_failed = beval.evaluate_track(FakeModel(), data)
     assert score.summaries["mean"] == 1.0
     assert score.summaries["strict_feasibility"] == 1.0
     assert len(score.per_instance) == 2
+    assert n_failed == 0
 
 
 def test_failed_instance_scores_zero_and_continues(monkeypatch):
@@ -62,10 +63,11 @@ def test_failed_instance_scores_zero_and_continues(monkeypatch):
     flaky.called = False
     monkeypatch.setattr(beval, "_evaluate_achieved", flaky)
 
-    score = beval.evaluate_track(FakeModel(), data)
+    score, n_failed = beval.evaluate_track(FakeModel(), data)
     aggregates = sorted(s.aggregate for s in score.per_instance)
     assert aggregates[0] == 0.0       # the failed one
     assert aggregates[1] == 1.0       # the good one
+    assert n_failed == 1
 
 
 def test_evaluate_model_builds_record(monkeypatch):
@@ -83,3 +85,22 @@ def test_evaluate_model_builds_record(monkeypatch):
     assert set(record["tracks"]) == {"fixed_shape", "variable_shape"}
     assert record["tracks"]["fixed_shape"]["mean"] == 1.0
     assert record["tracks"]["fixed_shape"]["n"] == 1
+
+
+def test_evaluate_model_all_instances_fail_raises(monkeypatch):
+    import pytest
+
+    data = [_eval_data("b0")]
+    monkeypatch.setattr(beval, "_load_track", lambda track: data)
+
+    def always_fail(boundary, coilset):
+        raise RuntimeError("physics blew up")
+
+    monkeypatch.setattr(beval, "_evaluate_achieved", always_fail)
+
+    with pytest.raises(RuntimeError, match="failed on all"):
+        beval.evaluate_model(
+            model=FakeModel(), model_name="org/m", revision="abc",
+            submitter="me", stochastic=False, k_samples=1,
+            submitted_time="2026-06-11T00:00:00Z",
+        )
