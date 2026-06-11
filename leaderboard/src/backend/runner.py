@@ -1,0 +1,76 @@
+"""Backend worker: poll the requests dataset, evaluate PENDING models, push results.
+
+Run on suitable compute (NOT the Space):  python -m src.backend.runner
+Requires HF_TOKEN with write access to the requests + results datasets.
+"""
+import json
+import os
+import tempfile
+
+from huggingface_hub import hf_hub_download, snapshot_download
+
+from src.backend import eval as beval
+from src.backend.onnx_model import OnnxModel
+from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, RESULTS_REPO, TOKEN
+from src.submission.submit import ONNX_FILENAME
+
+
+def _iter_pending(requests_dir: str):
+    for root, _, files in os.walk(requests_dir):
+        for fname in files:
+            if not fname.endswith(".json"):
+                continue
+            path = os.path.join(root, fname)
+            with open(path) as fp:
+                req = json.load(fp)
+            if req.get("status") == "PENDING":
+                yield path, req
+
+
+def _push_request(req: dict, rel_path: str):
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(req, f)
+        tmp = f.name
+    API.upload_file(path_or_fileobj=tmp, path_in_repo=rel_path, repo_id=QUEUE_REPO,
+                    repo_type="dataset", commit_message=f"Update status {req['model']} -> {req['status']}")
+    os.remove(tmp)
+
+
+def _push_result(record: dict):
+    org, model = record["model"].split("/", 1)
+    rel_path = f"{org}/{model}_{record['revision']}.json"
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(record, f)
+        tmp = f.name
+    API.upload_file(path_or_fileobj=tmp, path_in_repo=rel_path, repo_id=RESULTS_REPO,
+                    repo_type="dataset", commit_message=f"Add results for {record['model']}")
+    os.remove(tmp)
+
+
+def run_once():
+    snapshot_download(repo_id=QUEUE_REPO, local_dir=EVAL_REQUESTS_PATH, repo_type="dataset", token=TOKEN)
+    for path, req in _iter_pending(EVAL_REQUESTS_PATH):
+        rel_path = path.split("eval-queue/")[1]
+        req["status"] = "RUNNING"
+        _push_request(req, rel_path)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                local = hf_hub_download(repo_id=req["model"], filename=ONNX_FILENAME,
+                                        revision=req["revision"], local_dir=tmp, token=TOKEN)
+                model = OnnxModel(local)
+                record = beval.evaluate_model(
+                    model=model, model_name=req["model"], revision=req["revision"],
+                    submitter=req.get("submitter", ""), stochastic=req.get("stochastic", False),
+                    k_samples=req.get("k_samples", 1), submitted_time=req.get("submitted_time", ""),
+                )
+            _push_result(record)
+            req["status"] = "FINISHED"
+        except Exception as exc:  # noqa: BLE001
+            print(f"[runner] {req['model']} FAILED: {exc}")
+            req["status"] = "FAILED"
+            req["error"] = str(exc)
+        _push_request(req, rel_path)
+
+
+if __name__ == "__main__":
+    run_once()
