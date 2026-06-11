@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from collections import defaultdict
 
 import huggingface_hub
 from huggingface_hub import ModelCard
@@ -47,26 +46,22 @@ def validate_local_onnx(local_path: str) -> tuple[bool, str]:
     return True, "ONNX contract OK"
 
 
+def submission_key(model: str, commit_hash: str, onnx_path: str) -> str:
+    """Canonical dedup identity: same model + commit + file = same evaluation."""
+    return f"{model}@{commit_hash}:{onnx_path}"
+
+
 def already_submitted_models(requested_models_dir: str) -> set[str]:
-    """Gather a list of already submitted models to avoid duplicates"""
-    depth = 1
-    file_names = []
-    users_to_submission_dates = defaultdict(list)
-
+    """Set of dedup keys (model@commit_hash:onnx_path) already in the queue."""
+    keys: set[str] = set()
     for root, _, files in os.walk(requested_models_dir):
-        current_depth = root.count(os.sep) - requested_models_dir.count(os.sep)
-        if current_depth == depth:
-            for file in files:
-                if not file.endswith(".json"):
-                    continue
-                with open(os.path.join(root, file), "r") as f:
-                    info = json.load(f)
-                    file_names.append(f"{info['model']}_{info['revision']}_{info['precision']}")
-
-                    # Select organisation
-                    if info["model"].count("/") == 0 or "submitted_time" not in info:
-                        continue
-                    organisation, _ = info["model"].split("/")
-                    users_to_submission_dates[organisation].append(info["submitted_time"])
-
-    return set(file_names), users_to_submission_dates
+        for file in files:
+            if not file.endswith(".json"):
+                continue
+            with open(os.path.join(root, file)) as f:
+                info = json.load(f)
+            model = info.get("model")
+            if not model:
+                continue
+            keys.add(submission_key(model, info.get("commit_hash", ""), info.get("onnx_path", "model.onnx")))
+    return keys
