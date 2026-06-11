@@ -5,11 +5,11 @@ from huggingface_hub import HfApi
 # Info to change for your repository
 # ----------------------------------
 TOKEN = os.environ.get("HF_TOKEN") # A read/write token for your org
-
-OWNER = os.environ.get("COILBENCH_OWNER", "proximafusion")  # HF org owning the leaderboard/requests/results datasets
+OWNER = os.environ.get("COILBENCH_OWNER", "proximafusion") 
+REPO_NAME = os.environ.get("COILBENCH_REPO", "coilbench")
 # ----------------------------------
 
-REPO_ID = f"{OWNER}/leaderboard"
+REPO_ID = f"{OWNER}/{REPO_NAME}"
 QUEUE_REPO = f"{OWNER}/requests"
 RESULTS_REPO = f"{OWNER}/results"
 
