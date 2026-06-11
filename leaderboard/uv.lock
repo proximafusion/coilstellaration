@@ -709,7 +709,7 @@ requires-dist = [
     { name = "apscheduler" },
     { name = "coilstellaration", git = "ssh://git@github.com/proximafusion/coilstellaration.git?rev=03d1dc2" },
     { name = "datasets" },
-    { name = "gradio", extras = ["oauth"], specifier = ">=5.35,<5.36" },
+    { name = "gradio", extras = ["oauth"], specifier = "==5.35" },
     { name = "gradio-client" },
     { name = "gradio-leaderboard", specifier = "==0.0.14" },
     { name = "huggingface-hub", specifier = ">=0.18.0" },
