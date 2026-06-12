@@ -12,12 +12,13 @@ JAX threads. The parent (`runner._evaluate_with_timeout`) enforces the wall-cloc
 kill, so a hung or crashing eval can't wedge or take down the worker.
 """
 import json
+import logging
 import sys
 
 from src.backend import runner
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 def main() -> None:
     req_path, out_path = sys.argv[1], sys.argv[2]
@@ -29,5 +30,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO,overwrite=True )
+    logging.basicConfig(level=logging.INFO, force=True)
     main()
