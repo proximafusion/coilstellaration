@@ -5,8 +5,6 @@ from huggingface_hub import HfApi
 
 logger = logging.getLogger(__name__)
 
-# Info to change for your repository
-# ----------------------------------
 TOKEN = os.environ.get("HF_TOKEN") # A read/write token for your org
 if not TOKEN:
     logger.warning("HF_TOKEN is not set; authenticated Hugging Face Hub calls will fail.")
