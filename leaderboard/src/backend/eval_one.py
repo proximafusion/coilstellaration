@@ -26,7 +26,7 @@ def main() -> None:
         req = json.load(f)
     record = runner._run_eval(req)
     with open(out_path, "w") as f:
-        json.dump(record, f)
+        json.dump(record, f, indent=2)
 
 
 if __name__ == "__main__":
