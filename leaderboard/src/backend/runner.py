@@ -6,9 +6,11 @@ Requires HF_TOKEN with write access to the requests + results datasets.
 import datetime
 import json
 import logging
-import multiprocessing as mp
 import os
+import signal
 import socket
+import subprocess
+import sys
 import tempfile
 
 from huggingface_hub import hf_hub_download, snapshot_download
@@ -91,51 +93,83 @@ def _run_eval(req: dict) -> dict:
         )
 
 
-def _eval_worker(fn, req: dict, conn) -> None:
-    """Child-process entrypoint: run ``fn(req)`` and ship the outcome back over a pipe."""
+# The eval runs in a plain freshly-exec'd subprocess (see src/backend/eval_one.py).
+# This deliberately avoids multiprocessing fork/spawn/forkserver: spawn & forkserver
+# re-prepare the parent's __main__ (the gradio/scheduler worker entrypoint, which has
+# import-time side effects) and trip multiprocessing's bootstrap guard, while bare
+# fork inherits JAX's threads and risks deadlock. A clean exec'd interpreter has none
+# of those problems and gives a reliable wall-clock kill.
+_EVAL_CMD = [sys.executable, "-u", "-m", "src.backend.eval_one"]
+
+
+def _stderr_tail(path: str, limit: int = 2000) -> str:
+    """Last ``limit`` bytes of the child's stderr log (read only on failure)."""
     try:
-        conn.send(("ok", fn(req)))
-    except Exception as exc:  # noqa: BLE001
-        conn.send(("err", repr(exc)))
-    finally:
-        conn.close()
+        with open(path, errors="replace") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(f.tell() - limit, 0))
+            return f.read().strip()
+    except OSError:
+        return ""
 
 
-def _evaluate_with_timeout(req: dict, timeout: float | None = None, _fn=None) -> dict:
-    """Run the eval under a wall-clock kill so a hung model can't wedge the loop.
+def _kill_group(proc: "subprocess.Popen") -> None:
+    """SIGKILL the child's whole process group, then reap it."""
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        pass  # already gone
+    proc.wait()
 
-    Runs the eval in a ``spawn``ed child (a fresh interpreter — ``fork`` would
-    inherit JAX's threads and risk deadlocking the child). If it overruns
-    ``timeout`` the child is killed and ``TimeoutError`` is raised. ``timeout <= 0``
-    runs inline (no subprocess). ``_fn`` overrides the eval callable for tests.
+
+def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> dict:
+    """Run the eval in an isolated subprocess under a wall-clock kill.
+
+    The child is its own session leader (``start_new_session=True``), so a timeout
+    SIGKILLs the entire process group -- the eval plus any JAX/DESC helpers it
+    spawned -- raising ``TimeoutError`` instead of wedging the single-threaded poll
+    loop and leaking orphans. A hard crash (e.g. segfault from JAX/LLVM) and any
+    non-zero exit surface as ``RuntimeError`` carrying the child's stderr tail.
+    ``timeout <= 0`` runs the eval inline (no subprocess).
     """
-    fn = _fn or _run_eval
     if timeout is None:
         timeout = config.EVAL_TIMEOUT
     if not timeout or timeout <= 0:
-        return fn(req)
+        return _run_eval(req)
 
-    ctx = mp.get_context("spawn")
-    parent_conn, child_conn = ctx.Pipe()
-    proc = ctx.Process(target=_eval_worker, args=(fn, req, child_conn), daemon=True)
-    proc.start()
-    child_conn.close()  # parent keeps only its end, so it sees EOF if the child dies
-    try:
-        if parent_conn.poll(timeout):
-            try:
-                kind, payload = parent_conn.recv()
-            except EOFError:
-                raise RuntimeError("Evaluation worker died without returning a result")
-            proc.join()
-            if kind == "err":
-                raise RuntimeError(f"Evaluation raised: {payload}")
-            return payload
-        raise TimeoutError(f"Evaluation exceeded {timeout}s")
-    finally:
-        if proc.is_alive():
-            proc.terminate()
-            proc.join()
-        parent_conn.close()
+    with tempfile.TemporaryDirectory() as tmp:
+        req_path = os.path.join(tmp, "request.json")
+        out_path = os.path.join(tmp, "result.json")
+        stderr_path = os.path.join(tmp, "stderr.log")
+        with open(req_path, "w") as f:
+            json.dump(req, f, indent=2)
+
+        # stderr -> file (not a pipe): with Popen + a long-running child, reading a
+        # full pipe lazily would deadlock; we only read the tail if it fails.
+        with open(stderr_path, "wb") as err:
+            proc = subprocess.Popen(
+                [*_EVAL_CMD, req_path, out_path],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=err,
+                start_new_session=True,
+            )
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            _kill_group(proc)
+            raise TimeoutError(f"Evaluation exceeded {timeout}s") from exc
+
+        if proc.returncode != 0:
+            tail = _stderr_tail(stderr_path)
+            if proc.returncode == -signal.SIGSEGV:
+                raise RuntimeError(
+                    f"Evaluation crashed (segmentation fault), likely a JAX/LLVM "
+                    f"crash or OOM; last stderr: {tail}"
+                )
+            raise RuntimeError(f"Evaluation subprocess exited {proc.returncode}: {tail}")
+        with open(out_path) as f:
+            return json.load(f)
 
 
 def _reap_stale(requests_dir: str) -> None:

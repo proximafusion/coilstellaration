@@ -1,9 +1,11 @@
 import datetime
 import json
+import sys
+import time
 
 import pytest
 
-from src.backend import runner
+from src.backend import eval_one, runner
 
 UTC = datetime.timezone.utc
 
@@ -63,35 +65,87 @@ def test_push_result_falls_back_for_legacy_record(monkeypatch):
 
 
 # --- per-eval timeout (item 1) ---
-# The eval runs in a spawned child, so injected callables must be importable at
-# module level (spawn pickles them by qualified name; monkeypatch wouldn't cross).
+# The eval runs in a plain freshly-exec'd subprocess (`python -m src.backend.eval_one
+# <request_path> <result_path>`), so multiprocessing's spawn/forkserver main-module
+# bootstrap machinery is never touched. The subprocess is its own session leader, so a
+# timeout kills the whole process group (the eval plus any JAX/DESC helpers it spawned).
+# These stubs stand in for that command: same contract (read the request from argv[1],
+# write the result to argv[2]), without the heavy eval.
+_STUB_OK = [
+    sys.executable, "-c",
+    "import sys, json; req = json.load(open(sys.argv[1])); "
+    "json.dump({'model': req['model'], 'status': 'FINISHED'}, open(sys.argv[2], 'w'))",
+]
+_STUB_HANG = [sys.executable, "-c", "import time; time.sleep(30)"]
+_STUB_ERR = [sys.executable, "-c", "import sys; sys.stderr.write('bad model'); sys.exit(1)"]
+_STUB_SEGV = [sys.executable, "-c", "import os, signal; os.kill(os.getpid(), signal.SIGSEGV)"]
 
-def _ok_eval(req):
-    return {"model": req["model"], "status": "FINISHED"}
 
-
-def _hang_eval(req):
-    import time
-    time.sleep(30)
-
-
-def _boom_eval(req):
-    raise ValueError("bad model")
-
-
-def test_evaluate_with_timeout_returns_record():
-    rec = runner._evaluate_with_timeout({"model": "org/m"}, timeout=30, _fn=_ok_eval)
+def test_evaluate_with_timeout_returns_record(monkeypatch):
+    monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_OK)
+    rec = runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
     assert rec == {"model": "org/m", "status": "FINISHED"}
 
 
-def test_evaluate_with_timeout_kills_hung_eval():
+def test_evaluate_with_timeout_kills_hung_eval(monkeypatch):
+    monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_HANG)
     with pytest.raises(TimeoutError):
-        runner._evaluate_with_timeout({"model": "org/m"}, timeout=0.3, _fn=_hang_eval)
+        runner._evaluate_with_timeout({"model": "org/m"}, timeout=0.5)
 
 
-def test_evaluate_with_timeout_propagates_eval_error():
+def test_evaluate_with_timeout_kills_whole_process_group(tmp_path, monkeypatch):
+    # A hung eval may have spawned helper processes (JAX/DESC). Killing only the direct
+    # child would orphan them; the session leader + killpg takes out the whole group.
+    # The stub spawns a grandchild that writes `sentinel` after a delay, then hangs; if
+    # the group kill works the grandchild dies first and the sentinel never appears.
+    sentinel = tmp_path / "grandchild.txt"
+    stub_script = tmp_path / "group_stub.py"
+    stub_script.write_text(
+        "import sys, json, subprocess, time\n"
+        "sentinel = json.load(open(sys.argv[1]))['sentinel']\n"
+        "subprocess.Popen([sys.executable, '-c',\n"
+        "    'import sys, time; time.sleep(1.5); open(sys.argv[1], \"w\").write(\"x\")',\n"
+        "    sentinel])\n"
+        "time.sleep(30)\n"
+    )
+    monkeypatch.setattr(runner, "_EVAL_CMD", [sys.executable, str(stub_script)])
+    with pytest.raises(TimeoutError):
+        runner._evaluate_with_timeout({"model": "org/m", "sentinel": str(sentinel)}, timeout=0.3)
+    time.sleep(2.0)  # past the grandchild's write time, had it survived the kill
+    assert not sentinel.exists()
+
+
+def test_evaluate_with_timeout_reports_segfault(monkeypatch):
+    monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_SEGV)
+    with pytest.raises(RuntimeError, match="(?i)segmentation"):
+        runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
+
+
+def test_evaluate_with_timeout_propagates_subprocess_error(monkeypatch):
+    monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_ERR)
     with pytest.raises(RuntimeError, match="bad model"):
-        runner._evaluate_with_timeout({"model": "org/m"}, timeout=30, _fn=_boom_eval)
+        runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
+
+
+def test_evaluate_with_timeout_runs_inline_when_disabled(monkeypatch):
+    monkeypatch.setattr(runner, "_run_eval",
+                        lambda req: {"model": req["model"], "status": "FINISHED"})
+    rec = runner._evaluate_with_timeout({"model": "org/m"}, timeout=0)
+    assert rec == {"model": "org/m", "status": "FINISHED"}
+
+
+def test_eval_one_reads_request_file_and_writes_record(tmp_path, monkeypatch):
+    # The subprocess entrypoint: request JSON at argv[1] -> record JSON at argv[2].
+    monkeypatch.setattr(runner, "_run_eval",
+                        lambda req: {"model": req["model"], "status": "FINISHED"})
+    req_path = tmp_path / "req.json"
+    req_path.write_text(json.dumps({"model": "org/m"}))
+    out = tmp_path / "result.json"
+    monkeypatch.setattr(sys, "argv", ["eval_one", str(req_path), str(out)])
+
+    eval_one.main()
+
+    assert json.loads(out.read_text()) == {"model": "org/m", "status": "FINISHED"}
 
 
 # --- claim stamps attempts/started_at/worker_id (items 2 & 3) ---

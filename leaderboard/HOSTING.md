@@ -61,8 +61,10 @@ On boot the worker fires once, then polls every `COILBENCH_RUNNER_INTERVAL`
 seconds, moving each request `PENDING → RUNNING → FINISHED/FAILED` and pushing
 results. The worker page shows the last run time/result.
 
-Each eval runs in a short-lived child process with a wall-clock timeout, so one
-hung or runaway model can't wedge the poll loop. On every poll the worker also
+Each eval runs in a short-lived child process (its own session leader) with a
+wall-clock timeout, so one hung or runaway model can't wedge the poll loop — on
+timeout the worker SIGKILLs the child's whole process group, taking out any
+JAX/DESC helper processes it spawned rather than leaking them. On every poll the worker also
 sweeps for `RUNNING` requests whose lease has expired (a crashed/killed worker
 leaves them stranded) and re-queues them to `PENDING`, up to `COILBENCH_MAX_ATTEMPTS`
 claims before failing them permanently. A claim stamps `started_at`, `worker_id`
