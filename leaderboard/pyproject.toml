@@ -32,6 +32,9 @@ dev = [
     "pre-commit",
     "pytest",
     "onnx",
+    # Export-time only (scripts/export_coilstellaration_onnx.py); not needed to
+    # run the benchmark, which only consumes the resulting .onnx via onnxruntime.
+    "jax2onnx",
 ]
 
 [tool.hatch.build.targets.wheel]

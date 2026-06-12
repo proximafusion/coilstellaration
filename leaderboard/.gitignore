@@ -17,3 +17,6 @@ eval-results/
 eval-queue-bk/
 eval-results-bk/
 logs/
+
+# exported coilstellaration models
+examples/*.onnx
