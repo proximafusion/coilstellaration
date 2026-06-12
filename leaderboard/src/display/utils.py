@@ -21,22 +21,22 @@ auto_eval_column_dict.append(["submitter", ColumnContent, ColumnContent("Submitt
 auto_eval_column_dict.append(["overall", ColumnContent, ColumnContent("Overall ⬆️", "number", True)])
 # fixed_shape track
 auto_eval_column_dict.append(["fixed_mean", ColumnContent, ColumnContent("fixed: mean", "number", True)])
-auto_eval_column_dict.append(["fixed_feas09", ColumnContent, ColumnContent("fixed: feas@0.9", "number", True)])
+auto_eval_column_dict.append(["fixed_feas09", ColumnContent, ColumnContent("fixed: feas@0.9", "number", False)])
 auto_eval_column_dict.append(["fixed_strict", ColumnContent, ColumnContent("fixed: strict", "number", True)])
 auto_eval_column_dict.append(["fixed_median", ColumnContent, ColumnContent("fixed: median", "number", False)])
 auto_eval_column_dict.append(["fixed_p10", ColumnContent, ColumnContent("fixed: p10", "number", False)])
 # variable_shape track
 auto_eval_column_dict.append(["var_mean", ColumnContent, ColumnContent("var: mean", "number", True)])
-auto_eval_column_dict.append(["var_feas09", ColumnContent, ColumnContent("var: feas@0.9", "number", True)])
+auto_eval_column_dict.append(["var_feas09", ColumnContent, ColumnContent("var: feas@0.9", "number", False)])
 auto_eval_column_dict.append(["var_strict", ColumnContent, ColumnContent("var: strict", "number", True)])
 auto_eval_column_dict.append(["var_median", ColumnContent, ColumnContent("var: median", "number", False)])
 auto_eval_column_dict.append(["var_p10", ColumnContent, ColumnContent("var: p10", "number", False)])
 # metadata
-auto_eval_column_dict.append(["stochastic", ColumnContent, ColumnContent("Stochastic (K)", "str", True)])
-auto_eval_column_dict.append(["submitted", ColumnContent, ColumnContent("Submitted", "str", False)])
+auto_eval_column_dict.append(["stochastic", ColumnContent, ColumnContent("Stochastic (K)", "str", False)])
+auto_eval_column_dict.append(["submitted", ColumnContent, ColumnContent("Submitted", "str", True)])
 auto_eval_column_dict.append(["revision", ColumnContent, ColumnContent("Revision", "str", False)])
-auto_eval_column_dict.append(["commit", ColumnContent, ColumnContent("Commit", "markdown", False)])
-auto_eval_column_dict.append(["onnx_file", ColumnContent, ColumnContent("ONNX file", "str", False)])
+auto_eval_column_dict.append(["commit", ColumnContent, ColumnContent("Commit", "markdown", True)])
+auto_eval_column_dict.append(["onnx_file", ColumnContent, ColumnContent("ONNX file", "str", True)])
 
 AutoEvalColumn = make_dataclass("AutoEvalColumn", auto_eval_column_dict, frozen=True)
 
