@@ -49,6 +49,8 @@ class EvalQueueColumn:
     submitter = ColumnContent("submitter", "str", True)
     stochastic = ColumnContent("stochastic", "str", True)
     status = ColumnContent("status", "str", True)
+    # Claim time (UTC ISO) — populated for RUNNING/FINISHED so a stuck job is visible.
+    started = ColumnContent("started", "str", True)
 
 
 # Column selection

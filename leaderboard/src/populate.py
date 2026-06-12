@@ -45,6 +45,7 @@ def get_evaluation_queue_df(save_path: str, cols: list) -> list[pd.DataFrame]:
 
             data[EvalQueueColumn.model.name] = make_clickable_model(data["model"])
             data[EvalQueueColumn.revision.name] = data.get("revision", "main")
+            data[EvalQueueColumn.started.name] = data.get("started_at", "")
 
             all_evals.append(data)
         elif ".md" not in entry:

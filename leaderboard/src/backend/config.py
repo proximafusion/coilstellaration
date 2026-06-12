@@ -16,6 +16,18 @@ SPLIT: str = "eval"
 # Number of instances per track. 0 = full split (production). Override for dev via env.
 N_INSTANCES: int = int(os.environ.get("COILBENCH_N", "0"))
 
+# --- Worker robustness (see src/backend/runner.py) ---
+# Wall-clock kill for a single evaluation (download + all tracks). 0 disables the
+# subprocess guard and runs the eval inline. Keeps one hung model from wedging the
+# poll loop (the scheduler runs at most one run_once at a time).
+EVAL_TIMEOUT: int = int(os.environ.get("COILBENCH_EVAL_TIMEOUT", "1800"))
+# A request left RUNNING longer than this is presumed orphaned (crashed/killed
+# worker) and reaped on the next poll. Keep it comfortably above EVAL_TIMEOUT.
+LEASE_TTL: int = int(os.environ.get("COILBENCH_LEASE_TTL", "3600"))
+# How many times a request may be (re)claimed before it is failed permanently,
+# so a job that reliably kills its worker can't loop forever.
+MAX_ATTEMPTS: int = int(os.environ.get("COILBENCH_MAX_ATTEMPTS", "3"))
+
 # Frozen scoring definition for the benchmark.
 SCORING_SETTINGS: benchmark_types.ScoringSettings = benchmark_types.ScoringSettings()
 

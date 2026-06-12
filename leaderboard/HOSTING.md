@@ -46,6 +46,12 @@ with no file edits** — you only set Space variables:
    - `COILBENCH_OWNER` — e.g. `jhewers-pf`.
    - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
    - `COILBENCH_N` (optional) — instances per track; `0` = full split.
+   - `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single
+     eval is killed (default 1800; `0` disables the subprocess guard).
+   - `COILBENCH_LEASE_TTL` (optional) — seconds before a stuck `RUNNING` request
+     is presumed orphaned and recovered (default 3600; keep above the timeout).
+   - `COILBENCH_MAX_ATTEMPTS` (optional) — how many times a request may be
+     (re)claimed before it is failed permanently (default 3).
 
 (With `COILBENCH_ROLE=worker`, `app.py` launches `runner_app.py` instead of the
 leaderboard. You can also point a Space's `app_file` directly at `runner_app.py`
@@ -54,6 +60,13 @@ if you prefer an explicit entrypoint, but the variable approach needs no edits.)
 On boot the worker fires once, then polls every `COILBENCH_RUNNER_INTERVAL`
 seconds, moving each request `PENDING → RUNNING → FINISHED/FAILED` and pushing
 results. The worker page shows the last run time/result.
+
+Each eval runs in a short-lived child process with a wall-clock timeout, so one
+hung or runaway model can't wedge the poll loop. On every poll the worker also
+sweeps for `RUNNING` requests whose lease has expired (a crashed/killed worker
+leaves them stranded) and re-queues them to `PENDING`, up to `COILBENCH_MAX_ATTEMPTS`
+claims before failing them permanently. A claim stamps `started_at`, `worker_id`
+and `attempts` on the request; `started_at` is surfaced in the queue UI.
 
 ### Notes
 
