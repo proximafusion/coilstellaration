@@ -33,7 +33,7 @@ CURRENT = 1.0e6             # Amperes per coil
 PHI = [(k + 0.5) * 0.4 for k in range(N_COILS)]
 
 OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples")
-OUT_PATH = os.path.join(OUT_DIR, "model.onnx")
+OUT_PATH = os.path.join(OUT_DIR, "dummy-constant-circle.onnx")
 
 
 def _circular_coils() -> dict[str, np.ndarray]:
