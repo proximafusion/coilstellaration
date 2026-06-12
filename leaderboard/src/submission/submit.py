@@ -52,7 +52,7 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     # Reject an identical (model, commit, file) submission already in the queue.
     if submission_key(model, commit_hash, onnx_path) in already_submitted_models(EVAL_REQUESTS_PATH):
         logger.info("Duplicate submission for %s@%s:%s", model, commit_hash, onnx_path)
-        return styled_error("This exact model commit and file has already been submitted.")
+        return styled_error(f'This exact model commit ({commit_hash}) and file ({onnx_path}) has already been submitted.')
 
     # 2) Download model.onnx and validate the I/O contract.
     try:
