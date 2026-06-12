@@ -90,7 +90,7 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     onnx_slug = onnx_path.replace("/", "-").removesuffix(".onnx")
     out_path = f"{out_dir}/{model_path}_eval_request_{revision}_{onnx_slug}.json"
     with open(out_path, "w") as f:
-        f.write(json.dumps(eval_entry))
+        json.dump(eval_entry, f, indent=2)
 
     API.upload_file(
         path_or_fileobj=out_path,

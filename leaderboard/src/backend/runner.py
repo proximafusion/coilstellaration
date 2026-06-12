@@ -53,7 +53,7 @@ def _iter_pending(requests_dir: str):
 
 def _push_request(req: dict, rel_path: str):
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump(req, f)
+        json.dump(req, f, indent=2)
         tmp = f.name
     logger.debug("Pushing request %s status -> %s", req["model"], req["status"])
     API.upload_file(path_or_fileobj=tmp, path_in_repo=rel_path, repo_id=QUEUE_REPO,
@@ -67,7 +67,7 @@ def _push_result(record: dict):
     onnx_slug = record.get("onnx_path", "model.onnx").replace("/", "-").removesuffix(".onnx")
     rel_path = f"{org}/{model}_{commit}_{onnx_slug}.json"
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump(record, f)
+        json.dump(record, f, indent=2)
         tmp = f.name
     logger.debug("Pushing result for %s to %s", record["model"], rel_path)
     API.upload_file(path_or_fileobj=tmp, path_in_repo=rel_path, repo_id=RESULTS_REPO,
