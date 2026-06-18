@@ -102,17 +102,6 @@ def _run_eval(req: dict) -> dict:
 _EVAL_CMD = [sys.executable, "-u", "-m", "src.backend.eval_one"]
 
 
-def _stderr_tail(path: str, limit: int = 2000) -> str:
-    """Last ``limit`` bytes of the child's stderr log (read only on failure)."""
-    try:
-        with open(path, errors="replace") as f:
-            f.seek(0, os.SEEK_END)
-            f.seek(max(f.tell() - limit, 0))
-            return f.read().strip()
-    except OSError:
-        return ""
-
-
 def _kill_group(proc: "subprocess.Popen") -> None:
     """SIGKILL the child's whole process group, then reap it."""
     try:
@@ -129,7 +118,8 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> dict:
     SIGKILLs the entire process group -- the eval plus any JAX/DESC helpers it
     spawned -- raising ``TimeoutError`` instead of wedging the single-threaded poll
     loop and leaking orphans. A hard crash (e.g. segfault from JAX/LLVM) and any
-    non-zero exit surface as ``RuntimeError`` carrying the child's stderr tail.
+    non-zero exit surface as ``RuntimeError``. The child inherits the worker's
+    stdout/stderr, so the eval's own logging streams straight to the console.
     ``timeout <= 0`` runs the eval inline (no subprocess).
     """
     if timeout is None:
@@ -140,20 +130,14 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         req_path = os.path.join(tmp, "request.json")
         out_path = os.path.join(tmp, "result.json")
-        stderr_path = os.path.join(tmp, "stderr.log")
         with open(req_path, "w") as f:
             json.dump(req, f, indent=2)
 
-        # stderr -> file (not a pipe): with Popen + a long-running child, reading a
-        # full pipe lazily would deadlock; we only read the tail if it fails.
-        with open(stderr_path, "wb") as err:
-            proc = subprocess.Popen(
-                [*_EVAL_CMD, req_path, out_path],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=err,
-                start_new_session=True,
-            )
+        proc = subprocess.Popen(
+            [*_EVAL_CMD, req_path, out_path],
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
         try:
             proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
@@ -161,13 +145,9 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> dict:
             raise TimeoutError(f"Evaluation exceeded {timeout}s") from exc
 
         if proc.returncode != 0:
-            tail = _stderr_tail(stderr_path)
             if proc.returncode == -signal.SIGSEGV:
-                raise RuntimeError(
-                    f"Evaluation crashed (segmentation fault), likely a JAX/LLVM "
-                    f"crash or OOM; last stderr: {tail}"
-                )
-            raise RuntimeError(f"Evaluation subprocess exited {proc.returncode}: {tail}")
+                raise RuntimeError("Evaluation crashed (segmentation fault), likely a JAX/LLVM crash or OOM")
+            raise RuntimeError(f"Evaluation subprocess exited {proc.returncode}")
         with open(out_path) as f:
             return json.load(f)
 

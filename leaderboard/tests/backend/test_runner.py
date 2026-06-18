@@ -121,10 +121,27 @@ def test_evaluate_with_timeout_reports_segfault(monkeypatch):
         runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
 
 
-def test_evaluate_with_timeout_propagates_subprocess_error(monkeypatch):
+def test_evaluate_with_timeout_propagates_subprocess_error(capfd, monkeypatch):
     monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_ERR)
-    with pytest.raises(RuntimeError, match="bad model"):
+    with pytest.raises(RuntimeError, match="exited 1"):
         runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
+    # The child's diagnostics aren't folded into the exception any more; they go
+    # straight to the console (inherited stderr).
+    assert "bad model" in capfd.readouterr().err
+
+
+def test_evaluate_with_timeout_streams_child_output(capfd, monkeypatch):
+    # The child inherits the worker's stdout/stderr, so the eval's progress (and an
+    # OOM-kill that leaves no exception) is visible in the console, not discarded.
+    stub = [
+        sys.executable, "-c",
+        "import sys, json; print('hello-from-child'); sys.stdout.flush(); "
+        "json.dump({'model': 'org/m', 'status': 'FINISHED'}, open(sys.argv[2], 'w'))",
+    ]
+    monkeypatch.setattr(runner, "_EVAL_CMD", stub)
+    rec = runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
+    assert rec == {"model": "org/m", "status": "FINISHED"}
+    assert "hello-from-child" in capfd.readouterr().out
 
 
 def test_evaluate_with_timeout_runs_inline_when_disabled(monkeypatch):
