@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import tempfile
 from datetime import datetime, timezone
 
@@ -89,16 +88,15 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     }
 
     rel_path = requests_dataset.request_path(model, commit_hash, onnx_path)
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=True) as f:
         json.dump(eval_entry, f, indent=2)
         tmp = f.name
-    API.upload_file(
-        path_or_fileobj=tmp,
-        path_in_repo=rel_path,
-        repo_id=QUEUE_REPO,
-        repo_type="dataset",
-        commit_message=f"Add {model} to eval queue",
-    )
-    os.remove(tmp)
+        API.upload_file(
+            path_or_fileobj=tmp,
+            path_in_repo=rel_path,
+            repo_id=QUEUE_REPO,
+            repo_type="dataset",
+            commit_message=f"Add {model} to eval queue",
+        )
     logger.info("Submission %s queued (PENDING) at %s", model, current_time)
     return styled_message("Your model has been submitted to the evaluation queue!")
