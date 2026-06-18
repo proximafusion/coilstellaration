@@ -8,6 +8,7 @@ from coilstellaration.benchmark import types as benchmark_types
 from constellaration.geometry import surface_rz_fourier, surface_utils_desc
 
 from src.backend import config, marshal
+from src.backend import data as benchmark_data
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ def _load_track(track: str, n: int) -> list[types.EvalData]:
     number of available instances the loader simply stops early and returns
     them all.
     """
-    return data_utils.load_benchmark_dataset(
+    return benchmark_data.load_benchmark_dataset(
         track=track, stratum=config.STRATUM, split=config.SPLIT, n=n
     )
 
