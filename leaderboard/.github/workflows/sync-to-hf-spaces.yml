@@ -1,0 +1,40 @@
+name: Sync to Hugging Face Spaces
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'tests/**'
+      - '.github/**'
+      - '.pre-commit-config.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-to-hf-spaces
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history + LFS)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to evaluator (worker) Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git push --force \
+            "https://jhewers-pf:${HF_TOKEN}@huggingface.co/spaces/jhewers-pf/coilstellaration-bench-evaluator" \
+            HEAD:main
+
+      - name: Push to leaderboard Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git push --force \
+            "https://jhewers-pf:${HF_TOKEN}@huggingface.co/spaces/jhewers-pf/coilstellaration-bench" \
+            HEAD:main
