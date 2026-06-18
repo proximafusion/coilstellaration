@@ -28,7 +28,7 @@ def _evaluate_achieved(
     desc_surface = surface_utils_desc.to_desc_fourier_rz_toroidal_surface(boundary)
     desc_coilset = coilset_utils.coilstellaration_to_desc(coilset)
     metrics = metrics_utils_v2.evaluate_coilset_metrics_from_boundary(
-        boundary=desc_surface, coilset=desc_coilset
+        boundary=desc_surface, coilset=desc_coilset, subset_metrics=True
     )
     return data_utils.metrics_to_requirement_metrics(metrics)
 
