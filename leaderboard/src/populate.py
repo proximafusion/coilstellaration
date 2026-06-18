@@ -1,6 +1,4 @@
-import json
 import logging
-import os
 
 import pandas as pd
 
@@ -11,7 +9,7 @@ from src.leaderboard.read_evals import get_raw_eval_results
 logger = logging.getLogger(__name__)
 
 
-def get_leaderboard_df(results_path: str, requests_path: str, cols: list, benchmark_cols: list) -> pd.DataFrame:
+def get_leaderboard_df(results_path: str, cols: list, benchmark_cols: list) -> pd.DataFrame:
     """Creates a dataframe from all the individual experiment results"""
     all_data_json = get_raw_eval_results(results_path)
 
@@ -31,42 +29,22 @@ def get_leaderboard_df(results_path: str, requests_path: str, cols: list, benchm
     return df
 
 
-def get_evaluation_queue_df(save_path: str, cols: list) -> list[pd.DataFrame]:
-    """Creates the different dataframes for the evaluation queues requestes"""
-    logger.debug("Reading evaluation queue from %s", save_path)
-    entries = [entry for entry in os.listdir(save_path) if not entry.startswith(".")]
+def get_evaluation_queue_df(records: list[dict], cols: list) -> list[pd.DataFrame]:
+    """Bucket request records into finished/running/pending dataframes."""
     all_evals = []
+    for record in records:
+        data = dict(record)  # don't mutate the caller's dict
+        data[EvalQueueColumn.model.name] = make_clickable_model(data["model"])
+        data[EvalQueueColumn.revision.name] = data.get("revision", "main")
+        data[EvalQueueColumn.started.name] = data.get("started_at", "")
+        all_evals.append(data)
 
-    for entry in entries:
-        if ".json" in entry:
-            file_path = os.path.join(save_path, entry)
-            with open(file_path) as fp:
-                data = json.load(fp)
-
-            data[EvalQueueColumn.model.name] = make_clickable_model(data["model"])
-            data[EvalQueueColumn.revision.name] = data.get("revision", "main")
-            data[EvalQueueColumn.started.name] = data.get("started_at", "")
-
-            all_evals.append(data)
-        elif ".md" not in entry:
-            # this is a folder
-            sub_entries = [
-                e
-                for e in os.listdir(f"{save_path}/{entry}")
-                if os.path.isfile(os.path.join(save_path, entry, e)) and not e.startswith(".")
-            ]
-            for sub_entry in sub_entries:
-                file_path = os.path.join(save_path, entry, sub_entry)
-                with open(file_path) as fp:
-                    data = json.load(fp)
-
-                data[EvalQueueColumn.model.name] = make_clickable_model(data["model"])
-                data[EvalQueueColumn.revision.name] = data.get("revision", "main")
-                all_evals.append(data)
-
-    pending_list = [e for e in all_evals if e["status"] in ["PENDING", "RERUN"]]
-    running_list = [e for e in all_evals if e["status"] == "RUNNING"]
-    finished_list = [e for e in all_evals if e["status"].startswith("FINISHED") or e["status"] == "PENDING_NEW_EVAL"]
+    pending_list = [e for e in all_evals if e.get("status") in ["PENDING", "RERUN"]]
+    running_list = [e for e in all_evals if e.get("status") == "RUNNING"]
+    finished_list = [
+        e for e in all_evals
+        if str(e.get("status", "")).startswith("FINISHED") or e.get("status") == "PENDING_NEW_EVAL"
+    ]
     df_pending = pd.DataFrame.from_records(pending_list, columns=cols)
     df_running = pd.DataFrame.from_records(running_list, columns=cols)
     df_finished = pd.DataFrame.from_records(finished_list, columns=cols)
