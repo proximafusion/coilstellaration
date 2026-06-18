@@ -6,7 +6,7 @@ from src.submission import requests_dataset
 def test_request_path_encodes_identity():
     assert (
         requests_dataset.request_path("org/m", "abc123", "models/best.onnx")
-        == "org/m_eval_request_abc123_models-best.onnx.json"
+        == "org/m_eval_request_abc123_models-best.json"
     )
 
 

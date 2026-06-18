@@ -16,10 +16,7 @@ def request_path(model: str, commit_hash: str, onnx_path: str) -> str:
     the duplicate check.
     """
     user_name, model_path = model.split("/", 1)
-    # Only remove .onnx if it's the entire filename (no directory separator after replacing /)
-    onnx_slug = onnx_path.replace("/", "-")
-    if "/" not in onnx_path:  # Simple filename without directory
-        onnx_slug = onnx_slug.removesuffix(".onnx")
+    onnx_slug = onnx_path.replace("/", "-").removesuffix(".onnx")
     return f"{user_name}/{model_path}_eval_request_{commit_hash}_{onnx_slug}.json"
 
 
