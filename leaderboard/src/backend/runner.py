@@ -1,8 +1,3 @@
-"""Backend worker: poll the requests dataset, evaluate PENDING models, push results.
-
-Run on suitable compute (NOT the Space):  python -m src.backend.runner
-Requires HF_TOKEN with write access to the requests + results datasets.
-"""
 import datetime
 import json
 import logging
@@ -56,8 +51,13 @@ def _push_request(req: dict, rel_path: str):
         json.dump(req, f, indent=2)
         tmp = f.name
     logger.debug("Pushing request %s status -> %s", req["model"], req["status"])
-    API.upload_file(path_or_fileobj=tmp, path_in_repo=rel_path, repo_id=QUEUE_REPO,
-                    repo_type="dataset", commit_message=f"Update status {req['model']} -> {req['status']}")
+    API.upload_file(
+        path_or_fileobj=tmp,
+        path_in_repo=rel_path,
+        repo_id=QUEUE_REPO,
+        repo_type="dataset",
+        commit_message=f"Update status {req['model']} -> {req['status']}",
+    )
     os.remove(tmp)
 
 
@@ -70,8 +70,13 @@ def _push_result(record: dict):
         json.dump(record, f, indent=2)
         tmp = f.name
     logger.debug("Pushing result for %s to %s", record["model"], rel_path)
-    API.upload_file(path_or_fileobj=tmp, path_in_repo=rel_path, repo_id=RESULTS_REPO,
-                    repo_type="dataset", commit_message=f"Add results for {record['model']}")
+    API.upload_file(
+        path_or_fileobj=tmp,
+        path_in_repo=rel_path,
+        repo_id=RESULTS_REPO,
+        repo_type="dataset",
+        commit_message=f"Add results for {record['model']}",
+    )
     os.remove(tmp)
 
 
@@ -81,24 +86,22 @@ def _run_eval(req: dict) -> dict:
         onnx_path = req.get("onnx_path", ONNX_FILENAME)
         ref = req.get("commit_hash") or req["revision"]
         logger.debug("Downloading %s from %s at %s", onnx_path, req["model"], ref)
-        local = hf_hub_download(repo_id=req["model"], filename=onnx_path,
-                                revision=ref, local_dir=tmp, token=TOKEN)
+        local = hf_hub_download(repo_id=req["model"], filename=onnx_path, revision=ref, local_dir=tmp, token=TOKEN)
         model = OnnxModel(local)
         return beval.evaluate_model(
-            model=model, model_name=req["model"], revision=req["revision"],
-            submitter=req.get("submitter", ""), stochastic=req.get("stochastic", False),
-            k_samples=req.get("k_samples", 1), submitted_time=req.get("submitted_time", ""),
+            model=model,
+            model_name=req["model"],
+            revision=req["revision"],
+            submitter=req.get("submitter", ""),
+            stochastic=req.get("stochastic", False),
+            k_samples=req.get("k_samples", 1),
+            submitted_time=req.get("submitted_time", ""),
             n_instances=req.get("n_instances", config.N_INSTANCES),
-            commit_hash=req.get("commit_hash", ""), onnx_path=onnx_path,
+            commit_hash=req.get("commit_hash", ""),
+            onnx_path=onnx_path,
         )
 
 
-# The eval runs in a plain freshly-exec'd subprocess (see src/backend/eval_one.py).
-# This deliberately avoids multiprocessing fork/spawn/forkserver: spawn & forkserver
-# re-prepare the parent's __main__ (the gradio/scheduler worker entrypoint, which has
-# import-time side effects) and trip multiprocessing's bootstrap guard, while bare
-# fork inherits JAX's threads and risks deadlock. A clean exec'd interpreter has none
-# of those problems and gives a reliable wall-clock kill.
 _EVAL_CMD = [sys.executable, "-u", "-m", "src.backend.eval_one"]
 
 
@@ -170,13 +173,11 @@ def _reap_stale(requests_dir: str) -> None:
             continue
         rel_path = path.split("eval-queue/")[1]
         if req.get("attempts", 0) >= config.MAX_ATTEMPTS:
-            logger.warning("Request %s exceeded %d attempts; marking FAILED",
-                           req["model"], config.MAX_ATTEMPTS)
+            logger.warning("Request %s exceeded %d attempts; marking FAILED", req["model"], config.MAX_ATTEMPTS)
             req["status"] = "FAILED"
             req["error"] = f"Exceeded {config.MAX_ATTEMPTS} attempts; worker presumed dead"
         else:
-            logger.warning("Re-queuing stale RUNNING request %s (lease expired after %.0fs)",
-                           req["model"], age)
+            logger.warning("Re-queuing stale RUNNING request %s (lease expired after %.0fs)", req["model"], age)
             req["status"] = "PENDING"
         _push_request(req, rel_path)
 

@@ -2,13 +2,10 @@
 import logging
 
 import numpy as np
-
-from coilstellaration import coilset_utils, data_utils, metrics_utils_v2
-from coilstellaration import types
+from coilstellaration import coilset_utils, data_utils, metrics_utils_v2, types
 from coilstellaration.benchmark import scoring
 from coilstellaration.benchmark import types as benchmark_types
-from constellaration.geometry import surface_rz_fourier
-from constellaration.geometry import surface_utils_desc
+from constellaration.geometry import surface_rz_fourier, surface_utils_desc
 
 from src.backend import config, marshal
 
