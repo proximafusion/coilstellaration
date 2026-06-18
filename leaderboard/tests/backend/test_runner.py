@@ -277,3 +277,38 @@ def test_reap_stale_ignores_fresh_running(tmp_path, monkeypatch):
     runner._reap_stale(str(queue))
 
     assert pushed == []
+
+
+# --- a single malformed request file must not wedge the whole poll loop ---
+
+def test_iter_requests_skips_empty_and_malformed_files(tmp_path):
+    org = tmp_path / "org"
+    org.mkdir(parents=True)
+    (org / "empty.json").write_text("")          # zero-byte file (the production poison pill)
+    (org / "garbage.json").write_text("{not json")
+    (org / "good.json").write_text(json.dumps({"model": "org/m", "status": "PENDING"}))
+
+    found = dict(runner._iter_requests(str(tmp_path)))
+
+    assert [req["model"] for req in found.values()] == ["org/m"]
+
+
+def test_run_once_processes_valid_requests_despite_poison_file(tmp_path, monkeypatch):
+    queue = tmp_path / "eval-queue" / "org"
+    queue.mkdir(parents=True)
+    (queue / "empty.json").write_text("")  # would crash json.load
+    (queue / "m.json").write_text(json.dumps({
+        "model": "org/m", "revision": "main", "status": "PENDING",
+    }))
+
+    monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
+    monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
+    pushed = []
+    monkeypatch.setattr(runner, "_push_request", lambda req, rel: pushed.append(dict(req)))
+    monkeypatch.setattr(runner, "_push_result", lambda rec: None)
+    monkeypatch.setattr(runner, "_evaluate_with_timeout",
+                        lambda req, timeout=None: {"model": "org/m", "status": "FINISHED"})
+
+    runner.run_once()
+
+    assert pushed[-1]["status"] == "FINISHED"  # valid request still processed

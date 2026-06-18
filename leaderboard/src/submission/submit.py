@@ -90,6 +90,7 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     rel_path = requests_dataset.request_path(model, commit_hash, onnx_path)
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=True) as f:
         json.dump(eval_entry, f, indent=2)
+        f.flush()
         tmp = f.name
         API.upload_file(
             path_or_fileobj=tmp,

@@ -35,8 +35,14 @@ def _iter_requests(requests_dir: str):
             if not fname.endswith(".json"):
                 continue
             path = os.path.join(root, fname)
-            with open(path) as fp:
-                req = json.load(fp)
+            try:
+                with open(path) as fp:
+                    req = json.load(fp)
+            except (json.JSONDecodeError, OSError) as exc:
+                # A single empty or corrupt file must not wedge the whole poll
+                # loop -- skip it so valid requests still get reaped/processed.
+                logger.warning("Skipping unreadable request file %s: %s", path, exc)
+                continue
             yield path, req
 
 
