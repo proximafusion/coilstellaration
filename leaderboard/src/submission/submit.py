@@ -7,8 +7,9 @@ from datetime import datetime, timezone
 from huggingface_hub import hf_hub_download
 
 from src.display.formatting import styled_error, styled_message
-from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, TOKEN
-from src.submission.check_validity import already_submitted_models, submission_key, validate_local_onnx
+from src.envs import API, QUEUE_REPO, TOKEN
+from src.submission import requests_dataset
+from src.submission.check_validity import validate_local_onnx
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,6 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     if n_instances < 1:
         n_instances = -1
 
-    user_name, model_path = model.split("/", 1)
     logger.info(
         "New submission: model=%s revision=%s submitter=%s n_instances=%s",
         model, revision, submitter, n_instances,
@@ -47,9 +47,16 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
         logger.warning("Could not resolve a commit hash for %s@%s", model, revision)
         return styled_error(f'Could not resolve a commit hash for "{model}" at revision "{revision}".')
 
-    if submission_key(model, commit_hash, onnx_path) in already_submitted_models(EVAL_REQUESTS_PATH):
+    try:
+        duplicate = requests_dataset.submission_exists(model, commit_hash, onnx_path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not check the queue for duplicates: %s", exc)
+        return styled_error("Couldn't verify against the queue — please retry.")
+    if duplicate:
         logger.info("Duplicate submission for %s@%s:%s", model, commit_hash, onnx_path)
-        return styled_error(f'This exact model commit ({commit_hash}) and file ({onnx_path}) has already been submitted.')
+        return styled_error(
+            f"This exact model commit ({commit_hash}) and file ({onnx_path}) has already been submitted."
+        )
 
     try:
         with tempfile.TemporaryDirectory() as tmp:
@@ -81,20 +88,17 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
         "private": False,
     }
 
-    out_dir = f"{EVAL_REQUESTS_PATH}/{user_name}"
-    os.makedirs(out_dir, exist_ok=True)
-    onnx_slug = onnx_path.replace("/", "-").removesuffix(".onnx")
-    out_path = f"{out_dir}/{model_path}_eval_request_{commit_hash}_{onnx_slug}.json"
-    with open(out_path, "w") as f:
+    rel_path = requests_dataset.request_path(model, commit_hash, onnx_path)
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(eval_entry, f, indent=2)
-
+        tmp = f.name
     API.upload_file(
-        path_or_fileobj=out_path,
-        path_in_repo=os.path.relpath(out_path, EVAL_REQUESTS_PATH),
+        path_or_fileobj=tmp,
+        path_in_repo=rel_path,
         repo_id=QUEUE_REPO,
         repo_type="dataset",
         commit_message=f"Add {model} to eval queue",
     )
-    os.remove(out_path)
+    os.remove(tmp)
     logger.info("Submission %s queued (PENDING) at %s", model, current_time)
     return styled_message("Your model has been submitted to the evaluation queue!")
