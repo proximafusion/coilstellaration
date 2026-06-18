@@ -37,8 +37,6 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
         model, revision, submitter, n_instances,
     )
 
-    # 1) Repo exists and is publicly accessible. Submissions are ONNX-only (no
-    #    config.json), so we must NOT use a transformers AutoConfig check here.
     try:
         info = API.repo_info(repo_id=model, revision=revision, repo_type="model", token=TOKEN)
         commit_hash = info.sha
@@ -49,12 +47,10 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
         logger.warning("Could not resolve a commit hash for %s@%s", model, revision)
         return styled_error(f'Could not resolve a commit hash for "{model}" at revision "{revision}".')
 
-    # Reject an identical (model, commit, file) submission already in the queue.
     if submission_key(model, commit_hash, onnx_path) in already_submitted_models(EVAL_REQUESTS_PATH):
         logger.info("Duplicate submission for %s@%s:%s", model, commit_hash, onnx_path)
         return styled_error(f'This exact model commit ({commit_hash}) and file ({onnx_path}) has already been submitted.')
 
-    # 2) Download model.onnx and validate the I/O contract.
     try:
         with tempfile.TemporaryDirectory() as tmp:
             logger.debug("Downloading %s from %s for validation", onnx_path, model)
@@ -88,7 +84,7 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
     out_dir = f"{EVAL_REQUESTS_PATH}/{user_name}"
     os.makedirs(out_dir, exist_ok=True)
     onnx_slug = onnx_path.replace("/", "-").removesuffix(".onnx")
-    out_path = f"{out_dir}/{model_path}_eval_request_{revision}_{onnx_slug}.json"
+    out_path = f"{out_dir}/{model_path}_eval_request_{commit_hash}_{onnx_slug}.json"
     with open(out_path, "w") as f:
         json.dump(eval_entry, f, indent=2)
 
