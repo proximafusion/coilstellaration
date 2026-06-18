@@ -23,8 +23,9 @@ from src.display.utils import (
     AutoEvalColumn,
     fields,
 )
-from src.envs import API, EVAL_REQUESTS_PATH, EVAL_RESULTS_PATH, QUEUE_REPO, REPO_ID, RESULTS_REPO, TOKEN
+from src.envs import API, EVAL_RESULTS_PATH, REPO_ID, RESULTS_REPO, TOKEN
 from src.populate import get_evaluation_queue_df, get_leaderboard_df
+from src.submission import requests_dataset
 from src.submission.submit import add_new_eval
 
 
@@ -49,13 +50,6 @@ def submit_eval(model, revision, onnx_path, submitter, model_type, k_samples, in
 
 ### Space initialisation
 try:
-    print(EVAL_REQUESTS_PATH)
-    snapshot_download(
-        repo_id=QUEUE_REPO, local_dir=EVAL_REQUESTS_PATH, repo_type="dataset", tqdm_class=None, etag_timeout=30, token=TOKEN
-    )
-except Exception:
-    restart_space()
-try:
     print(EVAL_RESULTS_PATH)
     snapshot_download(
         repo_id=RESULTS_REPO, local_dir=EVAL_RESULTS_PATH, repo_type="dataset", tqdm_class=None, etag_timeout=30, token=TOKEN
@@ -64,13 +58,19 @@ except Exception:
     restart_space()
 
 
-LEADERBOARD_DF = get_leaderboard_df(EVAL_RESULTS_PATH, EVAL_REQUESTS_PATH, COLS, BENCHMARK_COLS)
+LEADERBOARD_DF = get_leaderboard_df(EVAL_RESULTS_PATH, COLS, BENCHMARK_COLS)
+
+try:
+    request_records = list(requests_dataset.iter_requests())
+except Exception:
+    restart_space()
+    request_records = []
 
 (
     finished_eval_queue_df,
     running_eval_queue_df,
     pending_eval_queue_df,
-) = get_evaluation_queue_df(EVAL_REQUESTS_PATH, EVAL_COLS)
+) = get_evaluation_queue_df(request_records, EVAL_COLS)
 
 def init_leaderboard(dataframe):
     # A fresh leaderboard with no submissions yet should render an empty table,

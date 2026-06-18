@@ -1,6 +1,4 @@
-import json
 import logging
-import os
 
 import huggingface_hub
 from huggingface_hub import ModelCard
@@ -45,23 +43,3 @@ def validate_local_onnx(local_path: str) -> tuple[bool, str]:
         return False, "; ".join(errors)
     return True, "ONNX contract OK"
 
-
-def submission_key(model: str, commit_hash: str, onnx_path: str) -> str:
-    """Canonical dedup identity: same model + commit + file = same evaluation."""
-    return f"{model}@{commit_hash}:{onnx_path}"
-
-
-def already_submitted_models(requested_models_dir: str) -> set[str]:
-    """Set of dedup keys (model@commit_hash:onnx_path) already in the queue."""
-    keys: set[str] = set()
-    for root, _, files in os.walk(requested_models_dir):
-        for file in files:
-            if not file.endswith(".json"):
-                continue
-            with open(os.path.join(root, file)) as f:
-                info = json.load(f)
-            model = info.get("model")
-            if not model:
-                continue
-            keys.add(submission_key(model, info.get("commit_hash", ""), info.get("onnx_path", "model.onnx")))
-    return keys
