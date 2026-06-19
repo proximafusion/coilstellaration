@@ -10,9 +10,8 @@ import tempfile
 
 from huggingface_hub import hf_hub_download, snapshot_download
 
-from src.backend import config
+from src.backend import config, jax_cache
 from src.backend import eval as beval
-from src.backend import jax_cache
 from src.backend.onnx_model import OnnxModel
 from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, RESULTS_REPO, TOKEN
 from src.submission.submit import ONNX_FILENAME
