@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 from constellaration.geometry import surface_rz_fourier
@@ -119,6 +121,54 @@ def test_evaluate_model_all_instances_fail_raises(monkeypatch):
             submitter="me", stochastic=False, k_samples=1,
             submitted_time="2026-06-11T00:00:00Z",
         )
+
+
+def test_fmt_duration_formats_at_each_scale():
+    assert beval._fmt_duration(3661) == "1h01m"
+    assert beval._fmt_duration(125) == "2m05s"
+    assert beval._fmt_duration(42) == "42s"
+    # Past the deadline reads as negative time-remaining, not a wrapped positive.
+    assert beval._fmt_duration(-5) == "-5s"
+
+
+def test_read_deadline_parses_env(monkeypatch):
+    monkeypatch.setenv("COILBENCH_EVAL_DEADLINE", "1234.5")
+    assert beval._read_deadline() == 1234.5
+
+
+def test_read_deadline_none_when_unset_or_garbage(monkeypatch):
+    monkeypatch.delenv("COILBENCH_EVAL_DEADLINE", raising=False)
+    assert beval._read_deadline() is None
+    monkeypatch.setenv("COILBENCH_EVAL_DEADLINE", "not-a-number")
+    assert beval._read_deadline() is None
+
+
+def test_evaluate_track_logs_time_to_timeout(monkeypatch, caplog):
+    data = [_eval_data("b0")]
+    _patch_physics(monkeypatch, data[0].requirement_metrics)
+    with caplog.at_level("INFO", logger="src.backend.eval"):
+        beval.evaluate_track(FakeModel(), data, deadline=time.time() + 100)
+    assert any("to timeout" in r.message for r in caplog.records)
+
+
+def test_evaluate_track_warns_when_projected_to_overrun(monkeypatch, caplog):
+    # Two instances with the deadline already in the past: after the first
+    # instance the projection for the remaining one must exceed the (negative)
+    # budget, so a warning fires.
+    data = [_eval_data("b0"), _eval_data("b1")]
+    _patch_physics(monkeypatch, data[0].requirement_metrics)
+    with caplog.at_level("WARNING", logger="src.backend.eval"):
+        beval.evaluate_track(FakeModel(), data, deadline=time.time() - 1)
+    assert any("timeout" in r.message.lower() for r in caplog.records
+               if r.levelname == "WARNING")
+
+
+def test_evaluate_track_silent_without_deadline(monkeypatch, caplog):
+    data = [_eval_data("b0")]
+    _patch_physics(monkeypatch, data[0].requirement_metrics)
+    with caplog.at_level("INFO", logger="src.backend.eval"):
+        beval.evaluate_track(FakeModel(), data)
+    assert not any("to timeout" in r.message for r in caplog.records)
 
 
 def test_evaluate_model_records_commit_and_onnx_path(monkeypatch):

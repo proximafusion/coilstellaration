@@ -1,5 +1,6 @@
 """Run an ONNX model through the coilstellaration eval + scoring pipeline."""
 import logging
+import os
 import time
 
 import numpy as np
@@ -22,7 +23,43 @@ logger = logging.getLogger(__name__)
 
 SUMMARY_KEYS = ("mean", "median", "p10", "feasibility_rate_0p9", "strict_feasibility")
 
+# Env carrying the absolute wall-clock deadline (epoch seconds) for the whole
+# eval.
+DEADLINE_ENV = "COILBENCH_EVAL_DEADLINE"
+
 metrics_utils_v2._EVALUATOR_CACHE_MAX = 32
+
+
+def _read_deadline() -> float | None:
+    """Absolute epoch deadline for the eval, or None if no timeout is in force."""
+    raw = os.environ.get(DEADLINE_ENV)
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _fmt_duration(seconds: float) -> str:
+    """Human-readable `1h23m` / `4m05s` / `42s`; signed so overruns read as negative."""
+    total = int(round(seconds))
+    sign = "-" if total < 0 else ""
+    total = abs(total)
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{sign}{h}h{m:02d}m"
+    if m:
+        return f"{sign}{m}m{s:02d}s"
+    return f"{sign}{s}s"
+
+
+def _timeout_suffix(deadline: float | None) -> str:
+    """`` if no deadline, else ` [1h23m to timeout]` for appending to a log line."""
+    if deadline is None:
+        return ""
+    return f" [{_fmt_duration(deadline - time.time())} to timeout]"
 
 
 def _to_desc_coilset(coilset: types.Coilset) -> CoilSet:
@@ -100,6 +137,7 @@ def evaluate_track(
     model,
     eval_datas: list[types.EvalData],
     settings: benchmark_types.ScoringSettings = config.SCORING_SETTINGS,
+    deadline: float | None = None,
 ) -> tuple[benchmark_types.BenchmarkScore, int]:
     """Score one model on one track's instances. Single forward pass per instance.
 
@@ -107,6 +145,10 @@ def evaluate_track(
     failed (and were scored 0.0). The failure count lets `evaluate_model`
     distinguish a model that genuinely scores 0 from one that errored on every
     instance (which should be reported as FAILED, not FINISHED).
+
+    `deadline` is the absolute epoch time at which the parent runner will kill
+    the eval; when set, each instance logs the remaining budget and a warning
+    fires if the run is projected to overrun it.
     """
     instances: list[benchmark_types.InstanceScore] = []
     n_failed = 0
@@ -134,10 +176,11 @@ def evaluate_track(
             n_feasible += int(score_inst.metric_scores.strictly_feasible)
             logger.info(
                 "[%d/%d] %s: score=%.4f feasible=%s in %.1fs "
-                "(running mean=%.4f, feasible=%d/%d)",
+                "(running mean=%.4f, feasible=%d/%d)%s",
                 i, n_total, data.boundary_id, score_inst.aggregate,
                 score_inst.metric_scores.strictly_feasible, time.perf_counter() - t0,
                 running_score / i, n_feasible, i,
+                _timeout_suffix(deadline),
             )
         except Exception as exc:  # noqa: BLE001 - one bad instance must not abort the run
             logger.warning(
@@ -146,6 +189,17 @@ def evaluate_track(
             )
             instances.append(_failed_instance(data.boundary_id))
             n_failed += 1
+        # Project from the average so far whether the rest of the track fits the
+        # budget; warn once we're behind so an impending kill isn't a surprise.
+        if deadline is not None and i < n_total:
+            remaining = deadline - time.time()
+            projected = (time.perf_counter() - track_start) / i * (n_total - i)
+            if projected > remaining:
+                logger.warning(
+                    "Behind schedule: ~%s to finish %d remaining instances but only "
+                    "%s left before timeout",
+                    _fmt_duration(projected), n_total - i, _fmt_duration(remaining),
+                )
     elapsed = time.perf_counter() - track_start
     logger.info(
         "Track scored in %.1fs: %d/%d ok, %d failed, %d strictly feasible (%.2fs/instance)",
@@ -177,23 +231,28 @@ def evaluate_model(
     split). Values larger than the available instance count harmlessly score
     the full split. Defaults to the `COILBENCH_N` env override.
     """
+    deadline = _read_deadline()
     logger.info(
-        "Evaluating model %s (revision %s, n_instances=%s)",
+        "Evaluating model %s (revision %s, n_instances=%s)%s",
         model_name, revision, n_instances,
+        f" [{_fmt_duration(deadline - time.time())} budget before timeout]"
+        if deadline is not None else " [no timeout]",
     )
     model_start = time.perf_counter()
     tracks: dict[str, dict] = {}
     total_instances = 0
     total_failed = 0
     for track in config.TRACKS:
-        logger.info("Loading track %s", track)
+        logger.info(
+            "Loading track %s%s", track, _timeout_suffix(deadline),
+        )
         load_start = time.perf_counter()
         eval_datas = _load_track(track, n_instances)
         logger.info(
             "Loaded %d instances for track %s in %.1fs",
             len(eval_datas), track, time.perf_counter() - load_start,
         )
-        score, n_failed = evaluate_track(model, eval_datas)
+        score, n_failed = evaluate_track(model, eval_datas, deadline=deadline)
         summary = {k: float(score.summaries[k]) for k in SUMMARY_KEYS}
         summary["n"] = len(score.per_instance)
         tracks[track] = summary
