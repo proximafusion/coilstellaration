@@ -1,5 +1,6 @@
 """Run an ONNX model through the coilstellaration eval + scoring pipeline."""
 import logging
+import time
 
 import numpy as np
 from coilstellaration import data_utils, metrics_utils_v2, types
@@ -97,8 +98,17 @@ def evaluate_track(
     """
     instances: list[benchmark_types.InstanceScore] = []
     n_failed = 0
-    logger.debug("Scoring %d instances", len(eval_datas))
-    for data in eval_datas:
+    n_total = len(eval_datas)
+    logger.info("Scoring %d instances", n_total)
+    # Cheap running stats so progress is visible without a second pass: the
+    # benchmark mean weights failed instances as 0.0 (they enter `instances`
+    # with aggregate 0.0), so `running_score / i` is the running benchmark mean
+    # over the first `i` instances.
+    track_start = time.perf_counter()
+    running_score = 0.0
+    n_feasible = 0
+    for i, data in enumerate(eval_datas, 1):
+        t0 = time.perf_counter()
         try:
             inputs = marshal.eval_data_to_inputs(data.boundary, data.requirement_metrics)
             outputs = model.run(inputs)
@@ -106,13 +116,30 @@ def evaluate_track(
             achieved = _evaluate_achieved(data.boundary, coilset)
             if not _is_finite(achieved):
                 raise ValueError("achieved metrics contain NaN/inf")
-            instances.append(scoring.score_eval_data(data, achieved, settings))
-            logger.debug("Instance %s scored", data.boundary_id)
+            score_inst = scoring.score_eval_data(data, achieved, settings)
+            instances.append(score_inst)
+            running_score += score_inst.aggregate
+            n_feasible += int(score_inst.metric_scores.strictly_feasible)
+            logger.info(
+                "[%d/%d] %s: score=%.4f feasible=%s in %.1fs "
+                "(running mean=%.4f, feasible=%d/%d)",
+                i, n_total, data.boundary_id, score_inst.aggregate,
+                score_inst.metric_scores.strictly_feasible, time.perf_counter() - t0,
+                running_score / i, n_feasible, i,
+            )
         except Exception as exc:  # noqa: BLE001 - one bad instance must not abort the run
-            logger.warning("Instance %s failed: %s", data.boundary_id, exc)
+            logger.warning(
+                "[%d/%d] %s failed after %.1fs: %s",
+                i, n_total, data.boundary_id, time.perf_counter() - t0, exc,
+            )
             instances.append(_failed_instance(data.boundary_id))
             n_failed += 1
-    logger.debug("Track scored: %d/%d instances failed", n_failed, len(eval_datas))
+    elapsed = time.perf_counter() - track_start
+    logger.info(
+        "Track scored in %.1fs: %d/%d ok, %d failed, %d strictly feasible (%.2fs/instance)",
+        elapsed, n_total - n_failed, n_total, n_failed, n_feasible,
+        elapsed / n_total if n_total else 0.0,
+    )
     return scoring.score_benchmark(instances, settings), n_failed
 
 
@@ -142,19 +169,31 @@ def evaluate_model(
         "Evaluating model %s (revision %s, n_instances=%s)",
         model_name, revision, n_instances,
     )
+    model_start = time.perf_counter()
     tracks: dict[str, dict] = {}
     total_instances = 0
     total_failed = 0
     for track in config.TRACKS:
         logger.info("Loading track %s", track)
+        load_start = time.perf_counter()
         eval_datas = _load_track(track, n_instances)
+        logger.info(
+            "Loaded %d instances for track %s in %.1fs",
+            len(eval_datas), track, time.perf_counter() - load_start,
+        )
         score, n_failed = evaluate_track(model, eval_datas)
         summary = {k: float(score.summaries[k]) for k in SUMMARY_KEYS}
         summary["n"] = len(score.per_instance)
         tracks[track] = summary
         total_instances += len(eval_datas)
         total_failed += n_failed
-        logger.info("Track %s mean=%.4f (%d instances)", track, summary["mean"], summary["n"])
+        logger.info(
+            "Track %s done: mean=%.4f median=%.4f p10=%.4f "
+            "feasibility@0.9=%.4f strict_feasibility=%.4f (n=%d, %d failed)",
+            track, summary["mean"], summary["median"], summary["p10"],
+            summary["feasibility_rate_0p9"], summary["strict_feasibility"],
+            summary["n"], n_failed,
+        )
 
     # A model that errored on every instance is a broken submission, not a
     # legitimate 0.0 score: surface it as FAILED (the runner skips the results
@@ -165,7 +204,12 @@ def evaluate_model(
         )
 
     overall = float(np.mean([tracks[t]["mean"] for t in config.TRACKS]))
-    logger.info("Model %s FINISHED with overall score %.4f", model_name, overall)
+    logger.info(
+        "Model %s FINISHED: overall=%.4f in %.1fs "
+        "(%d instances across %d tracks, %d failed)",
+        model_name, overall, time.perf_counter() - model_start,
+        total_instances, len(config.TRACKS), total_failed,
+    )
     return {
         "model": model_name,
         "revision": revision,

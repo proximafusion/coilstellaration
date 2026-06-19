@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 
 from huggingface_hub import hf_hub_download, snapshot_download
 
@@ -92,8 +93,13 @@ def _run_eval(req: dict) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         onnx_path = req.get("onnx_path", ONNX_FILENAME)
         ref = req.get("commit_hash") or req["revision"]
-        logger.debug("Downloading %s from %s at %s", onnx_path, req["model"], ref)
+        logger.info("Downloading %s from %s at %s", onnx_path, req["model"], ref)
+        dl_start = time.perf_counter()
         local = hf_hub_download(repo_id=req["model"], filename=onnx_path, revision=ref, local_dir=tmp, token=TOKEN)
+        logger.info(
+            "Downloaded %s (%.1f MB) in %.1fs",
+            onnx_path, os.path.getsize(local) / 1e6, time.perf_counter() - dl_start,
+        )
         model = OnnxModel(local)
         return beval.evaluate_model(
             model=model,

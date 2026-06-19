@@ -14,6 +14,7 @@ Arrow row-selection. Peak stays at a few hundred MB regardless of `n`.
 Output is identical to `data_utils.load_dataset`: a list of `types.EvalData`.
 """
 import logging
+import time
 
 import datasets
 import orjson
@@ -54,6 +55,7 @@ def load_benchmark_dataset(
     n: int = 0,
 ) -> list[types.EvalData]:
     """Drop-in replacement for `data_utils.load_benchmark_dataset`."""
+    load_start = time.perf_counter()
     track_column = (
         data_utils.StaticShapeTrackColumn
         if track == "fixed_shape"
@@ -76,9 +78,14 @@ def load_benchmark_dataset(
     # Ordering by boundary ID will make cache hits guarantees for each stratum on the DESC Equilibrium object
     selected = selected.sort_values(by="constellaration_boundary_id")
 
+    json_start = time.perf_counter()
     coilset_json = _id_to_json(_RESULTS_REPO, "coilsets", "id", "json", set(selected["desc_coilset_id"]))
     boundary_json = _id_to_json(
         _BOUNDARY_REPO, "default", "plasma_config_id", "boundary.json", set(selected["constellaration_boundary_id"])
+    )
+    logger.info(
+        "Fetched %d coilset + %d boundary JSON blobs in %.1fs",
+        len(coilset_json), len(boundary_json), time.perf_counter() - json_start,
     )
 
     eval_datas: list[types.EvalData] = []
@@ -98,5 +105,8 @@ def load_benchmark_dataset(
                 requirement_metrics=data_utils.row_to_requirement_metrics(row.to_dict()),
             )
         )
-    logger.info("Assembled evaluation dataset with %d samples.", len(eval_datas))
+    logger.info(
+        "Assembled evaluation dataset with %d samples in %.1fs.",
+        len(eval_datas), time.perf_counter() - load_start,
+    )
     return eval_datas
