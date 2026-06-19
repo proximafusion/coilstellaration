@@ -7,11 +7,7 @@ from desc.grid import LinearGrid
 
 logger = logging.getLogger(__name__)
 
-# Coil source points = 2 * FIELD_SOURCE_N + 1. 64 -> 129 points is well past
-# the exponential-convergence knee for the smooth Fourier coils used here (the
-# surface field matches the 401-point baseline to ~1e-15); raise it if coils
-# ever carry very high mode numbers.
-FIELD_SOURCE_N = 64
+FIELD_SOURCE_N = 128
 
 _PATCHED = False
 
