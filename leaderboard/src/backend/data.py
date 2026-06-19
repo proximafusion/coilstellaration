@@ -73,6 +73,9 @@ def load_benchmark_dataset(
         selected = selected.head(n)
     logger.info("Selected %d benchmark rows for track=%s stratum=%s", len(selected), track, stratum)
 
+    # Ordering by boundary ID will make cache hits guarantees for each stratum on the DESC Equilibrium object
+    selected = selected.sort_values(by="constellaration_boundary_id")
+
     coilset_json = _id_to_json(_RESULTS_REPO, "coilsets", "id", "json", set(selected["desc_coilset_id"]))
     boundary_json = _id_to_json(
         _BOUNDARY_REPO, "default", "plasma_config_id", "boundary.json", set(selected["constellaration_boundary_id"])
