@@ -7,7 +7,7 @@ from coilstellaration.benchmark import scoring
 from coilstellaration.benchmark import types as benchmark_types
 from constellaration.geometry import surface_rz_fourier, surface_utils_desc
 
-from src.backend import config, marshal
+from src.backend import biot_savart_patch, config, marshal
 from src.backend import data as benchmark_data
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ def _evaluate_achieved(
 
     Isolated so tests can monkeypatch the expensive physics.
     """
+    biot_savart_patch.apply_patch()
     desc_surface = surface_utils_desc.to_desc_fourier_rz_toroidal_surface(boundary)
     desc_coilset = coilset_utils.coilstellaration_to_desc(coilset)
     metrics = metrics_utils_v2.evaluate_coilset_metrics_from_boundary(
