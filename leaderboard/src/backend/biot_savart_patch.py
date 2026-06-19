@@ -1,7 +1,11 @@
+import logging
+
 import jax.numpy as jnp
 from desc.compute.utils import _compute as compute_fun
 from desc.compute.utils import get_profiles, get_transforms
 from desc.grid import LinearGrid
+
+logger = logging.getLogger(__name__)
 
 # Coil source points = 2 * FIELD_SOURCE_N + 1. 64 -> 129 points is well past
 # the exponential-convergence knee for the smooth Fourier coils used here (the
@@ -67,3 +71,7 @@ def apply_patch():
     # Drop any evaluators built with the original (dense-source) field function.
     metrics_utils_v2.clear_evaluator_cache()
     _PATCHED = True
+    logger.info(
+        "Patched surface-field Biot-Savart to coarse source grid (N=%d, %d points)",
+        FIELD_SOURCE_N, 2 * FIELD_SOURCE_N + 1,
+    )
