@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 SUMMARY_KEYS = ("mean", "median", "p10", "feasibility_rate_0p9", "strict_feasibility")
 
+metrics_utils_v2._EVALUATOR_CACHE_MAX = 32
+
 
 def _to_desc_coilset(coilset: types.Coilset) -> CoilSet:
     """Build a DESC `CoilSet` from a coilstellaration `Coilset`.
