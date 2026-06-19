@@ -2,10 +2,11 @@
 import logging
 
 import numpy as np
-from coilstellaration import coilset_utils, data_utils, metrics_utils_v2, types
+from coilstellaration import data_utils, metrics_utils_v2, types
 from coilstellaration.benchmark import scoring
 from coilstellaration.benchmark import types as benchmark_types
 from constellaration.geometry import surface_rz_fourier, surface_utils_desc
+from desc.coils import CoilSet, FourierXYZCoil
 
 from src.backend import biot_savart_patch, config, marshal
 from src.backend import data as benchmark_data
@@ -13,6 +14,33 @@ from src.backend import data as benchmark_data
 logger = logging.getLogger(__name__)
 
 SUMMARY_KEYS = ("mean", "median", "p10", "feasibility_rate_0p9", "strict_feasibility")
+
+
+def _to_desc_coilset(coilset: types.Coilset) -> CoilSet:
+    """Build a DESC `CoilSet` from a coilstellaration `Coilset`.
+
+    Mirrors `coilset_utils.coilstellaration_to_desc` but passes
+    `check_intersection=False`. The intersection check (`is_self_intersecting`,
+    ~1.3s/instance) only computes a temporary `CoilSetMinDistance` to raise a
+    user warning; its result is discarded and never feeds the metrics, so
+    skipping it leaves the achieved metrics bit-for-bit unchanged while removing
+    the dominant per-instance overhead.
+    """
+    desc_coils = [
+        FourierXYZCoil(
+            X_n=np.asarray(coilset.coil_x_n[i]),
+            Y_n=np.asarray(coilset.coil_y_n[i]),
+            Z_n=np.asarray(coilset.coil_z_n[i]),
+            current=float(coilset.currents[i]),
+        )
+        for i in range(coilset.n_unique_coils)
+    ]
+    return CoilSet(
+        *desc_coils,
+        NFP=int(coilset.n_field_periods),
+        sym=coilset.is_stellarator_symmetric,
+        check_intersection=False,
+    )
 
 
 def _evaluate_achieved(
@@ -25,7 +53,7 @@ def _evaluate_achieved(
     """
     biot_savart_patch.apply_patch()
     desc_surface = surface_utils_desc.to_desc_fourier_rz_toroidal_surface(boundary)
-    desc_coilset = coilset_utils.coilstellaration_to_desc(coilset)
+    desc_coilset = _to_desc_coilset(coilset)
     metrics = metrics_utils_v2.evaluate_coilset_metrics_from_boundary(
         boundary=desc_surface, coilset=desc_coilset, subset_metrics=True
     )
