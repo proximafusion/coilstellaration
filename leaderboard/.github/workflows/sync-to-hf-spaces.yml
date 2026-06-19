@@ -23,6 +23,13 @@ jobs:
           fetch-depth: 0
           lfs: true
 
+      - name: Fetch all LFS objects across history
+        # checkout's lfs:true only fetches objects for the HEAD working tree.
+        # The force-push below mirrors full history, which requires every LFS
+        # object referenced anywhere in history (e.g. files since renamed or
+        # removed). Without this, the push fails with "missing" LFS objects.
+        run: git lfs fetch --all origin
+
       - name: Push to evaluator (worker) Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
