@@ -9,7 +9,13 @@ from coilstellaration.benchmark import types as benchmark_types
 from constellaration.geometry import surface_rz_fourier, surface_utils_desc
 from desc.coils import CoilSet, FourierXYZCoil
 
-from src.backend import biot_savart_patch, coil_symmetry_patch, config, marshal
+from src.backend import (
+    biot_savart_patch,
+    coil_symmetry_patch,
+    config,
+    marshal,
+    plasma_distance_patch,
+)
 from src.backend import data as benchmark_data
 
 logger = logging.getLogger(__name__)
@@ -56,6 +62,9 @@ def _evaluate_achieved(
     """
     biot_savart_patch.apply_patch()
     coil_symmetry_patch.apply_patch()
+    # Must follow coil_symmetry_patch: the plasma single-period reduction is
+    # only valid once the per-coil loop is restricted to the first field period.
+    plasma_distance_patch.apply_patch()
     desc_surface = surface_utils_desc.to_desc_fourier_rz_toroidal_surface(boundary)
     desc_coilset = _to_desc_coilset(coilset)
     metrics = metrics_utils_v2.evaluate_coilset_metrics_from_boundary(

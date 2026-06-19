@@ -16,6 +16,14 @@ SPLIT: str = "eval"
 # Number of instances per track. 0 = full split (production). Override for dev via env.
 N_INSTANCES: int = int(os.environ.get("COILBENCH_N", "0"))
 
+# Field periods of plasma surface retained when computing coil-to-plasma min
+# distance (see src/backend/plasma_distance_patch.py). 1 (the default) tiles the
+# plasma to a single period instead of the full NFP-torus; bit-exact on the
+# benchmark instances because each (period-0) coil's nearest plasma point is in
+# its own period. Raise toward NFP for a geometric safety margin at less
+# speedup; >= NFP reproduces upstream exactly. 0 also means full NFP.
+PLASMA_PERIODS: int = int(os.environ.get("COILBENCH_PLASMA_PERIODS", "1"))
+
 # --- Worker robustness (see src/backend/runner.py) ---
 # Wall-clock kill for a single evaluation (download + all tracks). 0 disables the
 # subprocess guard and runs the eval inline. Keeps one hung model from wedging the
