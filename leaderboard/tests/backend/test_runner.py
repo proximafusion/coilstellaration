@@ -14,6 +14,7 @@ UTC = datetime.timezone.utc
 
 def test_run_eval_pins_commit_and_passes_onnx_path(tmp_path, monkeypatch):
     captured = {}
+    monkeypatch.setattr(runner.jax_cache, "enable", lambda: None)
     monkeypatch.setattr(runner, "OnnxModel", lambda path: object())
 
     def fake_download(repo_id, filename, revision, local_dir, token):

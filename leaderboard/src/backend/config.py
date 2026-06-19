@@ -28,6 +28,19 @@ LEASE_TTL: int = int(os.environ.get("COILBENCH_LEASE_TTL", "3600"))
 # so a job that reliably kills its worker can't loop forever.
 MAX_ATTEMPTS: int = int(os.environ.get("COILBENCH_MAX_ATTEMPTS", "3"))
 
+# JAX persistent compilation cache. Each evaluation runs in a fresh subprocess
+# (see runner), so without this every run recompiles the same XLA kernels from
+# scratch (~9s of warmup). Caching them on disk lets repeated runs over the
+# fixed benchmark instances reuse the compiled executables; numerics are
+# unchanged (a jax/xla version or HLO mismatch is simply a cache miss). Set to
+# the empty string to disable.
+JAX_COMPILE_CACHE_DIR: str = os.environ.get(
+    "COILBENCH_JAX_CACHE",
+    os.path.join(
+        os.path.expanduser("~"), ".cache", "coilstellaration-bench", "jax-compile"
+    ),
+)
+
 # Frozen scoring definition for the benchmark.
 SCORING_SETTINGS: benchmark_types.ScoringSettings = benchmark_types.ScoringSettings()
 

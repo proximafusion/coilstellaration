@@ -12,6 +12,7 @@ from huggingface_hub import hf_hub_download, snapshot_download
 
 from src.backend import config
 from src.backend import eval as beval
+from src.backend import jax_cache
 from src.backend.onnx_model import OnnxModel
 from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, RESULTS_REPO, TOKEN
 from src.submission.submit import ONNX_FILENAME
@@ -88,6 +89,7 @@ def _push_result(record: dict):
 
 def _run_eval(req: dict) -> dict:
     """Download the submitted ONNX at its pinned ref and score it. May be slow."""
+    jax_cache.enable()
     with tempfile.TemporaryDirectory() as tmp:
         onnx_path = req.get("onnx_path", ONNX_FILENAME)
         ref = req.get("commit_hash") or req["revision"]
