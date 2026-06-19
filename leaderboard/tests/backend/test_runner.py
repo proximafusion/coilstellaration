@@ -88,6 +88,24 @@ def test_evaluate_with_timeout_returns_record(monkeypatch):
     assert rec == {"model": "org/m", "status": "FINISHED"}
 
 
+_STUB_DEADLINE = [
+    sys.executable, "-c",
+    "import sys, json, os; "
+    "json.dump({'deadline': os.environ.get('COILBENCH_EVAL_DEADLINE')}, open(sys.argv[2], 'w'))",
+]
+
+
+def test_evaluate_with_timeout_passes_absolute_deadline_to_child(monkeypatch):
+    # The child can't share the parent's monotonic clock, so the parent hands it
+    # an absolute wall-clock deadline (now + timeout) for time-left logging.
+    monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_DEADLINE)
+    before = time.time()
+    rec = runner._evaluate_with_timeout({"model": "org/m"}, timeout=120)
+    assert rec["deadline"] is not None
+    deadline = float(rec["deadline"])
+    assert before + 120 <= deadline <= time.time() + 120
+
+
 def test_evaluate_with_timeout_kills_hung_eval(monkeypatch):
     monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_HANG)
     with pytest.raises(TimeoutError):

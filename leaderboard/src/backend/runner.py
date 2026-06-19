@@ -149,10 +149,12 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> dict:
         with open(req_path, "w") as f:
             json.dump(req, f, indent=2)
 
+        child_env = {**os.environ, beval.DEADLINE_ENV: str(time.time() + timeout)}
         proc = subprocess.Popen(
             [*_EVAL_CMD, req_path, out_path],
             stdin=subprocess.DEVNULL,
             start_new_session=True,
+            env=child_env,
         )
         try:
             proc.wait(timeout=timeout)
