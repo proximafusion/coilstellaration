@@ -131,6 +131,7 @@ def _run_eval(req: dict) -> dict:
             n_instances=req.get("n_instances", config.N_INSTANCES),
             commit_hash=req.get("commit_hash", ""),
             onnx_path=onnx_path,
+            tracks=req.get("tracks"),
         )
 
 

@@ -316,13 +316,20 @@ def evaluate_model(
     n_instances: int = config.N_INSTANCES,
     commit_hash: str = "",
     onnx_path: str = "model.onnx",
+    tracks: list[str] | None = None,
 ) -> dict:
-    """Evaluate a model on all tracks and assemble the result record (spec §6).
+    """Evaluate a model on the requested tracks and assemble the result record
+    (spec §6).
 
     `n_instances` caps the number of instances scored per track (0 = full
     split). Values larger than the available instance count harmlessly score
     the full split. Defaults to the `COILBENCH_N` env override.
+
+    `tracks` selects which of `config.TRACKS` to score (defaults to all of
+    them when `None`/falsy). Unscored tracks still appear in the record's
+    `"tracks"` dict as `{}` so downstream hard-indexing keeps working.
     """
+    scored_tracks = list(tracks) if tracks else list(config.TRACKS)
     deadline = _read_deadline()
     logger.info(
         "Evaluating model %s (revision %s, n_instances=%s)%s",
@@ -331,11 +338,11 @@ def evaluate_model(
         if deadline is not None else " [no timeout]",
     )
     model_start = time.perf_counter()
-    tracks: dict[str, dict] = {}
+    track_results: dict[str, dict] = {}
     instance_rows: list[dict] = []
     total_instances = 0
     total_failed = 0
-    for track in config.TRACKS:
+    for track in scored_tracks:
         logger.info(
             "Loading track %s%s", track, _timeout_suffix(deadline),
         )
@@ -360,7 +367,7 @@ def evaluate_model(
             for stratum in config.STRATA
             if stratum in strata
         }
-        tracks[track] = summary
+        track_results[track] = summary
         instance_rows.extend(_instance_rows(track, strata, score.per_instance, times))
         total_instances += len(eval_datas)
         total_failed += n_failed
@@ -387,12 +394,15 @@ def evaluate_model(
             f"Model failed on all {total_instances} instances across tracks"
         )
 
-    overall = float(np.mean([tracks[t]["mean"] for t in config.TRACKS]))
+    for track in config.TRACKS:
+        track_results.setdefault(track, {})
+
+    overall = float(np.mean([track_results[t]["mean"] for t in scored_tracks]))
     logger.info(
         "Model %s FINISHED: overall=%.4f in %.1fs "
         "(%d instances across %d tracks, %d failed)",
         model_name, overall, time.perf_counter() - model_start,
-        total_instances, len(config.TRACKS), total_failed,
+        total_instances, len(scored_tracks), total_failed,
     )
     record = {
         "model": model_name,
@@ -405,6 +415,6 @@ def evaluate_model(
         "k_samples": k_samples,
         "status": "FINISHED",
         "overall_score": overall,
-        "tracks": tracks,
+        "tracks": track_results,
     }
     return record, instance_rows

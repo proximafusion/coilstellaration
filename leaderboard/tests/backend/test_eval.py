@@ -246,6 +246,36 @@ def test_evaluate_model_returns_raw_instance_rows(monkeypatch):
     assert any(k.startswith("soft_score/") for k in r)
 
 
+def test_evaluate_model_scores_only_requested_tracks(monkeypatch):
+    tagged = [("tight", _eval_data("b0"))]
+    _patch_physics(monkeypatch, tagged[0][1].requirement_metrics)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
+
+    record, _rows = beval.evaluate_model(
+        model=FakeModel(), model_name="org/m", revision="r", submitter="a",
+        stochastic=False, k_samples=1, submitted_time="t",
+        tracks=["fixed_shape"],
+    )
+    # Only fixed_shape scored; variable_shape present but empty.
+    assert record["tracks"]["fixed_shape"] != {}
+    assert record["tracks"]["variable_shape"] == {}
+    # Overall is the mean over scored tracks only == the fixed-shape mean.
+    assert record["overall_score"] == record["tracks"]["fixed_shape"]["mean"]
+
+
+def test_evaluate_model_defaults_to_all_tracks(monkeypatch):
+    tagged = [("tight", _eval_data("b0"))]
+    _patch_physics(monkeypatch, tagged[0][1].requirement_metrics)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
+
+    record, _rows = beval.evaluate_model(
+        model=FakeModel(), model_name="org/m", revision="r", submitter="a",
+        stochastic=False, k_samples=1, submitted_time="t",
+    )
+    assert record["tracks"]["fixed_shape"] != {}
+    assert record["tracks"]["variable_shape"] != {}
+
+
 def test_time_stats_computes_mean_max_min_std():
     stats = beval._time_stats([1.0, 2.0, 3.0])
     assert stats["min"] == 1.0
