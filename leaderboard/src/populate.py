@@ -59,6 +59,8 @@ def get_evaluation_queue_df(records: list[dict], cols: list) -> list[pd.DataFram
         data[EvalQueueColumn.model.name] = make_clickable_model(data["model"])
         data[EvalQueueColumn.revision.name] = data.get("revision", "main")
         data[EvalQueueColumn.started.name] = data.get("started_at", "")
+        req_tracks = data.get("tracks") or ["fixed_shape", "variable_shape"]
+        data[EvalQueueColumn.tracks.name] = "both" if len(req_tracks) == 2 else "fixed"
         all_evals.append(data)
 
     pending_list = [e for e in all_evals if e.get("status") in ["PENDING", "RERUN"]]

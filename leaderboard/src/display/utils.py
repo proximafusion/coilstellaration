@@ -18,6 +18,7 @@ class ColumnContent:
 auto_eval_column_dict = []
 auto_eval_column_dict.append(["model", ColumnContent, ColumnContent("Model", "markdown", True, never_hidden=True)])
 auto_eval_column_dict.append(["submitter", ColumnContent, ColumnContent("Submitter", "str", True)])
+auto_eval_column_dict.append(["tracks", ColumnContent, ColumnContent("Tracks", "str", True)])
 auto_eval_column_dict.append(["overall", ColumnContent, ColumnContent("Overall ⬆️", "number", True)])
 # fixed_shape track
 auto_eval_column_dict.append(["fixed_mean", ColumnContent, ColumnContent("fixed: mean", "number", True)])
@@ -51,6 +52,7 @@ class EvalQueueColumn:
     status = ColumnContent("status", "str", True)
     # Claim time (UTC ISO) — populated for RUNNING/FINISHED so a stuck job is visible.
     started = ColumnContent("started", "str", True)
+    tracks = ColumnContent("tracks", "str", True)
 
 
 # Stratum views offered by the leaderboard's stratum selector. "All" is the

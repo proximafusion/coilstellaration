@@ -84,3 +84,15 @@ def test_result_to_row_defaults_when_fields_absent():
     row = result_to_row(rec)
     assert row[AutoEvalColumn.commit.name] == ""
     assert row[AutoEvalColumn.onnx_file.name] == "model.onnx"
+
+
+def test_result_to_row_labels_both_tracks():
+    row = result_to_row(_record("m1", 0.8))
+    assert row[AutoEvalColumn.tracks.name] == "both"
+
+
+def test_result_to_row_labels_fixed_only():
+    rec = _record("m1", 0.8)
+    rec["tracks"]["variable_shape"] = {}   # unscored track
+    row = result_to_row(rec)
+    assert row[AutoEvalColumn.tracks.name] == "fixed"

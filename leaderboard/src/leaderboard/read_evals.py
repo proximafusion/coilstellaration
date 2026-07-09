@@ -34,6 +34,16 @@ def _get(summary: dict | None, key: str) -> float:
     return summary.get(key, math.nan)
 
 
+def _tracks_label(record: dict) -> str:
+    """Which tracks a finished record was scored on, from its non-empty summaries.
+
+    A track that wasn't scored maps to an empty dict. Both non-empty -> 'both';
+    only fixed_shape -> 'fixed'. Legacy records (both populated) read as 'both'.
+    """
+    scored = [t for t in ("fixed_shape", "variable_shape") if record["tracks"].get(t)]
+    return "both" if len(scored) == 2 else ("fixed" if scored == ["fixed_shape"] else "—")
+
+
 def result_to_row(record: dict, stratum: str = "All") -> dict:
     """Map one result record (spec §6) to a leaderboard dataframe row for one
     stratum view.
@@ -55,6 +65,7 @@ def result_to_row(record: dict, stratum: str = "All") -> dict:
     return {
         AutoEvalColumn.model.name: make_clickable_model(record["model"]),
         AutoEvalColumn.submitter.name: record.get("submitter", ""),
+        AutoEvalColumn.tracks.name: _tracks_label(record),
         AutoEvalColumn.overall.name: overall,
         AutoEvalColumn.fixed_mean.name: _get(fixed, "mean"),
         AutoEvalColumn.fixed_feas09.name: _get(fixed, "feasibility_rate_0p9"),

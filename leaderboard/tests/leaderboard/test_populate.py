@@ -83,3 +83,22 @@ def test_queue_tolerates_missing_status():
     # A stray/partial record without a status must not crash the queue render.
     finished, running, pending = get_evaluation_queue_df([{"model": "org/x"}], EVAL_COLS)
     assert len(finished) == 0 and len(running) == 0 and len(pending) == 0
+
+
+def test_queue_shows_supported_tracks():
+    finished, _running, pending = get_evaluation_queue_df(
+        [
+            {"model": "org/f", "status": "PENDING", "tracks": ["fixed_shape"]},
+            {"model": "org/b", "status": "PENDING",
+             "tracks": ["fixed_shape", "variable_shape"]},
+        ],
+        EVAL_COLS,
+    )
+    assert set(pending["tracks"]) == {"fixed", "both"}
+
+
+def test_queue_defaults_tracks_to_both_when_absent():
+    _finished, _running, pending = get_evaluation_queue_df(
+        [{"model": "org/legacy", "status": "PENDING"}], EVAL_COLS,
+    )
+    assert pending["tracks"].iloc[0] == "both"
