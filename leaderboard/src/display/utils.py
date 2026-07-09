@@ -15,23 +15,18 @@ class ColumnContent:
 
 
 ## Leaderboard columns
+# The table shows one track at a time (selected via the Track radio), so the
+# metric columns are track-agnostic; the Track × Stratum selection decides which
+# track's numbers fill them.
 auto_eval_column_dict = []
 auto_eval_column_dict.append(["model", ColumnContent, ColumnContent("Model", "markdown", True, never_hidden=True)])
 auto_eval_column_dict.append(["submitter", ColumnContent, ColumnContent("Submitter", "str", True)])
-auto_eval_column_dict.append(["tracks", ColumnContent, ColumnContent("Tracks", "str", True)])
-auto_eval_column_dict.append(["overall", ColumnContent, ColumnContent("Overall ⬆️", "number", True)])
-# fixed_shape track
-auto_eval_column_dict.append(["fixed_mean", ColumnContent, ColumnContent("fixed: mean", "number", True)])
-auto_eval_column_dict.append(["fixed_feas09", ColumnContent, ColumnContent("fixed: feas@0.9", "number", False)])
-auto_eval_column_dict.append(["fixed_strict", ColumnContent, ColumnContent("fixed: strict", "number", True)])
-auto_eval_column_dict.append(["fixed_median", ColumnContent, ColumnContent("fixed: median", "number", False)])
-auto_eval_column_dict.append(["fixed_p10", ColumnContent, ColumnContent("fixed: p10", "number", False)])
-# variable_shape track
-auto_eval_column_dict.append(["var_mean", ColumnContent, ColumnContent("var: mean", "number", True)])
-auto_eval_column_dict.append(["var_feas09", ColumnContent, ColumnContent("var: feas@0.9", "number", False)])
-auto_eval_column_dict.append(["var_strict", ColumnContent, ColumnContent("var: strict", "number", True)])
-auto_eval_column_dict.append(["var_median", ColumnContent, ColumnContent("var: median", "number", False)])
-auto_eval_column_dict.append(["var_p10", ColumnContent, ColumnContent("var: p10", "number", False)])
+# per-track metrics
+auto_eval_column_dict.append(["mean", ColumnContent, ColumnContent("mean", "number", True)])
+auto_eval_column_dict.append(["feas09", ColumnContent, ColumnContent("feas@0.9", "number", False)])
+auto_eval_column_dict.append(["strict", ColumnContent, ColumnContent("strict", "number", True)])
+auto_eval_column_dict.append(["median", ColumnContent, ColumnContent("median", "number", False)])
+auto_eval_column_dict.append(["p10", ColumnContent, ColumnContent("p10", "number", False)])
 # metadata
 auto_eval_column_dict.append(["stochastic", ColumnContent, ColumnContent("Stochastic (K)", "str", False)])
 auto_eval_column_dict.append(["submitted", ColumnContent, ColumnContent("Submitted", "str", True)])
@@ -55,17 +50,19 @@ class EvalQueueColumn:
     tracks = ColumnContent("tracks", "str", True)
 
 
+# Tracks offered by the leaderboard's track selector, mapped to the radio label
+# shown to the user.
+TRACKS = ["fixed_shape", "variable_shape"]
+TRACK_LABELS = {"fixed_shape": "fixed", "variable_shape": "variable"}
+
 # Stratum views offered by the leaderboard's stratum selector. "All" is the
 # all-strata pool (the paper's headline); the others slice a single stratum.
 STRATUM_VIEWS = ["All", "tight", "medium", "loose"]
+
+# Rows are ordered by strict feasibility, then mean, both descending.
+SORT_COLS = [AutoEvalColumn.strict.name, AutoEvalColumn.mean.name]
 
 # Column selection
 COLS = [c.name for c in fields(AutoEvalColumn) if not c.hidden]
 EVAL_COLS = [c.name for c in fields(EvalQueueColumn)]
 EVAL_TYPES = [c.type for c in fields(EvalQueueColumn)]
-
-# Track-mean columns must be present for a row to display.
-BENCHMARK_COLS = [
-    AutoEvalColumn.fixed_mean.name,
-    AutoEvalColumn.var_mean.name,
-]

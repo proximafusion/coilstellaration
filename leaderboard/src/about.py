@@ -3,11 +3,12 @@ TITLE = """<h1 align="center" id="space-title">Coilstellaration Benchmark Leader
 
 INTRODUCTION_TEXT = """
 Submit an ONNX model that predicts a stellarator **coilset** from a plasma boundary
-(`SurfaceRZFourier`) and a set of requirement metrics. Each model is evaluated on both
-benchmark tracks (`fixed_shape`, `variable_shape`) over all strata
-(`loose`/`medium`/`tight`), reported per-stratum and pooled; the headline
-**Overall** score is the mean across tracks of the per-instance geometric-mean
-soft score over the full (all-strata) pool.
+(`SurfaceRZFourier`) and a set of requirement metrics. Each model is evaluated on the
+benchmark tracks it supports (`fixed_shape`, `variable_shape`) over all strata
+(`loose`/`medium`/`tight`). The leaderboard shows one **track** at a time; pick a
+**stratum** (`All` = the full all-strata pool, or a single stratum) to see that
+track's per-instance geometric-mean soft-score metrics. Rows are ranked by strict
+feasibility, then mean.
 """
 
 LLM_BENCHMARKS_TEXT = """

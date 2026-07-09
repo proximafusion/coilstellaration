@@ -36,7 +36,11 @@ def Leaderboard(
     filter_columns=None,
     bool_checkboxgroup_label=None,
     interactive=False,
-    stratum_frames=None,
+    frames=None,
+    tracks=None,
+    strata=None,
+    track_labels=None,
+    track_label="Track",
     stratum_label="Stratum",
 ):
     """Render the leaderboard controls and table, returning the table component.
@@ -45,12 +49,16 @@ def Leaderboard(
     parallel list of gradio cell types. Selecting/searching/filtering all
     re-derive the displayed frame from the active base frame, never mutating it.
 
-    `stratum_frames` (optional) maps a stratum-view name to a same-columns
-    frame; when given, a radio lets the user switch which frame the table shows
-    (e.g. All / tight / medium / loose). `value` is the default frame.
+    `frames` (optional) maps a `(track, stratum)` key to a same-columns frame;
+    with `tracks`/`strata` giving the axis orders, a Track radio and a Stratum
+    radio let the user pick which frame the table shows. `track_labels` maps a
+    track key to the label shown on the radio. `value` is the default frame.
     """
-    frames = dict(stratum_frames) if stratum_frames else {"All": value}
-    default_stratum = "All" if "All" in frames else next(iter(frames))
+    frames = dict(frames) if frames else {(None, None): value}
+    tracks = list(tracks) if tracks else [None]
+    strata = list(strata) if strata else [None]
+    track_labels = track_labels or {t: str(t) for t in tracks}
+    default_track, default_stratum = tracks[0], strata[0]
 
     all_columns = list(value.columns)
     type_of = dict(zip(all_columns, datatype or ["str"] * len(all_columns)))
@@ -60,11 +68,15 @@ def Leaderboard(
     hide_columns = hide_columns or []
     filter_columns = filter_columns or []
 
+    # Radios carry the human labels; map back to the (track, stratum) frame key.
+    label_to_track = {label: t for t, label in track_labels.items()}
+
     # Columns the user can choose from (drop the always-hidden ones).
     selectable = [c for c in all_columns if c not in hide_columns]
 
-    def view(selected, query, stratum, *filter_values):
-        df = frames.get(stratum, value)
+    def view(selected, query, track_choice, stratum, *filter_values):
+        track = label_to_track.get(track_choice, track_choice)
+        df = frames.get((track, stratum), value)
         if query:
             mask = pd.Series(False, index=df.index)
             for col in search_columns:
@@ -79,11 +91,17 @@ def Leaderboard(
         df = df[keep]
         return gr.update(value=df, datatype=[type_of[c] for c in keep])
 
-    # The stratum switch sits above the table; a plain State stands in when
-    # there is only one frame so `view`'s signature stays uniform.
+    # The track/stratum switches sit above the table; a plain State stands in
+    # for an axis with a single value so `view`'s signature stays uniform.
+    track_radio = (
+        gr.Radio(choices=[track_labels[t] for t in tracks],
+                 value=track_labels[default_track], label=track_label)
+        if len(tracks) > 1
+        else None
+    )
     stratum_radio = (
-        gr.Radio(choices=list(frames), value=default_stratum, label=stratum_label)
-        if len(frames) > 1
+        gr.Radio(choices=strata, value=default_stratum, label=stratum_label)
+        if len(strata) > 1
         else None
     )
     column_picker = gr.CheckboxGroup(
@@ -104,7 +122,7 @@ def Leaderboard(
         for flt in filter_columns
     ]
 
-    default_frame = frames[default_stratum]
+    default_frame = frames[(default_track, default_stratum)]
     default_keep = [
         c for c in all_columns
         if c in select_columns.default_selection or c in select_columns.cant_deselect
@@ -118,6 +136,7 @@ def Leaderboard(
 
     controls = (
         [column_picker]
+        + ([track_radio] if track_radio else [])
         + ([stratum_radio] if stratum_radio else [])
         + ([search_box] if search_box else [])
         + filter_boxes
@@ -125,6 +144,7 @@ def Leaderboard(
     inputs = [
         column_picker,
         search_box or gr.State(""),
+        track_radio or gr.State(track_labels[default_track]),
         stratum_radio or gr.State(default_stratum),
     ] + filter_boxes
     for control in controls:

@@ -34,49 +34,28 @@ def _get(summary: dict | None, key: str) -> float:
     return summary.get(key, math.nan)
 
 
-def _tracks_label(record: dict) -> str:
-    """Which tracks a finished record was scored on, from its non-empty summaries.
+def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
+    """Map one result record (spec §6) to a leaderboard row for one track+stratum
+    view, or `None` when the record has no data for that view.
 
-    A track that wasn't scored maps to an empty dict. Both non-empty -> 'both';
-    only fixed_shape -> 'fixed'. Legacy records (both populated) read as 'both'.
+    The metric columns are that track's numbers: for `stratum == "All"` the
+    all-strata headline, for a specific stratum that stratum's breakdown.
+    Returns `None` when the track wasn't scored (empty summary) or the stratum
+    is absent from the record (predates the per-stratum breakdown), so the
+    frame-builder can drop the row from that view.
     """
-    scored = [t for t in ("fixed_shape", "variable_shape") if record["tracks"].get(t)]
-    return "both" if len(scored) == 2 else ("fixed" if scored == ["fixed_shape"] else "—")
-
-
-def result_to_row(record: dict, stratum: str = "All") -> dict:
-    """Map one result record (spec §6) to a leaderboard dataframe row for one
-    stratum view.
-
-    For `stratum == "All"` the metric columns are the all-strata headline and
-    `Overall` is the stored `overall_score`. For a specific stratum the columns
-    are that stratum's breakdown and `Overall` is the mean across tracks of the
-    stratum means (NaN if the stratum is absent from the record).
-    """
-    fixed = _track_summary(record["tracks"]["fixed_shape"], stratum)
-    var = _track_summary(record["tracks"]["variable_shape"], stratum)
-
-    if stratum == "All":
-        overall = record["overall_score"]
-    else:
-        means = [_get(fixed, "mean"), _get(var, "mean")]
-        overall = math.nan if any(math.isnan(m) for m in means) else sum(means) / len(means)
+    summary = _track_summary(record["tracks"][track], stratum)
+    if not summary:
+        return None
 
     return {
         AutoEvalColumn.model.name: make_clickable_model(record["model"]),
         AutoEvalColumn.submitter.name: record.get("submitter", ""),
-        AutoEvalColumn.tracks.name: _tracks_label(record),
-        AutoEvalColumn.overall.name: overall,
-        AutoEvalColumn.fixed_mean.name: _get(fixed, "mean"),
-        AutoEvalColumn.fixed_feas09.name: _get(fixed, "feasibility_rate_0p9"),
-        AutoEvalColumn.fixed_strict.name: _get(fixed, "strict_feasibility"),
-        AutoEvalColumn.fixed_median.name: _get(fixed, "median"),
-        AutoEvalColumn.fixed_p10.name: _get(fixed, "p10"),
-        AutoEvalColumn.var_mean.name: _get(var, "mean"),
-        AutoEvalColumn.var_feas09.name: _get(var, "feasibility_rate_0p9"),
-        AutoEvalColumn.var_strict.name: _get(var, "strict_feasibility"),
-        AutoEvalColumn.var_median.name: _get(var, "median"),
-        AutoEvalColumn.var_p10.name: _get(var, "p10"),
+        AutoEvalColumn.mean.name: _get(summary, "mean"),
+        AutoEvalColumn.feas09.name: _get(summary, "feasibility_rate_0p9"),
+        AutoEvalColumn.strict.name: _get(summary, "strict_feasibility"),
+        AutoEvalColumn.median.name: _get(summary, "median"),
+        AutoEvalColumn.p10.name: _get(summary, "p10"),
         AutoEvalColumn.stochastic.name: _stochastic_label(record),
         AutoEvalColumn.submitted.name: record.get("submitted_time", ""),
         AutoEvalColumn.revision.name: record.get("revision", ""),

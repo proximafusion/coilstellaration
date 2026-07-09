@@ -15,11 +15,12 @@ from src.about import (
 )
 from src.display.css_html_js import custom_css
 from src.display.utils import (
-    BENCHMARK_COLS,
     COLS,
     EVAL_COLS,
     EVAL_TYPES,
     STRATUM_VIEWS,
+    TRACK_LABELS,
+    TRACKS,
     AutoEvalColumn,
     fields,
 )
@@ -58,7 +59,7 @@ except Exception:
     restart_space()
 
 
-LEADERBOARD_FRAMES = get_leaderboard_frames(EVAL_RESULTS_PATH, COLS, BENCHMARK_COLS)
+LEADERBOARD_FRAMES = get_leaderboard_frames(EVAL_RESULTS_PATH, COLS)
 
 try:
     request_records = list(requests_dataset.iter_requests())
@@ -74,15 +75,21 @@ except Exception:
 
 def init_leaderboard(frames):
     # A fresh leaderboard with no submissions yet should render an empty table,
-    # not crash. Ensure the expected columns exist so the component can build.
+    # not crash. Ensure every (track, stratum) frame exists with the expected
+    # columns so the component can build.
     frames = dict(frames) if frames else {}
-    for view in STRATUM_VIEWS:
-        f = frames.get(view)
-        if f is None or f.empty:
-            frames[view] = pd.DataFrame(columns=COLS)
+    for track in TRACKS:
+        for stratum in STRATUM_VIEWS:
+            f = frames.get((track, stratum))
+            if f is None or f.empty:
+                frames[(track, stratum)] = pd.DataFrame(columns=COLS)
     return Leaderboard(
-        value=frames["All"],
-        stratum_frames=frames,
+        value=frames[(TRACKS[0], "All")],
+        frames=frames,
+        tracks=TRACKS,
+        strata=STRATUM_VIEWS,
+        track_labels=TRACK_LABELS,
+        track_label="Track",
         stratum_label="Stratum (All = paper headline; tight/medium/loose slice one stratum)",
         datatype=[c.type for c in fields(AutoEvalColumn)],
         select_columns=SelectColumns(
