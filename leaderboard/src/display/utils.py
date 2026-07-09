@@ -53,6 +53,10 @@ class EvalQueueColumn:
     started = ColumnContent("started", "str", True)
 
 
+# Stratum views offered by the leaderboard's stratum selector. "All" is the
+# all-strata pool (the paper's headline); the others slice a single stratum.
+STRATUM_VIEWS = ["All", "tight", "medium", "loose"]
+
 # Column selection
 COLS = [c.name for c in fields(AutoEvalColumn) if not c.hidden]
 EVAL_COLS = [c.name for c in fields(EvalQueueColumn)]

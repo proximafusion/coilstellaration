@@ -3,30 +3,52 @@ import logging
 import pandas as pd
 
 from src.display.formatting import has_no_nan_values, make_clickable_model
-from src.display.utils import AutoEvalColumn, EvalQueueColumn
-from src.leaderboard.read_evals import get_raw_eval_results
+from src.display.utils import STRATUM_VIEWS, AutoEvalColumn, EvalQueueColumn
+from src.leaderboard.read_evals import get_raw_eval_results, result_to_row
 
 logger = logging.getLogger(__name__)
 
 
-def get_leaderboard_df(results_path: str, cols: list, benchmark_cols: list) -> pd.DataFrame:
-    """Creates a dataframe from all the individual experiment results"""
-    all_data_json = get_raw_eval_results(results_path)
+def _frame_for_stratum(records: list[dict], stratum: str, cols: list, benchmark_cols: list) -> pd.DataFrame:
+    """Build one display frame from raw records for a single stratum view.
 
-    # No results yet (fresh leaderboard): return an empty frame that still has
-    # the expected columns so the table renders instead of erroring.
-    if not all_data_json:
-        logger.debug("No eval results found; returning empty leaderboard")
-        return pd.DataFrame(columns=cols)
-
-    df = pd.DataFrame.from_records(all_data_json)
+    Rows whose track means are NaN for this stratum (e.g. records predating the
+    per-stratum breakdown, when viewing a specific stratum) are dropped so the
+    view only shows models actually scored on it.
+    """
+    rows = [result_to_row(rec, stratum=stratum) for rec in records]
+    df = pd.DataFrame.from_records(rows)
     df = df.sort_values(by=[AutoEvalColumn.overall.name], ascending=False)
     df = df[cols].round(decimals=3)
-
-    # filter out rows missing a track mean
     df = df[has_no_nan_values(df, benchmark_cols)]
-    logger.debug("Built leaderboard dataframe with %d row(s)", len(df))
     return df
+
+
+def get_leaderboard_frames(results_path: str, cols: list, benchmark_cols: list) -> dict[str, pd.DataFrame]:
+    """One display frame per stratum view (keys: `STRATUM_VIEWS`).
+
+    Each frame carries identical columns; only the per-track metric values (and
+    the derived Overall/ranking) differ by stratum. The leaderboard's stratum
+    selector swaps which frame the table renders.
+    """
+    records = get_raw_eval_results(results_path)
+    if not records:
+        logger.debug("No eval results found; returning empty leaderboard frames")
+        empty = pd.DataFrame(columns=cols)
+        return {view: empty.copy() for view in STRATUM_VIEWS}
+
+    frames = {
+        view: _frame_for_stratum(records, view, cols, benchmark_cols)
+        for view in STRATUM_VIEWS
+    }
+    logger.debug("Built leaderboard frames: %s",
+                 {v: len(f) for v, f in frames.items()})
+    return frames
+
+
+def get_leaderboard_df(results_path: str, cols: list, benchmark_cols: list) -> pd.DataFrame:
+    """The all-strata display frame (the leaderboard's default view)."""
+    return get_leaderboard_frames(results_path, cols, benchmark_cols)["All"]
 
 
 def get_evaluation_queue_df(records: list[dict], cols: list) -> list[pd.DataFrame]:

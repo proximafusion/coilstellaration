@@ -18,7 +18,7 @@ class FakeModel:
         }
 
 
-def _eval_data(boundary_id="b0"):
+def _eval_data(boundary_id="b0", field_error=0.1):
     r = np.zeros((2, 3))
     boundary = surface_rz_fourier.SurfaceRZFourier(
         r_cos=r.copy(), z_sin=r.copy(), n_field_periods=3, is_stellarator_symmetric=True
@@ -31,7 +31,7 @@ def _eval_data(boundary_id="b0"):
         min_normalized_coil_to_coil_distance=0.1,
         min_normalized_coil_to_plasma_distance=0.2,
         max_normalized_coil_curvature=2.0,
-        max_normalized_field_error=0.1,
+        max_normalized_field_error=field_error,
     )
     return types.EvalData(
         boundary=boundary, boundary_id=boundary_id, true_coilset=coilset,
@@ -73,9 +73,9 @@ def test_failed_instance_scores_zero_and_continues(monkeypatch):
 
 
 def test_evaluate_model_builds_record(monkeypatch):
-    data = [_eval_data("b0")]
-    _patch_physics(monkeypatch, data[0].requirement_metrics)
-    monkeypatch.setattr(beval, "_load_track", lambda track, n: data)
+    tagged = [("tight", _eval_data("b0"))]
+    _patch_physics(monkeypatch, tagged[0][1].requirement_metrics)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
 
     record = beval.evaluate_model(
         model=FakeModel(), model_name="org/m", revision="abc",
@@ -85,15 +85,52 @@ def test_evaluate_model_builds_record(monkeypatch):
     assert record["status"] == "FINISHED"
     assert record["overall_score"] == 1.0
     assert set(record["tracks"]) == {"fixed_shape", "variable_shape"}
-    assert record["tracks"]["fixed_shape"]["mean"] == 1.0
-    assert record["tracks"]["fixed_shape"]["n"] == 1
+    fixed = record["tracks"]["fixed_shape"]
+    # Headline keys are the aggregation over ALL strata.
+    assert fixed["mean"] == 1.0
+    assert fixed["n"] == 1
+    # Per-stratum breakdown alongside the headline.
+    assert set(fixed["strata"]) == {"tight"}
+    assert fixed["strata"]["tight"]["mean"] == 1.0
+    assert fixed["strata"]["tight"]["n"] == 1
+
+
+def test_evaluate_model_aggregates_per_stratum(monkeypatch):
+    # Two instances in different strata: tight matches the achieved metrics
+    # (perfect), loose tightens its field-error bound below the achieved value
+    # so it is infeasible. Per-stratum aggregation must isolate each.
+    tight = _eval_data("b0", field_error=0.1)
+    loose = _eval_data("b1", field_error=0.001)
+    tagged = [("tight", tight), ("loose", loose)]
+    _patch_physics(monkeypatch, tight.requirement_metrics)  # achieved == tight target
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
+
+    record = beval.evaluate_model(
+        model=FakeModel(), model_name="org/m", revision="abc",
+        submitter="me", stochastic=False, k_samples=1,
+        submitted_time="2026-06-11T00:00:00Z",
+    )
+    fixed = record["tracks"]["fixed_shape"]
+    assert fixed["n"] == 2
+    assert set(fixed["strata"]) == {"tight", "loose"}
+    # The subsets are scored independently.
+    assert fixed["strata"]["tight"]["mean"] == 1.0
+    assert fixed["strata"]["tight"]["strict_feasibility"] == 1.0
+    assert fixed["strata"]["tight"]["n"] == 1
+    assert fixed["strata"]["loose"]["mean"] < 1.0
+    assert fixed["strata"]["loose"]["strict_feasibility"] == 0.0
+    assert fixed["strata"]["loose"]["n"] == 1
+    # Headline mean is over all instances (both strata pooled).
+    assert fixed["mean"] < 1.0
+    assert fixed["mean"] == (fixed["strata"]["tight"]["mean"]
+                             + fixed["strata"]["loose"]["mean"]) / 2
 
 
 def test_evaluate_model_forwards_n_instances(monkeypatch):
-    data = [_eval_data("b0")]
-    _patch_physics(monkeypatch, data[0].requirement_metrics)
+    tagged = [("tight", _eval_data("b0"))]
+    _patch_physics(monkeypatch, tagged[0][1].requirement_metrics)
     seen_n = []
-    monkeypatch.setattr(beval, "_load_track", lambda track, n: (seen_n.append(n) or data))
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: (seen_n.append(n) or tagged))
 
     beval.evaluate_model(
         model=FakeModel(), model_name="org/m", revision="abc",
@@ -107,8 +144,8 @@ def test_evaluate_model_forwards_n_instances(monkeypatch):
 def test_evaluate_model_all_instances_fail_raises(monkeypatch):
     import pytest
 
-    data = [_eval_data("b0")]
-    monkeypatch.setattr(beval, "_load_track", lambda track, n: data)
+    tagged = [("tight", _eval_data("b0"))]
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
 
     def always_fail(boundary, coilset):
         raise RuntimeError("physics blew up")
@@ -172,9 +209,9 @@ def test_evaluate_track_silent_without_deadline(monkeypatch, caplog):
 
 
 def test_evaluate_model_records_commit_and_onnx_path(monkeypatch):
-    data = [_eval_data("b0")]
-    _patch_physics(monkeypatch, data[0].requirement_metrics)
-    monkeypatch.setattr(beval, "_load_track", lambda track, n: data)
+    tagged = [("tight", _eval_data("b0"))]
+    _patch_physics(monkeypatch, tagged[0][1].requirement_metrics)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
 
     record = beval.evaluate_model(
         model=FakeModel(), model_name="org/m", revision="main",

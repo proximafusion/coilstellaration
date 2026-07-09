@@ -110,16 +110,34 @@ def _evaluate_achieved(
     return data_utils.metrics_to_requirement_metrics(metrics)
 
 
-def _load_track(track: str, n: int) -> list[types.EvalData]:
-    """Load benchmark instances for a track. Isolated for monkeypatching.
+def _load_track(track: str, n: int) -> list[tuple[str, types.EvalData]]:
+    """Load benchmark instances for a track, tagged with their stratum.
 
-    `n` caps the instances per track (0 = full split). If `n` exceeds the
+    Loads every stratum in `config.STRATA` and returns `(stratum, EvalData)`
+    pairs so the caller can aggregate per-stratum as well as over the pool.
+    Isolated for monkeypatching.
+
+    `n` caps the instances *per stratum* (0 = full split). If `n` exceeds the
     number of available instances the loader simply stops early and returns
     them all.
     """
-    return benchmark_data.load_benchmark_dataset(
-        track=track, stratum=config.STRATUM, split=config.SPLIT, n=n
-    )
+    tagged: list[tuple[str, types.EvalData]] = []
+    for stratum in config.STRATA:
+        datas = benchmark_data.load_benchmark_dataset(
+            track=track, stratum=stratum, split=config.SPLIT, n=n
+        )
+        tagged.extend((stratum, d) for d in datas)
+    return tagged
+
+
+def _summarize(instances: list[benchmark_types.InstanceScore]) -> dict:
+    """Aggregate a set of instance scores into the summary keys plus `n`."""
+    summary = {
+        k: float(v)
+        for k, v in scoring.aggregate_instances(instances, config.SCORING_SETTINGS).items()
+    }
+    summary["n"] = len(instances)
+    return summary
 
 
 def _failed_instance(boundary_id: str) -> benchmark_types.InstanceScore:
@@ -247,24 +265,42 @@ def evaluate_model(
             "Loading track %s%s", track, _timeout_suffix(deadline),
         )
         load_start = time.perf_counter()
-        eval_datas = _load_track(track, n_instances)
+        tagged = _load_track(track, n_instances)
+        strata = [stratum for stratum, _ in tagged]
+        eval_datas = [data for _, data in tagged]
         logger.info(
             "Loaded %d instances for track %s in %.1fs",
             len(eval_datas), track, time.perf_counter() - load_start,
         )
         score, n_failed = evaluate_track(model, eval_datas, deadline=deadline)
-        summary = {k: float(score.summaries[k]) for k in SUMMARY_KEYS}
-        summary["n"] = len(score.per_instance)
+        # `score.per_instance` is aligned 1:1 with `eval_datas` (and hence
+        # `strata`), including the 0.0-scored failures, so we can slice it by
+        # stratum without re-scoring.
+        summary = _summarize(score.per_instance)  # over all strata
+        summary["strata"] = {
+            stratum: _summarize(
+                [inst for inst, s in zip(score.per_instance, strata) if s == stratum]
+            )
+            for stratum in config.STRATA
+            if stratum in strata
+        }
         tracks[track] = summary
         total_instances += len(eval_datas)
         total_failed += n_failed
         logger.info(
-            "Track %s done: mean=%.4f median=%.4f p10=%.4f "
+            "Track %s done (all strata): mean=%.4f median=%.4f p10=%.4f "
             "feasibility@0.9=%.4f strict_feasibility=%.4f (n=%d, %d failed)",
             track, summary["mean"], summary["median"], summary["p10"],
             summary["feasibility_rate_0p9"], summary["strict_feasibility"],
             summary["n"], n_failed,
         )
+        for stratum, sub in summary["strata"].items():
+            logger.info(
+                "  %s/%s: mean=%.4f median=%.4f feasibility@0.9=%.4f "
+                "strict_feasibility=%.4f (n=%d)",
+                track, stratum, sub["mean"], sub["median"],
+                sub["feasibility_rate_0p9"], sub["strict_feasibility"], sub["n"],
+            )
 
     # A model that errored on every instance is a broken submission, not a
     # legitimate 0.0 score: surface it as FAILED (the runner skips the results

@@ -1,5 +1,4 @@
 import os
-import sys
 
 import gradio as gr
 from src.display.leaderboard import Leaderboard, ColumnFilter, SelectColumns
@@ -20,11 +19,12 @@ from src.display.utils import (
     COLS,
     EVAL_COLS,
     EVAL_TYPES,
+    STRATUM_VIEWS,
     AutoEvalColumn,
     fields,
 )
 from src.envs import API, EVAL_RESULTS_PATH, REPO_ID, RESULTS_REPO, TOKEN
-from src.populate import get_evaluation_queue_df, get_leaderboard_df
+from src.populate import get_evaluation_queue_df, get_leaderboard_frames
 from src.submission import requests_dataset
 from src.submission.submit import add_new_eval
 
@@ -58,7 +58,7 @@ except Exception:
     restart_space()
 
 
-LEADERBOARD_DF = get_leaderboard_df(EVAL_RESULTS_PATH, COLS, BENCHMARK_COLS)
+LEADERBOARD_FRAMES = get_leaderboard_frames(EVAL_RESULTS_PATH, COLS, BENCHMARK_COLS)
 
 try:
     request_records = list(requests_dataset.iter_requests())
@@ -72,13 +72,18 @@ except Exception:
     pending_eval_queue_df,
 ) = get_evaluation_queue_df(request_records, EVAL_COLS)
 
-def init_leaderboard(dataframe):
+def init_leaderboard(frames):
     # A fresh leaderboard with no submissions yet should render an empty table,
     # not crash. Ensure the expected columns exist so the component can build.
-    if dataframe is None or dataframe.empty:
-        dataframe = pd.DataFrame(columns=COLS)
+    frames = dict(frames) if frames else {}
+    for view in STRATUM_VIEWS:
+        f = frames.get(view)
+        if f is None or f.empty:
+            frames[view] = pd.DataFrame(columns=COLS)
     return Leaderboard(
-        value=dataframe,
+        value=frames["All"],
+        stratum_frames=frames,
+        stratum_label="Stratum (All = paper headline; tight/medium/loose slice one stratum)",
         datatype=[c.type for c in fields(AutoEvalColumn)],
         select_columns=SelectColumns(
             default_selection=[c.name for c in fields(AutoEvalColumn) if c.displayed_by_default],
@@ -103,7 +108,7 @@ with demo:
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
         with gr.TabItem("🏅 Coilstellaration Benchmark", elem_id="benchmark-tab-table", id=0):
-            leaderboard = init_leaderboard(LEADERBOARD_DF)
+            leaderboard = init_leaderboard(LEADERBOARD_FRAMES)
 
         with gr.TabItem("📝 About", elem_id="about-tab", id=2):
             gr.Markdown(LLM_BENCHMARKS_TEXT, elem_classes="markdown-text")

@@ -2,10 +2,16 @@ import os
 
 from coilstellaration.benchmark import types as benchmark_types
 
-# Both tracks are evaluated for every submission, at the `tight` stratum / `eval` split.
+# Both tracks are evaluated for every submission, over every stratum of the
+# `eval` split. The paper's headline is the mean over all strata; the leaderboard
+# additionally reports the per-stratum breakdown (loose/medium/tight/all) so the
+# numbers line up with the paper's stratified figure.
 TRACKS: list[str] = ["fixed_shape", "variable_shape"]
-STRATUM: str = "tight"
+STRATA: list[str] = ["loose", "medium", "tight"]
 SPLIT: str = "eval"
+# The reference stratum used by the patch-equivalence tests (the tightest, where
+# the plasma single-period tiling is exact). Not the only stratum scored.
+STRATUM: str = "tight"
 
 # Number of instances per track. 0 = full split (production). Override for dev via env.
 N_INSTANCES: int = int(os.environ.get("COILBENCH_N", "0"))

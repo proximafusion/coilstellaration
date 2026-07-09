@@ -36,13 +36,22 @@ def Leaderboard(
     filter_columns=None,
     bool_checkboxgroup_label=None,
     interactive=False,
+    stratum_frames=None,
+    stratum_label="Stratum",
 ):
     """Render the leaderboard controls and table, returning the table component.
 
     `value.columns` is the full, ordered set of columns; `datatype` is the
     parallel list of gradio cell types. Selecting/searching/filtering all
-    re-derive the displayed frame from `value`, never mutating it.
+    re-derive the displayed frame from the active base frame, never mutating it.
+
+    `stratum_frames` (optional) maps a stratum-view name to a same-columns
+    frame; when given, a radio lets the user switch which frame the table shows
+    (e.g. All / tight / medium / loose). `value` is the default frame.
     """
+    frames = dict(stratum_frames) if stratum_frames else {"All": value}
+    default_stratum = "All" if "All" in frames else next(iter(frames))
+
     all_columns = list(value.columns)
     type_of = dict(zip(all_columns, datatype or ["str"] * len(all_columns)))
 
@@ -54,8 +63,8 @@ def Leaderboard(
     # Columns the user can choose from (drop the always-hidden ones).
     selectable = [c for c in all_columns if c not in hide_columns]
 
-    def view(selected, query, *filter_values):
-        df = value
+    def view(selected, query, stratum, *filter_values):
+        df = frames.get(stratum, value)
         if query:
             mask = pd.Series(False, index=df.index)
             for col in search_columns:
@@ -70,6 +79,13 @@ def Leaderboard(
         df = df[keep]
         return gr.update(value=df, datatype=[type_of[c] for c in keep])
 
+    # The stratum switch sits above the table; a plain State stands in when
+    # there is only one frame so `view`'s signature stays uniform.
+    stratum_radio = (
+        gr.Radio(choices=list(frames), value=default_stratum, label=stratum_label)
+        if len(frames) > 1
+        else None
+    )
     column_picker = gr.CheckboxGroup(
         choices=selectable,
         value=select_columns.default_selection,
@@ -88,19 +104,29 @@ def Leaderboard(
         for flt in filter_columns
     ]
 
+    default_frame = frames[default_stratum]
     default_keep = [
         c for c in all_columns
         if c in select_columns.default_selection or c in select_columns.cant_deselect
     ]
     table = gr.Dataframe(
-        value=value[default_keep],
+        value=default_frame[default_keep],
         datatype=[type_of[c] for c in default_keep],
         interactive=interactive,
         wrap=True,
     )
 
-    controls = [column_picker] + ([search_box] if search_box else []) + filter_boxes
-    inputs = [column_picker, search_box or gr.State("")] + filter_boxes
+    controls = (
+        [column_picker]
+        + ([stratum_radio] if stratum_radio else [])
+        + ([search_box] if search_box else [])
+        + filter_boxes
+    )
+    inputs = [
+        column_picker,
+        search_box or gr.State(""),
+        stratum_radio or gr.State(default_stratum),
+    ] + filter_boxes
     for control in controls:
         control.change(view, inputs=inputs, outputs=table)
 
