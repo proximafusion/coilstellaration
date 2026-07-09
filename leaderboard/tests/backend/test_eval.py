@@ -1,6 +1,7 @@
 import time
 
 import numpy as np
+import pytest
 
 from constellaration.geometry import surface_rz_fourier
 from coilstellaration import types
@@ -47,7 +48,7 @@ def _patch_physics(monkeypatch, achieved):
 def test_evaluate_track_perfect_scores(monkeypatch):
     data = [_eval_data("b0"), _eval_data("b1")]
     _patch_physics(monkeypatch, data[0].requirement_metrics)
-    score, n_failed = beval.evaluate_track(FakeModel(), data)
+    score, n_failed, _times = beval.evaluate_track(FakeModel(), data)
     assert score.summaries["mean"] == 1.0
     assert score.summaries["strict_feasibility"] == 1.0
     assert len(score.per_instance) == 2
@@ -65,7 +66,7 @@ def test_failed_instance_scores_zero_and_continues(monkeypatch):
     flaky.called = False
     monkeypatch.setattr(beval, "_evaluate_achieved", flaky)
 
-    score, n_failed = beval.evaluate_track(FakeModel(), data)
+    score, n_failed, _times = beval.evaluate_track(FakeModel(), data)
     aggregates = sorted(s.aggregate for s in score.per_instance)
     assert aggregates[0] == 0.0       # the failed one
     assert aggregates[1] == 1.0       # the good one
@@ -243,6 +244,90 @@ def test_evaluate_model_returns_raw_instance_rows(monkeypatch):
     assert {"track", "stratum", "boundary_id", "score", "strictly_feasible"} <= set(r)
     assert any(k.startswith("violation/") for k in r)
     assert any(k.startswith("soft_score/") for k in r)
+
+
+def test_time_stats_computes_mean_max_min_std():
+    stats = beval._time_stats([1.0, 2.0, 3.0])
+    assert stats["min"] == 1.0
+    assert stats["max"] == 3.0
+    assert stats["mean"] == 2.0
+    assert stats["std"] == pytest.approx(float(np.std([1.0, 2.0, 3.0])))
+
+
+def test_time_stats_ignores_non_finite():
+    # A failed instance contributes a NaN time; it must not poison the stats.
+    stats = beval._time_stats([1.0, float("nan"), 3.0])
+    assert stats["min"] == 1.0
+    assert stats["max"] == 3.0
+    assert stats["mean"] == 2.0
+
+
+def test_time_stats_none_when_no_finite_times():
+    expected = {"mean": None, "max": None, "min": None, "std": None}
+    assert beval._time_stats([]) == expected
+    assert beval._time_stats([float("nan")]) == expected
+
+
+def test_evaluate_track_returns_inference_times(monkeypatch):
+    data = [_eval_data("b0"), _eval_data("b1")]
+    _patch_physics(monkeypatch, data[0].requirement_metrics)
+    score, n_failed, times = beval.evaluate_track(FakeModel(), data)
+    # One finite, non-negative time per instance, aligned with per_instance.
+    assert len(times) == len(score.per_instance) == 2
+    assert all(np.isfinite(t) and t >= 0 for t in times)
+
+
+def test_evaluate_track_inference_time_nan_when_inference_fails(monkeypatch):
+    data = [_eval_data("b0")]
+    _patch_physics(monkeypatch, data[0].requirement_metrics)
+
+    class BadModel:
+        def run(self, inputs):
+            raise RuntimeError("inference blew up")
+
+    score, n_failed, times = beval.evaluate_track(BadModel(), data)
+    assert n_failed == 1
+    assert len(times) == 1
+    # No valid inference happened, so no time is attributed to the instance.
+    assert not np.isfinite(times[0])
+
+
+def test_evaluate_model_stratum_includes_inference_time_stats(monkeypatch):
+    tight = _eval_data("b0", field_error=0.1)
+    loose = _eval_data("b1", field_error=0.001)
+    tagged = [("tight", tight), ("loose", loose)]
+    _patch_physics(monkeypatch, tight.requirement_metrics)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
+
+    record, _rows = beval.evaluate_model(
+        model=FakeModel(), model_name="org/m", revision="abc",
+        submitter="me", stochastic=False, k_samples=1,
+        submitted_time="2026-06-11T00:00:00Z",
+    )
+    fixed = record["tracks"]["fixed_shape"]
+    keys = {"mean", "max", "min", "std"}
+    # Headline (all strata pooled) and each stratum carry a timing block.
+    assert set(fixed["inference_time"]) == keys
+    assert fixed["inference_time"]["mean"] >= 0
+    for stratum in ("tight", "loose"):
+        sub = fixed["strata"][stratum]["inference_time"]
+        assert set(sub) == keys
+        assert sub["mean"] >= 0
+        assert sub["min"] <= sub["mean"] <= sub["max"]
+
+
+def test_evaluate_model_rows_include_inference_time(monkeypatch):
+    tagged = [("tight", _eval_data("b0"))]
+    _patch_physics(monkeypatch, tagged[0][1].requirement_metrics)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
+
+    _record, rows = beval.evaluate_model(
+        model=FakeModel(), model_name="org/m", revision="abc",
+        submitter="me", stochastic=False, k_samples=1,
+        submitted_time="2026-06-11T00:00:00Z",
+    )
+    assert all("inference_time_s" in r for r in rows)
+    assert all(np.isfinite(r["inference_time_s"]) for r in rows)
 
 
 def test_rows_to_parquet_bytes_roundtrips():

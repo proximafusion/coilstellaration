@@ -132,13 +132,41 @@ def _load_track(track: str, n: int) -> list[tuple[str, types.EvalData]]:
     return tagged
 
 
-def _summarize(instances: list[benchmark_types.InstanceScore]) -> dict:
-    """Aggregate a set of instance scores into the summary keys plus `n`."""
+def _time_stats(times: list[float]) -> dict:
+    """Summarize per-instance inference times into mean/max/min/std.
+
+    Non-finite entries (NaN for instances whose inference never completed) are
+    dropped. When nothing finite remains the four stats are `None` so the JSON
+    summary stays valid (no non-standard NaN literals).
+    """
+    finite = [t for t in times if np.isfinite(t)]
+    if not finite:
+        return {"mean": None, "max": None, "min": None, "std": None}
+    arr = np.asarray(finite, dtype=float)
+    return {
+        "mean": float(arr.mean()),
+        "max": float(arr.max()),
+        "min": float(arr.min()),
+        "std": float(arr.std()),
+    }
+
+
+def _summarize(
+    instances: list[benchmark_types.InstanceScore],
+    times: list[float] | None = None,
+) -> dict:
+    """Aggregate a set of instance scores into the summary keys plus `n`.
+
+    When `times` (per-instance inference seconds, aligned with `instances`) is
+    given, an `inference_time` block with mean/max/min/std is attached.
+    """
     summary = {
         k: float(v)
         for k, v in scoring.aggregate_instances(instances, config.SCORING_SETTINGS).items()
     }
     summary["n"] = len(instances)
+    if times is not None:
+        summary["inference_time"] = _time_stats(times)
     return summary
 
 
@@ -146,18 +174,21 @@ def _instance_rows(
     track: str,
     strata: list[str],
     per_instance: list[benchmark_types.InstanceScore],
+    times: list[float],
 ) -> list[dict]:
     """Flatten per-instance scores into raw rows for the parquet artifact.
 
-    Each row carries `track`, `stratum`, `boundary_id` and the flattened
-    per-metric violations / soft scores / aggregate produced by
-    `scoring.instance_score_to_row` (the same schema the paper's per-model
-    score parquets use).
+    Each row carries `track`, `stratum`, `boundary_id`, the model's per-instance
+    `inference_time_s`, and the flattened per-metric violations / soft scores /
+    aggregate produced by `scoring.instance_score_to_row` (the same schema the
+    paper's per-model score parquets use). `inference_time_s` is NaN for
+    instances whose inference never completed.
     """
     rows: list[dict] = []
-    for stratum, inst in zip(strata, per_instance):
+    for stratum, inst, t in zip(strata, per_instance, times):
         row = {"track": track, "stratum": stratum, "boundary_id": inst.boundary_id}
         row.update(scoring.instance_score_to_row(inst))
+        row["inference_time_s"] = float(t)
         rows.append(row)
     return rows
 
@@ -185,19 +216,23 @@ def evaluate_track(
     eval_datas: list[types.EvalData],
     settings: benchmark_types.ScoringSettings = config.SCORING_SETTINGS,
     deadline: float | None = None,
-) -> tuple[benchmark_types.BenchmarkScore, int]:
+) -> tuple[benchmark_types.BenchmarkScore, int, list[float]]:
     """Score one model on one track's instances. Single forward pass per instance.
 
-    Returns the aggregated `BenchmarkScore` and the number of instances that
-    failed (and were scored 0.0). The failure count lets `evaluate_model`
-    distinguish a model that genuinely scores 0 from one that errored on every
-    instance (which should be reported as FAILED, not FINISHED).
+    Returns the aggregated `BenchmarkScore`, the number of instances that failed
+    (and were scored 0.0), and the per-instance model inference times in seconds
+    (aligned 1:1 with `score.per_instance`; NaN for instances whose inference
+    never completed). The failure count lets `evaluate_model` distinguish a model
+    that genuinely scores 0 from one that errored on every instance (which should
+    be reported as FAILED, not FINISHED). The inference times feed the
+    per-stratum timing summary (and, later, a per-inference time gate).
 
     `deadline` is the absolute epoch time at which the parent runner will kill
     the eval; when set, each instance logs the remaining budget and a warning
     fires if the run is projected to overrun it.
     """
     instances: list[benchmark_types.InstanceScore] = []
+    inference_times: list[float] = []
     n_failed = 0
     n_total = len(eval_datas)
     logger.info("Scoring %d instances", n_total)
@@ -210,9 +245,14 @@ def evaluate_track(
     n_feasible = 0
     for i, data in enumerate(eval_datas, 1):
         t0 = time.perf_counter()
+        # NaN until an inference actually completes, so a failure before/at the
+        # forward pass leaves no bogus time in the stats.
+        infer_s = float("nan")
         try:
             inputs = marshal.eval_data_to_inputs(data.boundary, data.requirement_metrics)
+            t_infer = time.perf_counter()
             outputs = model.run(inputs)
+            infer_s = time.perf_counter() - t_infer
             coilset = marshal.outputs_to_coilset(outputs, data.boundary)
             achieved = _evaluate_achieved(data.boundary, coilset)
             if not _is_finite(achieved):
@@ -222,11 +262,11 @@ def evaluate_track(
             running_score += score_inst.aggregate
             n_feasible += int(score_inst.metric_scores.strictly_feasible)
             logger.info(
-                "[%d/%d] %s: score=%.4f feasible=%s in %.1fs "
+                "[%d/%d] %s: score=%.4f feasible=%s in %.1fs (infer %.3fs) "
                 "(running mean=%.4f, feasible=%d/%d)%s",
                 i, n_total, data.boundary_id, score_inst.aggregate,
                 score_inst.metric_scores.strictly_feasible, time.perf_counter() - t0,
-                running_score / i, n_feasible, i,
+                infer_s, running_score / i, n_feasible, i,
                 _timeout_suffix(deadline),
             )
         except Exception as exc:  # noqa: BLE001 - one bad instance must not abort the run
@@ -236,6 +276,7 @@ def evaluate_track(
             )
             instances.append(_failed_instance(data.boundary_id))
             n_failed += 1
+        inference_times.append(infer_s)
         # Project from the average so far whether the rest of the track fits the
         # budget; warn once we're behind so an impending kill isn't a surprise.
         if deadline is not None and i < n_total:
@@ -248,12 +289,16 @@ def evaluate_track(
                     _fmt_duration(projected), n_total - i, _fmt_duration(remaining),
                 )
     elapsed = time.perf_counter() - track_start
+    infer = _time_stats(inference_times)
     logger.info(
-        "Track scored in %.1fs: %d/%d ok, %d failed, %d strictly feasible (%.2fs/instance)",
+        "Track scored in %.1fs: %d/%d ok, %d failed, %d strictly feasible "
+        "(%.2fs/instance; inference mean=%s max=%s min=%s std=%s)",
         elapsed, n_total - n_failed, n_total, n_failed, n_feasible,
         elapsed / n_total if n_total else 0.0,
+        *(f"{infer[k]:.3f}s" if infer[k] is not None else "n/a"
+          for k in ("mean", "max", "min", "std")),
     )
-    return scoring.score_benchmark(instances, settings), n_failed
+    return scoring.score_benchmark(instances, settings), n_failed, inference_times
 
 
 def _is_finite(achieved: types.RequirementMetrics) -> bool:
@@ -302,20 +347,21 @@ def evaluate_model(
             "Loaded %d instances for track %s in %.1fs",
             len(eval_datas), track, time.perf_counter() - load_start,
         )
-        score, n_failed = evaluate_track(model, eval_datas, deadline=deadline)
-        # `score.per_instance` is aligned 1:1 with `eval_datas` (and hence
-        # `strata`), including the 0.0-scored failures, so we can slice it by
-        # stratum without re-scoring.
-        summary = _summarize(score.per_instance)  # over all strata
+        score, n_failed, times = evaluate_track(model, eval_datas, deadline=deadline)
+        # `score.per_instance` and `times` are aligned 1:1 with `eval_datas` (and
+        # hence `strata`), including the 0.0-scored failures, so we can slice both
+        # by stratum without re-scoring.
+        summary = _summarize(score.per_instance, times)  # over all strata
         summary["strata"] = {
             stratum: _summarize(
-                [inst for inst, s in zip(score.per_instance, strata) if s == stratum]
+                [inst for inst, s in zip(score.per_instance, strata) if s == stratum],
+                [t for t, s in zip(times, strata) if s == stratum],
             )
             for stratum in config.STRATA
             if stratum in strata
         }
         tracks[track] = summary
-        instance_rows.extend(_instance_rows(track, strata, score.per_instance))
+        instance_rows.extend(_instance_rows(track, strata, score.per_instance, times))
         total_instances += len(eval_datas)
         total_failed += n_failed
         logger.info(
