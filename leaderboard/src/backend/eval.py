@@ -1,9 +1,11 @@
 """Run an ONNX model through the coilstellaration eval + scoring pipeline."""
+import io
 import logging
 import os
 import time
 
 import numpy as np
+import pandas as pd
 from coilstellaration import data_utils, metrics_utils_v2, types
 from coilstellaration.benchmark import scoring
 from coilstellaration.benchmark import types as benchmark_types
@@ -140,6 +142,33 @@ def _summarize(instances: list[benchmark_types.InstanceScore]) -> dict:
     return summary
 
 
+def _instance_rows(
+    track: str,
+    strata: list[str],
+    per_instance: list[benchmark_types.InstanceScore],
+) -> list[dict]:
+    """Flatten per-instance scores into raw rows for the parquet artifact.
+
+    Each row carries `track`, `stratum`, `boundary_id` and the flattened
+    per-metric violations / soft scores / aggregate produced by
+    `scoring.instance_score_to_row` (the same schema the paper's per-model
+    score parquets use).
+    """
+    rows: list[dict] = []
+    for stratum, inst in zip(strata, per_instance):
+        row = {"track": track, "stratum": stratum, "boundary_id": inst.boundary_id}
+        row.update(scoring.instance_score_to_row(inst))
+        rows.append(row)
+    return rows
+
+
+def rows_to_parquet_bytes(rows: list[dict]) -> bytes:
+    """Serialize raw per-instance rows to an in-memory parquet blob."""
+    buf = io.BytesIO()
+    pd.DataFrame.from_records(rows).to_parquet(buf, index=False)
+    return buf.getvalue()
+
+
 def _failed_instance(boundary_id: str) -> benchmark_types.InstanceScore:
     zeros = {f: 0.0 for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS}
     return benchmark_types.InstanceScore(
@@ -258,6 +287,7 @@ def evaluate_model(
     )
     model_start = time.perf_counter()
     tracks: dict[str, dict] = {}
+    instance_rows: list[dict] = []
     total_instances = 0
     total_failed = 0
     for track in config.TRACKS:
@@ -285,6 +315,7 @@ def evaluate_model(
             if stratum in strata
         }
         tracks[track] = summary
+        instance_rows.extend(_instance_rows(track, strata, score.per_instance))
         total_instances += len(eval_datas)
         total_failed += n_failed
         logger.info(
@@ -317,7 +348,7 @@ def evaluate_model(
         model_name, overall, time.perf_counter() - model_start,
         total_instances, len(config.TRACKS), total_failed,
     )
-    return {
+    record = {
         "model": model_name,
         "revision": revision,
         "commit_hash": commit_hash,
@@ -330,3 +361,4 @@ def evaluate_model(
         "overall_score": overall,
         "tracks": tracks,
     }
+    return record, instance_rows

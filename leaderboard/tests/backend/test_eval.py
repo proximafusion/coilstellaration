@@ -77,7 +77,7 @@ def test_evaluate_model_builds_record(monkeypatch):
     _patch_physics(monkeypatch, tagged[0][1].requirement_metrics)
     monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
 
-    record = beval.evaluate_model(
+    record, _rows = beval.evaluate_model(
         model=FakeModel(), model_name="org/m", revision="abc",
         submitter="me", stochastic=False, k_samples=1,
         submitted_time="2026-06-11T00:00:00Z",
@@ -105,7 +105,7 @@ def test_evaluate_model_aggregates_per_stratum(monkeypatch):
     _patch_physics(monkeypatch, tight.requirement_metrics)  # achieved == tight target
     monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
 
-    record = beval.evaluate_model(
+    record, _rows = beval.evaluate_model(
         model=FakeModel(), model_name="org/m", revision="abc",
         submitter="me", stochastic=False, k_samples=1,
         submitted_time="2026-06-11T00:00:00Z",
@@ -213,7 +213,7 @@ def test_evaluate_model_records_commit_and_onnx_path(monkeypatch):
     _patch_physics(monkeypatch, tagged[0][1].requirement_metrics)
     monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
 
-    record = beval.evaluate_model(
+    record, _rows = beval.evaluate_model(
         model=FakeModel(), model_name="org/m", revision="main",
         submitter="me", stochastic=False, k_samples=1,
         submitted_time="2026-06-11T00:00:00Z",
@@ -221,3 +221,37 @@ def test_evaluate_model_records_commit_and_onnx_path(monkeypatch):
     )
     assert record["commit_hash"] == "deadbeefcafebabe"
     assert record["onnx_path"] == "models/best.onnx"
+
+
+def test_evaluate_model_returns_raw_instance_rows(monkeypatch):
+    tight = _eval_data("b0")
+    loose = _eval_data("b1")
+    tagged = [("tight", tight), ("loose", loose)]
+    _patch_physics(monkeypatch, tight.requirement_metrics)
+    monkeypatch.setattr(beval, "_load_track", lambda track, n: tagged)
+
+    _record, rows = beval.evaluate_model(
+        model=FakeModel(), model_name="org/m", revision="abc",
+        submitter="me", stochastic=False, k_samples=1,
+        submitted_time="2026-06-11T00:00:00Z",
+    )
+    # 2 instances scored on each of the 2 tracks.
+    assert len(rows) == 4
+    assert {r["track"] for r in rows} == {"fixed_shape", "variable_shape"}
+    assert {r["stratum"] for r in rows} == {"tight", "loose"}
+    r = rows[0]
+    assert {"track", "stratum", "boundary_id", "score", "strictly_feasible"} <= set(r)
+    assert any(k.startswith("violation/") for k in r)
+    assert any(k.startswith("soft_score/") for k in r)
+
+
+def test_rows_to_parquet_bytes_roundtrips():
+    import io
+
+    import pandas as pd
+    rows = [{"track": "fixed_shape", "stratum": "tight", "boundary_id": "b0",
+             "score": 0.5, "strictly_feasible": True}]
+    blob = beval.rows_to_parquet_bytes(rows)
+    df = pd.read_parquet(io.BytesIO(blob))
+    assert df.iloc[0]["boundary_id"] == "b0"
+    assert df.iloc[0]["score"] == 0.5

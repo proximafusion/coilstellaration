@@ -68,11 +68,17 @@ def _push_request(req: dict, rel_path: str):
     os.remove(tmp)
 
 
-def _push_result(record: dict):
+def _result_rel_path(record: dict, ext: str) -> str:
+    """Results-repo path for a record's artifact, disambiguated by model, commit
+    and ONNX file so re-submissions and per-file variants don't collide."""
     org, model = record["model"].split("/", 1)
     commit = record.get("commit_hash") or record.get("revision", "")
     onnx_slug = record.get("onnx_path", "model.onnx").replace("/", "-").removesuffix(".onnx")
-    rel_path = f"{org}/{model}_{commit}_{onnx_slug}.json"
+    return f"{org}/{model}_{commit}_{onnx_slug}.{ext}"
+
+
+def _push_result(record: dict):
+    rel_path = _result_rel_path(record, "json")
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(record, f, indent=2)
         tmp = f.name
@@ -85,6 +91,19 @@ def _push_result(record: dict):
         commit_message=f"Add results for {record['model']}",
     )
     os.remove(tmp)
+
+
+def _push_result_parquet(record: dict, parquet_bytes: bytes):
+    """Upload the raw per-instance scores parquet alongside the JSON summary."""
+    rel_path = _result_rel_path(record, "parquet")
+    logger.debug("Pushing raw scores parquet for %s to %s", record["model"], rel_path)
+    API.upload_file(
+        path_or_fileobj=parquet_bytes,
+        path_in_repo=rel_path,
+        repo_id=RESULTS_REPO,
+        repo_type="dataset",
+        commit_message=f"Add raw scores for {record['model']}",
+    )
 
 
 def _run_eval(req: dict) -> dict:
@@ -127,8 +146,11 @@ def _kill_group(proc: "subprocess.Popen") -> None:
     proc.wait()
 
 
-def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> dict:
+def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> tuple[dict, bytes | None]:
     """Run the eval in an isolated subprocess under a wall-clock kill.
+
+    Returns `(record, parquet_bytes)` where `parquet_bytes` is the raw
+    per-instance scores parquet (or `None` when the eval produced no rows).
 
     The child is its own session leader (``start_new_session=True``), so a timeout
     SIGKILLs the entire process group -- the eval plus any JAX/DESC helpers it
@@ -141,7 +163,8 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> dict:
     if timeout is None:
         timeout = config.EVAL_TIMEOUT
     if not timeout or timeout <= 0:
-        return _run_eval(req)
+        record, rows = _run_eval(req)
+        return record, (beval.rows_to_parquet_bytes(rows) if rows else None)
 
     with tempfile.TemporaryDirectory() as tmp:
         req_path = os.path.join(tmp, "request.json")
@@ -167,7 +190,15 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> dict:
                 raise RuntimeError("Evaluation crashed (segmentation fault), likely a JAX/LLVM crash or OOM")
             raise RuntimeError(f"Evaluation subprocess exited {proc.returncode}")
         with open(out_path) as f:
-            return json.load(f)
+            record = json.load(f)
+        # The child writes the raw scores parquet next to the JSON summary; read
+        # it back before the temp dir is torn down so the runner can upload it.
+        parquet_path = os.path.splitext(out_path)[0] + ".parquet"
+        parquet_bytes = None
+        if os.path.exists(parquet_path):
+            with open(parquet_path, "rb") as f:
+                parquet_bytes = f.read()
+        return record, parquet_bytes
 
 
 def _reap_stale(requests_dir: str) -> None:
@@ -210,8 +241,10 @@ def run_once():
         req["worker_id"] = _worker_id()
         _push_request(req, rel_path)
         try:
-            record = _evaluate_with_timeout(req, config.EVAL_TIMEOUT)
+            record, parquet_bytes = _evaluate_with_timeout(req, config.EVAL_TIMEOUT)
             _push_result(record)
+            if parquet_bytes:
+                _push_result_parquet(record, parquet_bytes)
             req["status"] = "FINISHED"
             req.pop("error", None)
             logger.info("Request %s FINISHED", req["model"])
