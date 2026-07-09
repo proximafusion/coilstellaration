@@ -29,17 +29,19 @@ def check_model_card(repo_id: str) -> tuple[bool, str]:
 
     return True, ""
 
-def validate_local_onnx(local_path: str) -> tuple[bool, str]:
-    """Open a downloaded ONNX file and check it against the I/O contract.
+def validate_local_onnx(local_path: str) -> tuple[bool, str, list[str]]:
+    """Open a downloaded ONNX file, check it against the I/O contract, and detect
+    which tracks it supports.
 
-    Returns (ok, message). No inference is run.
+    Returns (ok, message, supported_tracks). No inference is run. `supported_tracks`
+    is empty when the contract check fails.
     """
-    from src.backend.onnx_model import validate_onnx_contract
+    from src.backend.onnx_model import inspect_onnx
 
     logger.debug("Validating local ONNX file %s", local_path)
-    errors = validate_onnx_contract(local_path)
+    errors, tracks = inspect_onnx(local_path)
     if errors:
         logger.info("Local ONNX validation failed: %s", "; ".join(errors))
-        return False, "; ".join(errors)
-    return True, "ONNX contract OK"
+        return False, "; ".join(errors), []
+    return True, "ONNX contract OK", tracks
 
