@@ -1,10 +1,12 @@
 import json
 import logging
+import os
 import tempfile
 from datetime import datetime, timezone
 
 from huggingface_hub import hf_hub_download
 
+from src.backend import config
 from src.display.formatting import styled_error, styled_message
 from src.envs import API, QUEUE_REPO, TOKEN
 from src.submission import requests_dataset
@@ -58,13 +60,36 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
         )
 
     try:
+        infos = API.get_paths_info(
+            repo_id=model, paths=[onnx_path], revision=commit_hash,
+            repo_type="model", token=TOKEN,
+        )
+        size = next((getattr(i, "size", None) for i in infos if getattr(i, "path", None) == onnx_path), None)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not fetch metadata for %s from %s: %s", onnx_path, model, exc)
+        return styled_error(f"Could not read `{onnx_path}` metadata from the repo: {exc}")
+    if size is not None and size > config.MAX_ONNX_BYTES:
+        logger.info("Rejecting oversized model %s: %d bytes", model, size)
+        return styled_error(
+            f"Model file is {size / 1024 / 1024:.1f} MB, over the "
+            f"{config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
+        )
+
+    try:
         with tempfile.TemporaryDirectory() as tmp:
             logger.debug("Downloading %s from %s for validation", onnx_path, model)
             local = hf_hub_download(
                 repo_id=model, filename=onnx_path, revision=commit_hash,
                 local_dir=tmp, token=TOKEN,
             )
-            ok, msg = validate_local_onnx(local)
+            if size is None and os.path.getsize(local) > config.MAX_ONNX_BYTES:
+                actual = os.path.getsize(local)
+                logger.info("Rejecting oversized model %s: %d bytes (post-download)", model, actual)
+                return styled_error(
+                    f"Model file is {actual / 1024 / 1024:.1f} MB, over the "
+                    f"{config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
+                )
+            ok, msg, tracks = validate_local_onnx(local)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not download %s from %s: %s", onnx_path, model, exc)
         return styled_error(f"Could not download `{onnx_path}` from the repo: {exc}")
@@ -82,6 +107,7 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
         "stochastic": bool(stochastic),
         "k_samples": k_samples,
         "n_instances": n_instances,
+        "tracks": tracks,
         "status": "PENDING",
         "submitted_time": current_time,
         "private": False,
@@ -99,5 +125,11 @@ def add_new_eval(model: str, revision: str, submitter: str, stochastic: bool, k_
             repo_type="dataset",
             commit_message=f"Add {model} to eval queue",
         )
+    if tracks == config.TRACKS:
+        detail = "Detected variable-shape inputs — will be scored on both tracks (fixed_shape + variable_shape)."
+    else:
+        detail = "Detected fixed-shape inputs — will be scored on the fixed_shape track only."
     logger.info("Submission %s queued (PENDING) at %s", model, current_time)
-    return styled_message("Your model has been submitted to the evaluation queue!")
+    return styled_message(
+        "Your model has been submitted to the evaluation queue! " + detail
+    )

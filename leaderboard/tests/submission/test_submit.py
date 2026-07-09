@@ -1,5 +1,6 @@
 import json
 
+from src.backend import config
 from src.submission import requests_dataset, submit
 from tests.backend.conftest import build_dummy_onnx
 
@@ -8,14 +9,27 @@ class _Info:
     sha = "deadbeefcafebabe1234567890abcdef12345678"
 
 
-def _wire(monkeypatch, tmp_path, captured, existing=()):
-    """Stub all Hub I/O; `existing` seeds the requests-dataset file list."""
+def _wire(monkeypatch, tmp_path, captured, existing=(), size=1024, in_shapes=None):
+    """Stub all Hub I/O; `existing` seeds the requests-dataset file list.
+    `size` is the file size get_paths_info reports; `in_shapes` overrides the
+    dummy ONNX input shapes so track detection can be exercised."""
     monkeypatch.setattr(submit.API, "repo_info", lambda **kw: _Info())
     monkeypatch.setattr(requests_dataset, "list_request_files", lambda: list(existing))
 
+    class _PathInfo:
+        def __init__(self, path, size):
+            self.path = path
+            self.size = size
+
+    def fake_paths_info(repo_id, paths, **kw):
+        captured["paths_info"] = {"repo_id": repo_id, "paths": list(paths)}
+        return [_PathInfo(paths[0], size)]
+
+    monkeypatch.setattr(submit.API, "get_paths_info", fake_paths_info)
+
     def fake_download(repo_id, filename, revision, local_dir, token):
         captured["download"] = {"filename": filename, "revision": revision}
-        return build_dummy_onnx(tmp_path / "dl.onnx")
+        return build_dummy_onnx(tmp_path / "dl.onnx", in_shapes=in_shapes)
 
     monkeypatch.setattr(submit, "hf_hub_download", fake_download)
 
@@ -88,3 +102,45 @@ def test_submission_fails_closed_when_queue_unreadable(tmp_path, monkeypatch):
     assert "retry" in out.lower()
     assert "entry" not in captured
     assert "download" not in captured  # never reaches validation
+
+
+def test_submission_rejects_oversized_model(tmp_path, monkeypatch):
+    captured = {}
+    _wire(monkeypatch, tmp_path, captured, size=config.MAX_ONNX_BYTES + 1)
+
+    out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1)
+
+    assert "limit" in out.lower()
+    assert "entry" not in captured
+    assert "download" not in captured  # rejected before download
+
+
+def test_submission_records_fixed_only_tracks(tmp_path, monkeypatch):
+    captured = {}
+    _wire(monkeypatch, tmp_path, captured)  # default dummy: all-static dims
+
+    out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1)
+
+    assert captured["entry"]["tracks"] == ["fixed_shape"]
+    assert "fixed_shape" in out
+
+
+def test_submission_records_both_tracks(tmp_path, monkeypatch):
+    captured = {}
+    _wire(monkeypatch, tmp_path, captured, in_shapes={"boundary_r_cos": ["m", "n"]})
+
+    out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1)
+
+    assert captured["entry"]["tracks"] == ["fixed_shape", "variable_shape"]
+    assert "both" in out.lower()
+
+
+def test_submission_falls_back_to_getsize_when_metadata_lacks_size(tmp_path, monkeypatch):
+    captured = {}
+    _wire(monkeypatch, tmp_path, captured, size=None)  # metadata reports no size
+
+    out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1)
+
+    # A tiny dummy file is well under the limit, so it still queues.
+    assert "submitted" in out.lower()
+    assert captured["entry"]["tracks"] == ["fixed_shape"]

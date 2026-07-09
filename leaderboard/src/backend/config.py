@@ -44,6 +44,9 @@ JAX_COMPILE_CACHE_DIR: str = os.environ.get(
 SCORING_SETTINGS: benchmark_types.ScoringSettings = benchmark_types.ScoringSettings()
 
 # ONNX I/O contract
+# Reject submissions whose ONNX file exceeds this size (checked from Hub
+# metadata before download, so an oversized model is never pulled).
+MAX_ONNX_BYTES: int = 50 * 1024 * 1024  # 50 MiB
 REQUIRED_INPUT_NAMES: tuple[str, ...] = (
     "boundary_r_cos",
     "boundary_z_sin",
