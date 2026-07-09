@@ -62,3 +62,53 @@ def validate_onnx_contract(model_path: str) -> list[str]:
     else:
         logger.debug("ONNX contract check passed")
     return errors
+
+
+# Boundary Fourier tensors whose declared dims decide track capability. The
+# requirement_metrics vector is fixed-length regardless of track and is ignored.
+_BOUNDARY_INPUT_NAMES = ("boundary_r_cos", "boundary_z_sin", *config.OPTIONAL_INPUT_NAMES)
+
+
+def detect_supported_tracks(session: ort.InferenceSession) -> list[str]:
+    """Which tracks a model can be scored on, from its declared input shapes.
+
+    Any dynamic dim (onnxruntime reports it as a non-int: a symbolic name string
+    or None) on any boundary tensor means the graph accepts varying resolutions,
+    so it supports both tracks. An all-static-dims graph supports fixed_shape
+    only. Result is ordered per config.TRACKS.
+    """
+    declared = {i.name: i.shape for i in session.get_inputs()}
+    has_dynamic = any(
+        any(not isinstance(dim, int) for dim in declared[name])
+        for name in _BOUNDARY_INPUT_NAMES
+        if name in declared
+    )
+    if has_dynamic:
+        return list(config.TRACKS)
+    return ["fixed_shape"]
+
+
+def inspect_onnx(model_path: str) -> tuple[list[str], list[str]]:
+    """Open the graph once; return (contract_errors, supported_tracks).
+
+    A load failure returns ([load error], []) - nothing can be scored.
+    """
+    logger.debug("Inspecting ONNX graph %s", model_path)
+    try:
+        session = ort.InferenceSession(
+            model_path, providers=["CPUExecutionProvider"]
+        )
+    except Exception as exc:  # noqa: BLE001 - surface any load failure to the user
+        logger.warning("Could not load ONNX model %s: %s", model_path, exc)
+        return [f"Could not load ONNX model: {exc}"], []
+
+    input_names = {i.name for i in session.get_inputs()}
+    output_names = {o.name for o in session.get_outputs()}
+    errors: list[str] = []
+    for name in config.REQUIRED_INPUT_NAMES:
+        if name not in input_names:
+            errors.append(f"Missing required input tensor: {name!r}")
+    for name in config.OUTPUT_NAMES:
+        if name not in output_names:
+            errors.append(f"Missing required output tensor: {name!r}")
+    return errors, detect_supported_tracks(session)

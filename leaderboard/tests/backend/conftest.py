@@ -14,18 +14,24 @@ def build_dummy_onnx(
     path, n_pol=2, n_tor=3, n_coils=4, n_modes=5,
     input_names=("boundary_r_cos", "boundary_z_sin", "requirement_metrics"),
     output_names=("coil_x_n", "coil_y_n", "coil_z_n", "currents"),
+    in_shapes=None,
 ):
     """A contract-conforming ONNX graph whose outputs are zeros of the right shape.
 
-    Inputs are declared (so onnxruntime accepts the feeds) but unused.
+    Inputs are declared (so onnxruntime accepts the feeds) but unused. `in_shapes`
+    overrides individual input shapes; values may be ints or symbolic dim strings
+    (e.g. ["n_pol", "n_tor"]) to declare dynamic dimensions.
     """
-    in_shapes = {
+    default_in_shapes = {
         "boundary_r_cos": [n_pol, n_tor],
         "boundary_z_sin": [n_pol, n_tor],
         "boundary_r_sin": [n_pol, n_tor],
         "boundary_z_cos": [n_pol, n_tor],
         "requirement_metrics": [4],
     }
+    if in_shapes:
+        default_in_shapes.update(in_shapes)
+    in_shapes = default_in_shapes
     out_shapes = {
         "coil_x_n": [n_coils, n_modes], "coil_y_n": [n_coils, n_modes],
         "coil_z_n": [n_coils, n_modes], "currents": [n_coils],
