@@ -1,0 +1,4 @@
+libnetcdf-dev
+libnetcdf-c++4-dev
+cmake
+ninja-build
