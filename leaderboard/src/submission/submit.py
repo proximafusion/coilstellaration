@@ -1,8 +1,8 @@
 import json
 import logging
-import os
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import get_args
 
 from huggingface_hub import hf_hub_download
@@ -74,7 +74,8 @@ def add_new_eval(
     if duplicate:
         logger.info("Duplicate submission for %s@%s:%s", model, commit_hash, onnx_path)
         return styled_error(
-            f"This exact model commit ({commit_hash}) and file ({onnx_path}) has already been submitted."
+            f"This exact model commit ({commit_hash}) and file ({onnx_path}) "
+            "has already been submitted."
         )
 
     try:
@@ -103,7 +104,8 @@ def add_new_eval(
     if size is not None and size > config.MAX_ONNX_BYTES:
         logger.info("Rejecting oversized model %s: %d bytes", model, size)
         return styled_error(
-            f"Model file is {size / 1024 / 1024:.1f} MB, over the {config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
+            f"Model file is {size / 1024 / 1024:.1f} MB, over the "
+            f"{config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
         )
 
     try:
@@ -116,8 +118,8 @@ def add_new_eval(
                 local_dir=tmp,
                 token=TOKEN,
             )
-            if size is None and os.path.getsize(local) > config.MAX_ONNX_BYTES:
-                actual = os.path.getsize(local)
+            actual = Path(local).stat().st_size
+            if size is None and actual > config.MAX_ONNX_BYTES:
                 logger.info(
                     "Rejecting oversized model %s: %d bytes (post-download)",
                     model,
@@ -164,9 +166,15 @@ def add_new_eval(
             commit_message=f"Add {model} to eval queue",
         )
     if set(tracks) == set(get_args(config.TRACKS)):
-        detail = "Model declares `supported_tracks=fixed_shape,variable_shape` — will be scored on both tracks."
+        detail = (
+            "Model declares `supported_tracks=fixed_shape,variable_shape` — "
+            "will be scored on both tracks."
+        )
     else:
-        detail = "Model declares `supported_tracks=fixed_shape` — will be scored on the fixed_shape track only."
+        detail = (
+            "Model declares `supported_tracks=fixed_shape` — "
+            "will be scored on the fixed_shape track only."
+        )
     logger.info("Submission %s queued (PENDING) at %s", model, current_time)
     return styled_message(
         "Your model has been submitted to the evaluation queue! " + detail

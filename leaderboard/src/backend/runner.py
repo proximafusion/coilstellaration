@@ -1,4 +1,4 @@
-import datetime
+import datetime as dt
 import io
 import json
 import logging
@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 import pandas as pd
 from huggingface_hub import hf_hub_download, snapshot_download
@@ -26,9 +27,9 @@ from leaderboard.src.submission.submit import ONNX_FILENAME
 logger = logging.getLogger(__name__)
 
 
-def _now() -> datetime.datetime:
+def _now() -> dt.datetime:
     """Timezone-aware UTC now; indirected so tests can freeze it."""
-    return datetime.datetime.now(datetime.timezone.utc)
+    return dt.datetime.now(dt.timezone.utc)
 
 
 def _worker_id() -> str:
@@ -43,10 +44,9 @@ def _iter_requests(requests_dir: str):
         for fname in files:
             if not fname.endswith(".json"):
                 continue
-            path = os.path.join(root, fname)
+            path = str(Path(root) / fname)
             try:
-                with open(path) as fp:
-                    req = json.load(fp)
+                req = json.loads(Path(path).read_text())
             except (json.JSONDecodeError, OSError) as exc:
                 # A single empty or corrupt file must not wedge the whole poll
                 # loop -- skip it so valid requests still get reaped/processed.
@@ -73,7 +73,7 @@ def _push_request(req: dict, rel_path: str):
         repo_type="dataset",
         commit_message=f"Update status {req['model']} -> {req['status']}",
     )
-    os.remove(tmp)
+    Path(tmp).unlink()
 
 
 def _result_rel_path(record: dict, ext: str) -> str:
@@ -100,7 +100,7 @@ def _push_result(record: dict):
         repo_type="dataset",
         commit_message=f"Add results for {record['model']}",
     )
-    os.remove(tmp)
+    Path(tmp).unlink()
 
 
 def _push_result_parquet(record: dict, parquet_bytes: bytes):
@@ -150,7 +150,7 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
         logger.info(
             "Downloaded %s (%.1f MB) in %.1fs",
             onnx_path,
-            os.path.getsize(local_model_path) / 1e6,
+            Path(local_model_path).stat().st_size / 1e6,
             time.perf_counter() - dl_start,
         )
         model = onnx_model.OnnxModel(local_model_path)
@@ -173,16 +173,13 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
             submitted_time=req.get("submitted_time", ""),
         )
         record |= metadata
-        with open(local_model_path, "rb") as f:
-            model_bytes = f.read()
+        model_bytes = Path(local_model_path).read_bytes()
         return record, rows, model_bytes
 
 
 _EVAL_CMD = [sys.executable, "-u", "-m", "leaderboard.src.backend.evaluate_one"]
 # `-m leaderboard...` needs the repo root importable, whatever the worker's cwd.
-_REPO_ROOT = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
+_REPO_ROOT = str(Path(__file__).resolve().parents[3])
 
 
 def _kill_group(proc: "subprocess.Popen") -> None:
@@ -225,10 +222,9 @@ def _evaluate_with_timeout(
         return record, parquet_bytes, model_bytes
 
     with tempfile.TemporaryDirectory() as tmp:
-        req_path = os.path.join(tmp, "request.json")
-        out_path = os.path.join(tmp, "result.json")
-        with open(req_path, "w") as f:
-            json.dump(req, f, indent=2)
+        req_path = Path(tmp) / "request.json"
+        out_path = Path(tmp) / "result.json"
+        req_path.write_text(json.dumps(req, indent=2))
 
         child_env = {
             **os.environ,
@@ -252,23 +248,17 @@ def _evaluate_with_timeout(
         if proc.returncode != 0:
             if proc.returncode == -signal.SIGSEGV:
                 raise RuntimeError(
-                    "Evaluation crashed (segmentation fault), likely a JAX/LLVM crash or OOM"
+                    "Evaluation crashed (segmentation fault), "
+                    "likely a JAX/LLVM crash or OOM"
                 )
             raise RuntimeError(f"Evaluation subprocess exited {proc.returncode}")
-        with open(out_path) as f:
-            record = json.load(f)
+        record = json.loads(out_path.read_text())
         # The child writes the raw scores parquet next to the JSON summary; read
         # it back before the temp dir is torn down so the runner can upload it.
-        parquet_path = os.path.splitext(out_path)[0] + ".parquet"
-        parquet_bytes = None
-        if os.path.exists(parquet_path):
-            with open(parquet_path, "rb") as f:
-                parquet_bytes = f.read()
-        model_path = os.path.splitext(out_path)[0] + ".onnx"
-        model_bytes = None
-        if os.path.exists(model_path):
-            with open(model_path, "rb") as f:
-                model_bytes = f.read()
+        parquet_path = out_path.with_suffix(".parquet")
+        parquet_bytes = parquet_path.read_bytes() if parquet_path.exists() else None
+        model_path = out_path.with_suffix(".onnx")
+        model_bytes = model_path.read_bytes() if model_path.exists() else None
         return record, parquet_bytes, model_bytes
 
 
@@ -285,7 +275,7 @@ def _reap_stale(requests_dir: str) -> None:
         started = req.get("started_at")
         if not started:
             continue
-        age = (now - datetime.datetime.fromisoformat(started)).total_seconds()
+        age = (now - dt.datetime.fromisoformat(started)).total_seconds()
         if age < config.LEASE_TTL:
             continue
         rel_path = path.split("eval-queue/")[1]

@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 
 from huggingface_hub import HfApi
 
@@ -21,9 +22,9 @@ RESULTS_REPO = f"{OWNER}/results"
 CACHE_PATH = os.getenv("HF_HOME", ".")
 
 # Local caches
-EVAL_REQUESTS_PATH = os.path.join(CACHE_PATH, "eval-queue")
-EVAL_RESULTS_PATH = os.path.join(CACHE_PATH, "eval-results")
-EVAL_REQUESTS_PATH_BACKEND = os.path.join(CACHE_PATH, "eval-queue-bk")
-EVAL_RESULTS_PATH_BACKEND = os.path.join(CACHE_PATH, "eval-results-bk")
+EVAL_REQUESTS_PATH = str(Path(CACHE_PATH) / "eval-queue")
+EVAL_RESULTS_PATH = str(Path(CACHE_PATH) / "eval-results")
+EVAL_REQUESTS_PATH_BACKEND = str(Path(CACHE_PATH) / "eval-queue-bk")
+EVAL_RESULTS_PATH_BACKEND = str(Path(CACHE_PATH) / "eval-results-bk")
 
 API = HfApi(token=TOKEN)

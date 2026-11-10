@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from leaderboard.src.backend import config
 from leaderboard.src.submission import requests_dataset, submit
@@ -43,7 +44,7 @@ def _wire(
     monkeypatch.setattr(submit, "hf_hub_download", fake_download)
 
     def fake_upload(**kw):
-        captured["entry"] = json.loads(open(kw["path_or_fileobj"]).read())
+        captured["entry"] = json.loads(Path(kw["path_or_fileobj"]).read_text())
         captured["path_in_repo"] = kw["path_in_repo"]
 
     monkeypatch.setattr(submit.API, "upload_file", fake_upload)

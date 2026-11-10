@@ -151,7 +151,9 @@ def test_queue_buckets_by_status():
         {"model": "org/f", "status": "FINISHED"},
     ]
     finished, running, pending, _failed = get_evaluation_queue_df(records, EVAL_COLS)
-    assert len(pending) == 1 and len(running) == 1 and len(finished) == 1
+    assert len(pending) == 1
+    assert len(running) == 1
+    assert len(finished) == 1
 
 
 def test_queue_tolerates_missing_status():
@@ -159,12 +161,10 @@ def test_queue_tolerates_missing_status():
     finished, running, pending, failed = get_evaluation_queue_df(
         [{"model": "org/x"}], EVAL_COLS
     )
-    assert (
-        len(finished) == 0
-        and len(running) == 0
-        and len(pending) == 0
-        and len(failed) == 0
-    )
+    assert len(finished) == 0
+    assert len(running) == 0
+    assert len(pending) == 0
+    assert len(failed) == 0
 
 
 def test_queue_shows_supported_tracks():

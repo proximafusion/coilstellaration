@@ -2,6 +2,7 @@ import json
 import logging
 import math
 import os
+from pathlib import Path
 
 from leaderboard.src.display.formatting import (
     make_clickable_commit,
@@ -77,8 +78,7 @@ def get_raw_eval_results(results_path: str) -> list[dict]:
         for fname in files:
             if not fname.endswith(".json"):
                 continue
-            with open(os.path.join(root, fname)) as fp:
-                record = json.load(fp)
+            record = json.loads((Path(root) / fname).read_text())
             if record.get("status") != "FINISHED":
                 continue
             records.append(record)

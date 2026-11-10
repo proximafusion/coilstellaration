@@ -10,7 +10,7 @@ recompiles -- the produced numerics are never affected.
 """
 
 import logging
-import os
+from pathlib import Path
 
 from leaderboard.src.backend import config
 
@@ -37,7 +37,7 @@ def enable() -> None:
     try:
         import jax
 
-        os.makedirs(cache_dir, exist_ok=True)
+        Path(cache_dir).mkdir(parents=True, exist_ok=True)
         jax.config.update("jax_compilation_cache_dir", cache_dir)
         # Cache every kernel, not just the slow ones: the eval compiles many
         # small kernels whose combined warmup is what we want to amortize.

@@ -272,7 +272,8 @@ def inference_model(
     elapsed = time.perf_counter() - track_start
     infer = _time_stats(inference_times)
     logger.info(
-        "Coilsets inferenced in %.1fs: %d/%d ok, %d failed (%.2fs/instance; inference mean=%s max=%s min=%s std=%s)",
+        "Coilsets inferenced in %.1fs: %d/%d ok, %d failed (%.2fs/instance; "
+        "inference mean=%s max=%s min=%s std=%s)",
         elapsed,
         n_total - n_failed,
         n_total,
@@ -318,7 +319,8 @@ def evaluate_data(
             running_score += score_inst.aggregate
             n_feasible += int(score_inst.metric_scores.strictly_feasible)
             logger.info(
-                "[%d/%d] %s: score=%.4f feasible=%s in %.1fs (running mean=%.4f, feasible=%d/%d)%s",
+                "[%d/%d] %s: score=%.4f feasible=%s in %.1fs "
+                "(running mean=%.4f, feasible=%d/%d)%s",
                 i,
                 n_total,
                 data.boundary_id,
@@ -347,14 +349,16 @@ def evaluate_data(
             projected = (time.perf_counter() - track_start) / i * (n_total - i)
             if projected > remaining:
                 logger.warning(
-                    "Behind schedule: ~%s to finish %d remaining instances but only %s left before timeout",
+                    "Behind schedule: ~%s to finish %d remaining instances "
+                    "but only %s left before timeout",
                     _fmt_duration(projected),
                     n_total - i,
                     _fmt_duration(remaining),
                 )
     elapsed = time.perf_counter() - track_start
     logger.info(
-        "Track scored in %.1fs: %d/%d ok, %d failed, %d strictly feasible (%.2fs/instance)",
+        "Track scored in %.1fs: %d/%d ok, %d failed, %d strictly feasible "
+        "(%.2fs/instance)",
         elapsed,
         n_total - n_failed,
         n_total,
@@ -473,7 +477,8 @@ def evaluate_model(
 
     overall = float(np.mean([track_results[t]["mean"] for t in tracks]))
     logger.info(
-        "Model FINISHED: overall=%.4f in %.1fs (%d instances across %d tracks, %d failed)",
+        "Model FINISHED: overall=%.4f in %.1fs "
+        "(%d instances across %d tracks, %d failed)",
         overall,
         time.perf_counter() - model_start,
         total_instances,

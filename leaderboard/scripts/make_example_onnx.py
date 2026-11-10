@@ -7,17 +7,18 @@ tab / design spec §4): it accepts the raw boundary Fourier coefficients and the
 
 It is intentionally a *baseline*, not a good predictor: it ignores the boundary
 and requirement inputs and computes `n_coils_per_half_period` planar circular
-coils in-graph, evenly spaced within the first half period `[0, pi / NFP)`. Its purpose is to be a runnable
-reference that (a) demonstrates the exact tensor names/shapes a submission must
-expose, and (b) declares dynamic boundary axes so it runs on every benchmark
-instance regardless of the boundary's spectral resolution. A real submission
-should condition the coilset on the boundary and requirement metrics.
+coils in-graph, evenly spaced within the first half period `[0, pi / NFP)`. Its
+purpose is to be a runnable reference that (a) demonstrates the exact tensor
+names/shapes a submission must expose, and (b) declares dynamic boundary axes so
+it runs on every benchmark instance regardless of the boundary's spectral
+resolution. A real submission should condition the coilset on the boundary and
+requirement metrics.
 
 Run:  uv run python -m leaderboard.scripts.make_example_onnx
 Output: examples/model.onnx
 """
 
-import os
+from pathlib import Path
 
 import numpy as np
 import onnx
@@ -29,8 +30,8 @@ MAJOR_RADIUS = 1.0  # R0
 MINOR_RADIUS = 0.3  # coil loop radius a
 CURRENT = 1.0e6  # Amperes per coil
 
-OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples")
-OUT_PATH = os.path.join(OUT_DIR, "dummy-constant-circle.onnx")
+OUT_DIR = Path(__file__).resolve().parent.parent / "examples"
+OUT_PATH = OUT_DIR / "dummy-constant-circle.onnx"
 
 
 def _float_const(name: str, value: float) -> onnx.NodeProto:
@@ -143,7 +144,7 @@ def build_model() -> onnx.ModelProto:
 
 
 def main() -> None:
-    os.makedirs(OUT_DIR, exist_ok=True)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     model = build_model()
     onnx.save(model, OUT_PATH)
     print(f"Wrote {OUT_PATH}")

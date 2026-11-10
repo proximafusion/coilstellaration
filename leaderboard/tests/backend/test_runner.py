@@ -1,4 +1,4 @@
-import datetime
+import datetime as dt
 import json
 import sys
 import time
@@ -8,7 +8,7 @@ import pytest
 from leaderboard.src.backend import evaluate_one, runner
 from tests.backend.conftest import build_dummy_onnx
 
-UTC = datetime.timezone.utc
+UTC = dt.timezone.utc
 
 
 # --- _run_eval: download/eval argument wiring (was test_run_once_pins_commit...) ---
@@ -142,9 +142,10 @@ def test_push_result_parquet_uses_sibling_path_and_uploads_bytes(monkeypatch):
 
 
 # --- per-eval timeout (item 1) ---
-# The eval runs in a plain freshly-exec'd subprocess (`python -m leaderboard.src.backend.evaluate_one
-# <request_path> <result_path>`), so multiprocessing's spawn/forkserver main-module
-# bootstrap machinery is never touched. The subprocess is its own session leader, so a
+# The eval runs in a plain freshly-exec'd subprocess
+# (`python -m leaderboard.src.backend.evaluate_one <request_path> <result_path>`),
+# so multiprocessing's spawn/forkserver main-module bootstrap machinery is never
+# touched. The subprocess is its own session leader, so a
 # timeout kills the whole process group (the eval plus any JAX/DESC helpers it spawned).
 # These stubs stand in for that command: same contract (read the request from argv[1],
 # write the result to argv[2]), without the heavy eval.
@@ -179,7 +180,9 @@ def test_evaluate_with_timeout_returns_record(monkeypatch):
 _STUB_DEADLINE = [
     sys.executable,
     "-c",
-    "import sys, json, os; json.dump({'deadline': os.environ.get('COILBENCH_EVAL_DEADLINE')}, open(sys.argv[2], 'w'))",
+    "import sys, json, os; "
+    "json.dump({'deadline': os.environ.get('COILBENCH_EVAL_DEADLINE')}, "
+    "open(sys.argv[2], 'w'))",
 ]
 
 
@@ -213,7 +216,8 @@ def test_evaluate_with_timeout_kills_whole_process_group(tmp_path, monkeypatch):
         "import sys, json, subprocess, time\n"
         "sentinel = json.load(open(sys.argv[1]))['sentinel']\n"
         "subprocess.Popen([sys.executable, '-c',\n"
-        '    \'import sys, time; time.sleep(1.5); open(sys.argv[1], "w").write("x")\',\n'
+        "    'import sys, time; time.sleep(1.5); '\n"
+        '    \'open(sys.argv[1], "w").write("x")\',\n'
         "    sentinel])\n"
         "time.sleep(30)\n"
     )
@@ -339,9 +343,7 @@ def test_run_once_claims_with_attempt_and_timestamp(tmp_path, monkeypatch):
 
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
-    monkeypatch.setattr(
-        runner, "_now", lambda: datetime.datetime(2026, 6, 12, tzinfo=UTC)
-    )
+    monkeypatch.setattr(runner, "_now", lambda: dt.datetime(2026, 6, 12, tzinfo=UTC))
     monkeypatch.setattr(runner, "_worker_id", lambda: "host:123")
     pushed = []
     monkeypatch.setattr(
@@ -501,7 +503,7 @@ def test_reap_stale_requeues_running_under_attempt_cap(tmp_path, monkeypatch):
     monkeypatch.setattr(runner.config, "LEASE_TTL", 3600)
     monkeypatch.setattr(runner.config, "MAX_ATTEMPTS", 3)
     monkeypatch.setattr(
-        runner, "_now", lambda: datetime.datetime(2026, 6, 12, 2, 0, tzinfo=UTC)
+        runner, "_now", lambda: dt.datetime(2026, 6, 12, 2, 0, tzinfo=UTC)
     )
     pushed = []
     monkeypatch.setattr(
@@ -521,7 +523,7 @@ def test_reap_stale_fails_poison_pill_at_attempt_cap(tmp_path, monkeypatch):
     monkeypatch.setattr(runner.config, "LEASE_TTL", 3600)
     monkeypatch.setattr(runner.config, "MAX_ATTEMPTS", 3)
     monkeypatch.setattr(
-        runner, "_now", lambda: datetime.datetime(2026, 6, 12, 2, 0, tzinfo=UTC)
+        runner, "_now", lambda: dt.datetime(2026, 6, 12, 2, 0, tzinfo=UTC)
     )
     pushed = []
     monkeypatch.setattr(
@@ -542,7 +544,7 @@ def test_reap_stale_ignores_fresh_running(tmp_path, monkeypatch):
     monkeypatch.setattr(runner.config, "LEASE_TTL", 3600)
     monkeypatch.setattr(runner.config, "MAX_ATTEMPTS", 3)
     monkeypatch.setattr(
-        runner, "_now", lambda: datetime.datetime(2026, 6, 12, 2, 0, tzinfo=UTC)
+        runner, "_now", lambda: dt.datetime(2026, 6, 12, 2, 0, tzinfo=UTC)
     )
     pushed = []
     monkeypatch.setattr(

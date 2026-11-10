@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import Iterator
+from pathlib import Path
 
 from huggingface_hub import hf_hub_download
 
@@ -42,7 +43,6 @@ def iter_requests() -> Iterator[dict]:
             local = hf_hub_download(
                 repo_id=QUEUE_REPO, filename=path, repo_type="dataset", token=TOKEN
             )
-            with open(local) as fp:
-                yield json.load(fp)
+            yield json.loads(Path(local).read_text())
         except Exception as exc:  # noqa: BLE001
             logger.warning("Skipping unreadable request %s: %s", path, exc)

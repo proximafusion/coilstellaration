@@ -21,7 +21,7 @@ output NaN, so the Space fails that instance instead of scoring a silently wrong
 coilset. Every export is verified against the model's eager `__call__` for each
 supported `(n_field_periods, n_coils_per_half_period)` pair before being written.
 
-Run:  `pants run` on the `export_coilstellaration_onnx` target of the bench `scripts/` directory
+Run:  uv run python -m leaderboard.scripts.export_coilstellaration_onnx [ckpt.json ...]
       (pass checkpoint JSON paths as arguments to export only those)
 Output: examples/<model_kind>_<id6>.onnx  (e.g. examples/per_coil_DXyz12.onnx)
 """
@@ -91,7 +91,8 @@ def export_checkpoint(
     if model_kind not in _CHECKPOINT_TYPES:
         raise ValueError(
             f"{json_path.name}: cannot tell the architecture from config.model_kind "
-            f"{config.get('model_kind')!r} or config.dapper_type {config.get('dapper_type')!r}."
+            f"{config.get('model_kind')!r} or config.dapper_type "
+            f"{config.get('dapper_type')!r}."
         )
     checkpoint = _CHECKPOINT_TYPES[model_kind].model_validate_json(
         json_path.read_text()
@@ -179,7 +180,10 @@ def verify_export(model: model_definition.AnyModel, proto: onnx.ModelProto) -> N
         for name, exp, act in zip(
             OUTPUT_NAMES, expected, map(np.asarray, actual), strict=True
         ):
-            where = f"[{config.model_kind}, NFP {n_field_periods}, {n_coils} coils] {name!r}"
+            where = (
+                f"[{config.model_kind}, NFP {n_field_periods}, {n_coils} coils] "
+                f"{name!r}"
+            )
             if exp.shape != act.shape:
                 raise RuntimeError(
                     f"{where}: ONNX shape {act.shape} != JAX shape {exp.shape}"
@@ -188,8 +192,9 @@ def verify_export(model: model_definition.AnyModel, proto: onnx.ModelProto) -> N
             max_abs = float(np.max(np.abs(exp - act)))
             if not max_abs <= REL_TOL * scale:
                 raise RuntimeError(
-                    f"{where}: ONNX disagrees with the JAX model (max|diff|={max_abs:g}, "
-                    f"scale={scale:g}, rel={max_abs / scale:g} > rel_tol={REL_TOL})"
+                    f"{where}: ONNX disagrees with the JAX model "
+                    f"(max|diff|={max_abs:g}, scale={scale:g}, "
+                    f"rel={max_abs / scale:g} > rel_tol={REL_TOL})"
                 )
 
 
@@ -207,13 +212,15 @@ def supported_tracks(config: types.AnyModelConfig) -> list[str]:
         tracks.append("variable_shape")
     if not tracks:
         raise ValueError(
-            f"{config.model_kind} model supports no benchmark track: it does not accept "
-            f"NFP {FIXED_SHAPE_TRACK_COUNTS[0]} with {FIXED_SHAPE_TRACK_COUNTS[1]} coils."
+            f"{config.model_kind} model supports no benchmark track: it does not "
+            f"accept NFP {FIXED_SHAPE_TRACK_COUNTS[0]} with "
+            f"{FIXED_SHAPE_TRACK_COUNTS[1]} coils."
         )
     if ",".join(tracks) not in bench_config.SUPPORTED_TRACKS_VALUES:
         raise ValueError(
-            f"{config.model_kind} model would declare supported_tracks={','.join(tracks)!r}, which the "
-            f"Space rejects; accepted values: {list(bench_config.SUPPORTED_TRACKS_VALUES)}."
+            f"{config.model_kind} model would declare "
+            f"supported_tracks={','.join(tracks)!r}, which the Space rejects; "
+            f"accepted values: {list(bench_config.SUPPORTED_TRACKS_VALUES)}."
         )
     return tracks
 

@@ -14,7 +14,8 @@ git-ignored (see `.gitignore`); this script gets them onto the Hub instead:
 
 Auth: needs a write `HF_TOKEN` for the target org.
 
-Run:  HF_TOKEN=hf_... uv run python -m leaderboard.scripts.upload_coilstellaration_models
+Run:  HF_TOKEN=hf_... uv run python -m \
+          leaderboard.scripts.upload_coilstellaration_models
       (add --dry-run to validate/list without touching the Hub)
 """
 
@@ -90,7 +91,8 @@ def main() -> int:
         print(f"  {f.name}")
     print(f"-> model repo:   {models_repo}")
     print(
-        f"-> requests repo: {owner}/requests  (n_instances={args.n_instances}, submitter={submitter})"
+        f"-> requests repo: {owner}/requests  "
+        f"(n_instances={args.n_instances}, submitter={submitter})"
     )
 
     if args.dry_run:

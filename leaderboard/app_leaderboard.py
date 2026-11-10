@@ -1,4 +1,4 @@
-import datetime
+import datetime as dt
 import os
 
 import gradio as gr
@@ -115,7 +115,9 @@ def init_leaderboard(frames):
         strata=STRATUM_VIEWS,
         track_labels=TRACK_LABELS,
         track_label="Track",
-        stratum_label="Stratum (All = paper headline; tight/medium/loose slice one stratum)",
+        stratum_label=(
+            "Stratum (All = paper headline; tight/medium/loose slice one stratum)"
+        ),
         datatype=[c.type for c in fields(AutoEvalColumn)],
         select_columns=SelectColumns(
             default_selection=[
@@ -131,7 +133,6 @@ def init_leaderboard(frames):
                 AutoEvalColumn.stochastic.name, type="checkboxgroup", label="Stochastic"
             ),
         ],
-        bool_checkboxgroup_label="Hide models",
         interactive=False,
     )
 
@@ -288,7 +289,7 @@ if os.environ.get("SPACE_ID") is not None:
         restart_space,
         "interval",
         seconds=INTERVAL,
-        next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=INTERVAL),
+        next_run_time=dt.datetime.now() + dt.timedelta(seconds=INTERVAL),
     )
     scheduler.start()
 

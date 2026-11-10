@@ -16,15 +16,16 @@ def check_model_card(repo_id: str) -> tuple[bool, str]:
         logger.info("No model card found for %s", repo_id)
         return (
             False,
-            "Please add a model card to your model to explain how you trained/fine-tuned it.",
+            "Please add a model card to your model to explain how you "
+            "trained/fine-tuned it.",
         )
 
     # Enforce license metadata
     if card.data.license is None:
         if not ("license_name" in card.data and "license_link" in card.data):
             return False, (
-                "License not found. Please add a license to your model card using the `license` metadata or a"
-                " `license_name`/`license_link` pair."
+                "License not found. Please add a license to your model card using "
+                "the `license` metadata or a `license_name`/`license_link` pair."
             )
 
     # Enforce card content

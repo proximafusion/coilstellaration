@@ -36,7 +36,6 @@ def Leaderboard(
     search_columns=None,
     hide_columns=None,
     filter_columns=None,
-    bool_checkboxgroup_label=None,
     interactive=False,
     frames=None,
     tracks=None,

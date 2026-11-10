@@ -20,7 +20,7 @@ Optional:
     COILBENCH_N                 instances per track (0 = full split)
 """
 
-import datetime
+import datetime as dt
 import os
 import traceback
 
@@ -38,14 +38,15 @@ _status = {"last_run": "never", "last_result": "—", "finished": 0, "failed": 0
 
 def poll_once() -> None:
     """One queue-draining pass; never let an error kill the scheduler thread."""
-    _status["last_run"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    _status["last_run"] = dt.datetime.now(dt.timezone.utc).isoformat()
     try:
         finished, failed = runner.run_once()
         _status["finished"] += finished
         _status["failed"] += failed
         _status["last_result"] = f"{finished} finished, {failed} failed"
         print(
-            f"[runner_app] poll at {_status['last_run']}: {finished} finished, {failed} failed"
+            f"[runner_app] poll at {_status['last_run']}: "
+            f"{finished} finished, {failed} failed"
         )
     except Exception as exc:  # noqa: BLE001
         _status["last_result"] = f"error: {exc}"
@@ -55,7 +56,8 @@ def poll_once() -> None:
 def _status_md() -> str:
     return (
         f"# Coilstellaration backend worker\n\n"
-        f"Polling `{QUEUE_REPO}` every **{INTERVAL}s**, pushing to `{RESULTS_REPO}`.\n\n"
+        f"Polling `{QUEUE_REPO}` every **{INTERVAL}s**, "
+        f"pushing to `{RESULTS_REPO}`.\n\n"
         f"- Owner: `{OWNER}`\n"
         f"- Last run (UTC): `{_status['last_run']}`\n"
         f"- Last result: `{_status['last_result']}`\n"
@@ -69,7 +71,7 @@ scheduler.add_job(
     poll_once,
     "interval",
     seconds=INTERVAL,
-    next_run_time=datetime.datetime.now(),
+    next_run_time=dt.datetime.now(),
 )
 scheduler.start()
 

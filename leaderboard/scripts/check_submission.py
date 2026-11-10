@@ -7,7 +7,8 @@ pass, against any repo you can authenticate to. Useful for verifying a model
 Auth: uses HF_TOKEN if set, otherwise your cached `huggingface-cli login` token.
 
 Usage:
-    uv run python -m leaderboard.scripts.check_submission jhewers-pf/coilstellaration-bench-example-circle-a
+    uv run python -m leaderboard.scripts.check_submission \
+        jhewers-pf/coilstellaration-bench-example-circle-a
     uv run python -m leaderboard.scripts.check_submission <repo> --revision main
 """
 
@@ -15,6 +16,7 @@ import argparse
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 import numpy as np
 from huggingface_hub import HfApi, hf_hub_download
@@ -52,7 +54,7 @@ def check(repo: str, revision: str) -> bool:
         except Exception as exc:  # noqa: BLE001
             print(f"FAIL: could not download `{ONNX_FILENAME}`: {exc}")
             return False
-        print(f"ok: downloaded {ONNX_FILENAME} ({os.path.getsize(local)} bytes)")
+        print(f"ok: downloaded {ONNX_FILENAME} ({Path(local).stat().st_size} bytes)")
 
         # 3) I/O contract (tensor names).
         errors = validate_onnx_contract(local)

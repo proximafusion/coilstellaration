@@ -28,5 +28,6 @@ match coilbench_role:
         app_runner.launch()
     case _:
         raise SystemExit(
-            f"Unknown COILBENCH_ROLE={coilbench_role!r}; expected 'leaderboard' or 'runner'."
+            f"Unknown COILBENCH_ROLE={coilbench_role!r}; "
+            "expected 'leaderboard' or 'runner'."
         )
