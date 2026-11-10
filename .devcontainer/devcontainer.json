@@ -43,8 +43,7 @@
                 "ms-pyright.pyright",
                 "charliermarsh.ruff",
                 "redhat.vscode-yaml",
-                "streetsidesoftware.code-spell-checker",
-                "Anthropic.claude-code"
+                "streetsidesoftware.code-spell-checker"
             ],
             "settings": {
                 "terminal.integrated.profiles.linux": {
