@@ -1,6 +1,9 @@
 # Markdown tables and BibTeX entries cannot be wrapped without changing how they render.
 # ruff: noqa: E501
 
+from coilstellaration.data_utils import COILSTELLARATION_REPO_REVISION
+from leaderboard.src.backend.config import BENCH_VERSION
+
 # Your leaderboard name
 TITLE = '<h1 id="space-title">Coilstellaration Benchmark Leaderboard</h1>'
 
@@ -143,6 +146,18 @@ columns aggregate `S` over the selected track and stratum:
 Each model is run once per instance. The full scoring definition
 is in the [paper]({PAPER_URL}) and the
 [code README]({CODE_URL}#scoring-soft-feasibility).
+"""
+
+# Newest first. Add an entry whenever `BENCH_VERSION` is bumped.
+CHANGELOG_TEXT = f"""
+## Changelog
+The **Version** column shows the benchmark version a result was produced with.
+Results with different versions are not directly comparable. Older results
+without a version are blank.
+
+- **{BENCH_VERSION}**: First versioned release. Every model is scored once per
+  instance on the full eval split of both declared tracks, over all strata, on
+  dataset revision `{COILSTELLARATION_REPO_REVISION[:7]}`.
 """
 
 EVALUATION_QUEUE_TEXT = """

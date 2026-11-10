@@ -8,6 +8,7 @@ from huggingface_hub import snapshot_download
 
 from leaderboard.src.about import (
     ABOUT_TEXT,
+    CHANGELOG_TEXT,
     CITATION_INTRO_TEXT,
     CITATION_TEXT,
     EVALUATION_QUEUE_TEXT,
@@ -155,6 +156,7 @@ with app_leaderboard:
                 label="BibTeX",
                 interactive=False,
             )
+            gr.Markdown(CHANGELOG_TEXT, elem_classes="markdown-text")
 
         with gr.TabItem("🚀 Submit here! ", elem_id="submit-tab", id="submit"):
             with gr.Column():

@@ -70,6 +70,10 @@ auto_eval_column_dict.append(
 auto_eval_column_dict.append(
     ["submitted", ColumnContent, ColumnContent("Submitted", "date", True)]
 )
+# Benchmark version the result was produced with; blank for older results.
+auto_eval_column_dict.append(
+    ["bench_version", ColumnContent, ColumnContent("Version", "str", True)]
+)
 auto_eval_column_dict.append(
     ["revision", ColumnContent, ColumnContent("Revision", "str", False)]
 )

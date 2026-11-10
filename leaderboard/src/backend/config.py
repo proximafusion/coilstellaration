@@ -10,6 +10,12 @@ from coilstellaration.benchmark import scoring_types
 # reports the per-stratum breakdown (loose/medium/tight/all) so the numbers line
 # up with the paper's stratified figure.
 
+# Version of the benchmark (eval split, scoring and harness) that a result was
+# produced with. Bump it, and add a CHANGELOG entry in `leaderboard/src/about.py`,
+# whenever a change can move a model's scores: a new dataset revision, a change to
+# the eval split, the scoring or the evaluation harness.
+BENCH_VERSION = "1.0"
+
 TRACKS = Literal["fixed_shape", "variable_shape"]
 STRATA = Literal["loose", "medium", "tight"]
 SPLITS = Literal["train", "eval"]
