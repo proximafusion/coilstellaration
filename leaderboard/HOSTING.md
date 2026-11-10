@@ -8,7 +8,7 @@ Two pieces, hosted as two separate Spaces (or the worker anywhere with the deps)
 | Worker | `runner_app.py` | Poll the queue, run evaluations, push results | yes (`coilstellaration`) |
 
 The Spaces communicate only through two datasets under `<OWNER>` (set by
-`COILBENCH_OWNER`, default `proximafusion`):
+`COILBENCH_OWNER`, default `proxima-fusion`):
 
 - `<OWNER>/requests` — the submission queue
 - `<OWNER>/results` — scored results
@@ -43,7 +43,7 @@ with no file edits** — you only set Space variables:
    - `COILBENCH_ROLE` = `runner`  ← this flips the mirror into worker mode.
    - `HF_TOKEN` — write access to `<OWNER>/requests` + `<OWNER>/results`, read
      access to submitted model repos.
-   - `COILBENCH_OWNER` — e.g. `jhewers-pf`.
+   - `COILBENCH_OWNER` — only if not `proxima-fusion`.
    - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
    - `COILBENCH_N` (optional) — instances per track; `0` = full split.
    - `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single
