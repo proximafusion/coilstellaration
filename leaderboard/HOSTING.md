@@ -1,11 +1,20 @@
 # Hosting
 
-Two pieces, hosted as two separate Spaces (or the worker anywhere with the deps):
+Two Spaces, both deployed from this repository by
+`.github/workflows/sync-leaderboard-to-hf-spaces.yml` on every push to `main`
+that touches `leaderboard/`, `src/`, `pyproject.toml` or `uv.lock`:
 
-| Space | Entrypoint | Role | Needs physics deps |
-|-------|------------|------|--------------------|
-| Leaderboard | `app.py` | Display + accept submissions to the queue | no (only `onnxruntime`) |
-| Worker | `runner_app.py` | Poll the queue, run evaluations, push results | yes (`coilstellaration`) |
+| Space | Front matter | `COILBENCH_ROLE` | Role |
+|-------|--------------|------------------|------|
+| `proxima-fusion/coilstellaration-bench` | `space.leaderboard.md` | `leaderboard` (default) | Display + accept submissions to the queue |
+| `proxima-fusion/coilstellaration-bench-evaluator` | `space.evaluator.md` | `runner` | Poll the queue, run evaluations, push results |
+
+Each Space receives the whole repo with `leaderboard/app.py` as its `app_file`.
+Hugging Face reads Space config only from the root `README.md` front matter and
+installs from a root `requirements.txt` / `packages.txt`, so the workflow writes
+those at sync time: the README from the matching `space.*.md`, the requirements
+from `uv.lock` (this package plus the `leaderboard` dependency group). Edit
+`space.*.md`, not the README on the Hub; the next sync overwrites it.
 
 The Spaces communicate only through two datasets under `<OWNER>` (set by
 `COILBENCH_OWNER`, default `proxima-fusion`):
@@ -21,42 +30,33 @@ huggingface-cli repo create requests --type dataset --organization <OWNER>
 huggingface-cli repo create results  --type dataset --organization <OWNER>
 ```
 
+The workflow needs a GitHub secret `HF_TOKEN` with write access to both Spaces.
+
 ## Leaderboard Space
 
-Already configured: `README.md` has `app_file: app.py`. Set the Space secret
-`HF_TOKEN` (write access to the datasets) and, if your org isn't the default,
-the variable `COILBENCH_OWNER`.
+Set the Space secret `HF_TOKEN` (write access to the datasets) and, if your org
+isn't the default, the variable `COILBENCH_OWNER`.
 
 ## Worker Space (the runner)
 
 The runner does NOT run automatically — a request stays `PENDING` until the
-worker picks it up.
+worker picks it up. `leaderboard/app.py` is a single entrypoint for both roles and
+branches on the `COILBENCH_ROLE` variable. Add these Space **secrets / variables**:
 
-`app.py` is a single entrypoint for both roles and branches on the
-`COILBENCH_ROLE` variable, so the worker Space is a **pure mirror of this repo
-with no file edits** — you only set Space variables:
-
-1. **Duplicate/mirror this repo into a new Space** (Settings → Duplicate, or
-   create a new Space pointing at this code). Leave `README.md` as-is
-   (`app_file: app.py`).
-2. Add Space **secrets / variables**:
-   - `COILBENCH_ROLE` = `runner`  ← this flips the mirror into worker mode.
-   - `HF_TOKEN` — write access to `<OWNER>/requests` + `<OWNER>/results`, read
-     access to submitted model repos.
-   - `COILBENCH_OWNER` — only if not `proxima-fusion`.
-   - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
-   - `COILBENCH_N` (optional) — instances per track; `0` = full split.
-   - `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single
-     eval is killed (default 7200; `0` disables the subprocess guard). A full
-     both-track evaluation takes ~1.2 h on cpu-basic (2 vCPU).
-   - `COILBENCH_LEASE_TTL` (optional) — seconds before a stuck `RUNNING` request
-     is presumed orphaned and recovered (default 10800; keep above the timeout).
-   - `COILBENCH_MAX_ATTEMPTS` (optional) — how many times a request may be
-     (re)claimed before it is failed permanently (default 3).
-
-(With `COILBENCH_ROLE=runner`, `app.py` launches `runner_app.py` instead of the
-leaderboard. You can also point a Space's `app_file` directly at `runner_app.py`
-if you prefer an explicit entrypoint, but the variable approach needs no edits.)
+- `COILBENCH_ROLE` = `runner`  ← this flips the Space into worker mode, which
+  launches `app_runner.py` instead of the leaderboard.
+- `HF_TOKEN` — write access to `<OWNER>/requests` + `<OWNER>/results`, read
+  access to submitted model repos.
+- `COILBENCH_OWNER` — only if not `proxima-fusion`.
+- `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
+- `COILBENCH_N` (optional) — instances per track; `0` = full split.
+- `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single
+  eval is killed (default 7200; `0` disables the subprocess guard). A full
+  both-track evaluation takes ~1.2 h on cpu-basic (2 vCPU).
+- `COILBENCH_LEASE_TTL` (optional) — seconds before a stuck `RUNNING` request
+  is presumed orphaned and recovered (default 10800; keep above the timeout).
+- `COILBENCH_MAX_ATTEMPTS` (optional) — how many times a request may be
+  (re)claimed before it is failed permanently (default 3).
 
 On boot the worker fires once, then polls every `COILBENCH_RUNNER_INTERVAL`
 seconds, moving each request `PENDING → RUNNING → FINISHED/FAILED` and pushing
