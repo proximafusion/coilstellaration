@@ -16,7 +16,14 @@ on:
       - pyproject.toml
       - uv.lock
       - .github/workflows/sync-leaderboard-to-hf-spaces.yml
+      - .github/scripts/wait_for_space.py
   workflow_dispatch:
+
+# A newer push supersedes a sync that is still running, instead of both uploading
+# at once.
+concurrency:
+  group: sync-leaderboard-to-hf-spaces
+  cancel-in-progress: true
 
 jobs:
   sync-evaluator:
@@ -52,6 +59,16 @@ jobs:
             examples/
             scripts/
 
+      # hub-sync returns once the upload is done; fail the job if the Space then
+      # doesn't build and start.
+      - name: "Wait for proxima-fusion/coilstellaration-bench-evaluator to build and start"
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          uv run --no-project --with "huggingface_hub>=1.14,<2" \
+            python .github/scripts/wait_for_space.py \
+            proxima-fusion/coilstellaration-bench-evaluator 60
+
   sync-leaderboard:
     runs-on: ubuntu-latest
     steps:
@@ -84,3 +101,13 @@ jobs:
             analysis/
             examples/
             scripts/
+
+      # hub-sync returns once the upload is done; fail the job if the Space then
+      # doesn't build and start.
+      - name: "Wait for proxima-fusion/coilstellaration-bench to build and start"
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          uv run --no-project --with "huggingface_hub>=1.14,<2" \
+            python .github/scripts/wait_for_space.py \
+            proxima-fusion/coilstellaration-bench 60
