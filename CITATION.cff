@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Ewers"
+  given-names: "Jan-Hendrik"
+  affiliation: "Proxima Fusion"
+  orcid: "https://orcid.org/0000-0002-8498-1410"
+- family-names: "Cadena"
+  given-names: "Santiago A."
+  affiliation: "Proxima Fusion"
+- family-names: "Foppiani"
+  given-names: "Nicolò"
+  affiliation: "Proxima Fusion"
+- family-names: "Merlo"
+  given-names: "Andrea"
+  affiliation: "Proxima Fusion"
+title: "CoilStellaration"
+date-released: 2026-11-09
+url: "https://github.com/proximafusion/coilstellaration"
+preferred-citation:
+  type: conference
+  authors:
+    - family-names: "Ewers"
+      given-names: "Jan-Hendrik"
+      orcid: "https://orcid.org/0000-0002-8498-1410"
+      affiliation: "Proxima Fusion"
+    - family-names: "Cadena"
+      given-names: "Santiago A."
+      affiliation: "Proxima Fusion"
+    - family-names: "Foppiani"
+      given-names: "Nicolò"
+      affiliation: "Proxima Fusion"
+    - family-names: "Merlo"
+      given-names: "Andrea"
+      affiliation: "Proxima Fusion"
+  doi: "10.48550/arXiv.2611.12689"
+  month: 11
+  year: 2026
+  title: "CoilStellaration: A Dataset and Benchmark for Engineering-Aware Stellarator Coilset Generation"
+  issue: 1
+  volume: 1
