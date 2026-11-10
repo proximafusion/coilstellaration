@@ -31,6 +31,9 @@ def _wire(
         return _Info()
 
     monkeypatch.setattr(submit.API, "repo_info", fake_repo_info)
+    # Every submitter in these tests is a real Hub account unless a test says
+    # otherwise.
+    monkeypatch.setattr(submit, "hub_account_exists", lambda name: True)
     monkeypatch.setattr(requests_dataset, "list_request_files", lambda: list(existing))
 
     class _PathInfo:
@@ -232,3 +235,62 @@ def test_submission_records_declaration_and_parameter_count(tmp_path, monkeypatc
     assert captured["entry"]["no_eval_training"] is True
     expected = submit.count_parameters(str(tmp_path / "dl.onnx"))
     assert captured["entry"]["n_parameters"] == expected
+
+
+class _NotFound(submit.HfHubHTTPError):
+    def __init__(self, status=404):
+        Exception.__init__(self, f"HTTP {status}")
+        self.response = type("Response", (), {"status_code": status})()
+
+
+def test_hub_account_exists_finds_users_and_organisations(monkeypatch):
+    users, orgs = {"alice"}, {"proxima-fusion"}
+
+    def lookup(names):
+        def fake(name, token):
+            assert token is False
+            if name not in names:
+                raise _NotFound()
+
+        return fake
+
+    monkeypatch.setattr(submit.API, "get_user_overview", lookup(users))
+    monkeypatch.setattr(submit.API, "get_organization_overview", lookup(orgs))
+
+    assert submit.hub_account_exists("alice")
+    assert submit.hub_account_exists("proxima-fusion")
+    assert not submit.hub_account_exists("nobody-here")
+
+
+def test_hub_account_exists_raises_on_hub_errors(monkeypatch):
+    def outage(name, token):
+        raise _NotFound(status=503)
+
+    monkeypatch.setattr(submit.API, "get_user_overview", outage)
+    with pytest.raises(submit.HfHubHTTPError):
+        submit.hub_account_exists("alice")
+
+
+def test_submission_rejects_unknown_hub_account(tmp_path, monkeypatch):
+    captured = {}
+    _wire(monkeypatch, tmp_path, captured)
+    monkeypatch.setattr(submit, "hub_account_exists", lambda name: False)
+
+    with pytest.raises(gr.Error, match="not a Hugging Face user"):
+        submit.add_new_eval("org/m", "main", "ghost", no_eval_training=True)
+    assert "entry" not in captured
+    assert "download" not in captured  # rejected before touching the model
+
+
+def test_submission_reports_account_lookup_failure(tmp_path, monkeypatch):
+    captured = {}
+    _wire(monkeypatch, tmp_path, captured)
+
+    def boom(name):
+        raise RuntimeError("hub down")
+
+    monkeypatch.setattr(submit, "hub_account_exists", boom)
+
+    with pytest.raises(gr.Error, match="retry"):
+        submit.add_new_eval("org/m", "main", "alice", no_eval_training=True)
+    assert "entry" not in captured

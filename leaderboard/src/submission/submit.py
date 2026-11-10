@@ -9,6 +9,7 @@ from typing import get_args
 
 import gradio as gr
 from huggingface_hub import hf_hub_download
+from huggingface_hub.errors import HfHubHTTPError
 
 from leaderboard.src.backend import config
 from leaderboard.src.backend.onnx_model import count_parameters
@@ -52,6 +53,22 @@ NO_EVAL_TRAINING_DECLARATION = (
     "I declare that this model was not exposed to the eval split of "
     "`proxima-fusion/coilstellaration` during training, tuning or model selection."
 )
+
+
+def hub_account_exists(name: str) -> bool:
+    """Whether `name` is a Hugging Face user or organisation.
+
+    Raises for errors other than "not found", so a Hub outage isn't reported as a
+    missing account.
+    """
+    for lookup in (API.get_user_overview, API.get_organization_overview):
+        try:
+            lookup(name, token=False)
+            return True
+        except HfHubHTTPError as exc:
+            if exc.response is None or exc.response.status_code != 404:
+                raise
+    return False
 
 
 def form_errors(
@@ -118,6 +135,21 @@ def add_new_eval(
         revision,
         submitter,
     )
+
+    progress(0.05, desc="Checking the Hugging Face username")
+    try:
+        account_exists = hub_account_exists(submitter)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not look up Hub account %s: %s", submitter, exc)
+        raise gr.Error(
+            "Couldn't check the Hugging Face username. Please retry."
+        ) from exc
+    if not account_exists:
+        logger.info("Rejecting submission from unknown account %s", submitter)
+        raise gr.Error(
+            f'"{submitter}" is not a Hugging Face user or organisation. Please '
+            "enter your Hugging Face username."
+        )
 
     progress(0.1, desc="Resolving the model repo")
     try:
