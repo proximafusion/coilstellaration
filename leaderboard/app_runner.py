@@ -26,6 +26,7 @@ import traceback
 
 import gradio as gr
 from apscheduler.schedulers.background import BackgroundScheduler
+
 from leaderboard.src.backend import runner
 from leaderboard.src.envs import OWNER, QUEUE_REPO, RESULTS_REPO
 

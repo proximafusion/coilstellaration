@@ -11,7 +11,8 @@ from typing import Any, Literal, Sequence, get_args
 
 import numpy as np
 import pandas as pd
-from leaderboard.src.backend import config, marshal, onnx_model
+from desc.equilibrium import Equilibrium
+
 from coilstellaration import (
     coilset_utils,
     data_utils,
@@ -20,7 +21,7 @@ from coilstellaration import (
     types,
 )
 from coilstellaration.benchmark import scoring, scoring_types
-from desc.equilibrium import Equilibrium
+from leaderboard.src.backend import config, marshal, onnx_model
 
 logger = logging.getLogger(__name__)
 

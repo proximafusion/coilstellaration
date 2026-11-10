@@ -1,11 +1,11 @@
 import json
 
 from leaderboard.src.display.utils import (
-    AutoEvalColumn,
     COLS,
     EVAL_COLS,
     STRATUM_VIEWS,
     TRACKS,
+    AutoEvalColumn,
 )
 from leaderboard.src.populate import (
     get_evaluation_queue_df,

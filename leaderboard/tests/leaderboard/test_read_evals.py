@@ -1,6 +1,6 @@
 import json
 
-from leaderboard.src.display.utils import AutoEvalColumn, COLS
+from leaderboard.src.display.utils import COLS, AutoEvalColumn
 from leaderboard.src.leaderboard.read_evals import get_raw_eval_results, result_to_row
 
 

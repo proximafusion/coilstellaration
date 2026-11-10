@@ -4,6 +4,8 @@ import os
 import gradio as gr
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
+from huggingface_hub import snapshot_download
+
 from leaderboard.src.about import (
     CITATION_BUTTON_LABEL,
     CITATION_BUTTON_TEXT,
@@ -31,7 +33,6 @@ from leaderboard.src.populate import (
 )
 from leaderboard.src.submission import requests_dataset
 from leaderboard.src.submission.submit import add_new_eval
-from huggingface_hub import snapshot_download
 
 
 def restart_space():

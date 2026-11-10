@@ -149,6 +149,14 @@ ignore = [
   "F722",     # Disable 'forward-annotation-syntax-error' for jaxtyping compatibility, see https://docs.kidger.site/jaxtyping/faq/#flake8-or-ruff-are-throwing-an-error
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Test doubles must keep the signature of what they replace.
+"leaderboard/tests/**" = ["ARG"]
+
+[tool.ruff.lint.isort]
+# leaderboard/ is imported as `leaderboard.src...` from the repo root.
+known-first-party = ["leaderboard"]
+
 [tool.pyright]
 typeCheckingMode = "basic"
 venvPath = "."

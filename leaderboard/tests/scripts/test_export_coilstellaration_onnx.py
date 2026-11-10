@@ -3,11 +3,12 @@ import json
 import numpy as np
 import onnxruntime as ort
 import pytest
+from flax import nnx
 from scripts import export_coilstellaration_onnx as export
-from leaderboard.src.backend import onnx_model
+
 from coilstellaration import flax_nnx_checkpoint_util, types
 from coilstellaration.machine_learning import model_definition
-from flax import nnx
+from leaderboard.src.backend import onnx_model
 
 _COMMON = dict(
     is_stellarator_symmetric=True,

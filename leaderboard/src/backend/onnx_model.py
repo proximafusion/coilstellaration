@@ -5,6 +5,7 @@ from typing import Literal, Mapping
 
 import numpy as np
 import onnxruntime as ort
+
 from leaderboard.src.backend import config
 
 logger = logging.getLogger(__name__)

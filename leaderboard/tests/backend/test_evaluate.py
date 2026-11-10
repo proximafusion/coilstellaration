@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
-from leaderboard.src.backend import evaluate
-from coilstellaration import types
 from constellaration.geometry import surface_rz_fourier
+
+from coilstellaration import types
+from leaderboard.src.backend import evaluate
 
 
 class FakeModel:

@@ -7,10 +7,9 @@ owns all internal encoding (spec §4).
 import logging
 
 import numpy as np
-
 from constellaration.geometry import surface_rz_fourier
-from coilstellaration import types
 
+from coilstellaration import types
 from leaderboard.src.backend import config
 
 logger = logging.getLogger(__name__)

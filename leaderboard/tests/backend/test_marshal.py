@@ -1,9 +1,8 @@
 import numpy as np
 import pytest
-
 from constellaration.geometry import surface_rz_fourier
-from coilstellaration import types
 
+from coilstellaration import types
 from leaderboard.src.backend import marshal
 
 

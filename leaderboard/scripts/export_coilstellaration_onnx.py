@@ -38,11 +38,12 @@ import jax2onnx
 import numpy as np
 import onnx
 import onnxruntime as ort
-from leaderboard.src.backend import config as bench_config
-from coilstellaration import coilset_utils, paths, types
-from coilstellaration.machine_learning import model_definition
 from constellaration.geometry import surface_rz_fourier
 from onnx import helper
+
+from coilstellaration import coilset_utils, paths, types
+from coilstellaration.machine_learning import model_definition
+from leaderboard.src.backend import config as bench_config
 
 # Gelu is a first-class ONNX op only from opset 20; onnxruntime >=1.17 supports it.
 OPSET = 20

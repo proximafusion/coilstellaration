@@ -2,6 +2,7 @@ import logging
 from collections.abc import Sequence
 
 import pandas as pd
+
 from leaderboard.src.display.formatting import make_clickable_model
 from leaderboard.src.display.utils import (
     SORT_COLS,
