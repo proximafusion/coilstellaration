@@ -1,17 +1,17 @@
 import base64
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Annotated, Any, Iterable, Literal, Self
+from typing import Annotated, Any, Final, Literal, Self
 
 import beartype
 import jax
 import jaxtyping as jt
 import numpy as np
 import pydantic
+from coilstellaration import pydantic_numpy
 from constellaration.geometry import surface_rz_fourier
-from constellaration.utils import pytree
 from jaxtyping import Array, Float, Int, jaxtyped
-from vmecpp import _pydantic_numpy as pydantic_numpy
 
 NpOrJaxArray = Array | np.ndarray
 ScalarFloat = Float[NpOrJaxArray, " "] | float
@@ -21,7 +21,8 @@ RangeT = tuple[ScalarT, ScalarT]
 ChoicesT = frozenset[ScalarT]
 Binary = object()
 
-pytree.register_pydantic_data(surface_rz_fourier.SurfaceRZFourier)
+DAPPER_TYPE_FIELD: Final = "dapper_type"
+"""Type tag that `constellaration` models carry when `dapper` is installed."""
 
 
 def runtime_check_array_sizes(f):
@@ -57,8 +58,23 @@ class BaseModel(pydantic_numpy.BaseModelWithNumpy):
         value = _jax_to_python(value)
         return default_handler(value)
 
+    @pydantic.model_validator(mode="wrap")
+    @classmethod
+    def _validate_model(
+        cls,
+        value: Any,
+        default_handler: pydantic.ValidatorFunctionWrapHandler,
+    ) -> Any:
+        """Checks array axis names in a scope of their own, so models nested in one
+        parent, like a true and a predicted `Coilset` of different Fourier orders, don't
+        have to agree on them."""
+        # `jt.jaxtyped` only decorates dataclasses and functions; "context" opens the
+        # scope as a context manager instead.
+        with jt.jaxtyped("context"):
+            return default_handler(value)
 
-def pydantic_flatten[T: BaseModel](
+
+def pydantic_flatten[T: pydantic.BaseModel](
     something: T,
     meta_fields: list[str] | None = None,
 ) -> tuple[
@@ -74,8 +90,13 @@ def pydantic_flatten[T: BaseModel](
     for details.
     """
 
-    if meta_fields is None:
-        meta_fields = []
+    meta_fields = list(meta_fields or [])
+    # A string type tag is not array data; as a child it would break tree_map/stack.
+    if (
+        DAPPER_TYPE_FIELD in type(something).model_fields
+        and DAPPER_TYPE_FIELD not in meta_fields
+    ):
+        meta_fields.append(DAPPER_TYPE_FIELD)
 
     data_fields = [
         field for field in type(something).model_fields if field not in meta_fields
@@ -94,7 +115,7 @@ def pydantic_flatten[T: BaseModel](
     return children, aux_data
 
 
-def pydantic_unflatten[T: BaseModel](
+def pydantic_unflatten[T: pydantic.BaseModel](
     aux_data: tuple[type[T], tuple[str, ...], tuple[str, ...], tuple[Any, ...]],
     children: Iterable[Any],
 ) -> T:
@@ -126,7 +147,7 @@ def pydantic_unflatten[T: BaseModel](
     return cls.model_construct(**kwargs)
 
 
-def register_pydantic_data[T: BaseModel](
+def register_pydantic_data[T: pydantic.BaseModel](
     cls: type[T], meta_fields: list[str] | None = None
 ) -> type[T]:
     """Register a pydantic.BaseModel class for jax pytree compatibility.
@@ -148,17 +169,26 @@ def register_pydantic_data[T: BaseModel](
     return cls
 
 
+register_pydantic_data(surface_rz_fourier.SurfaceRZFourier)
+
+
 class Blob(pydantic.BaseModel):
     """Opaque bytes payload with an optional file-suffix hint."""
 
     content: bytes
-    """Raw binary content. Prefer constructing via `Blob.from_bytes(...)` and
+    """Raw binary content.
+
+    Prefer constructing via `Blob.from_bytes(...)` and
     reading via `as_bytes()` to keep call sites stable if the storage
-    representation evolves."""
+    representation evolves.
+    """
 
     file_suffix: str | None = None
-    """Optional file suffix (with leading dot, e.g. `.tar.gz`) used when
-    materializing the blob to disk. Carries no semantics for in-memory use."""
+    """Optional file suffix (with leading dot, e.g. `.tar.gz`) used when materializing
+    the blob to disk.
+
+    Carries no semantics for in-memory use.
+    """
 
     @pydantic.computed_field
     @property
@@ -400,22 +430,28 @@ class Coilset(
         return (self.coil_x_n.shape[1] - 1) // 2
 
 
-@pytree.register_pydantic_data
+@register_pydantic_data
 class RequirementMetrics(BaseModel):
-    """Achieved metrics that condition `CoilPredictor`.
+    """Metrics achieved by a coilset; the coil predictors are conditioned on them.
 
-    The first four mirror requirement-side counterparts in
-    `CoilStellarationRequirements`; `on_axis_average_magnetic_field`
-    additionally serves as a magnitude prior for coil currents.
+    The four continuous metrics are the achieved counterparts of the distance,
+    curvature and field-error targets in `Requirements`. `n_coils_per_half_period` is
+    the target number of unique coils.
     """
 
     min_normalized_coil_to_coil_distance: ScalarFloat
     min_normalized_coil_to_plasma_distance: ScalarFloat
     max_normalized_coil_curvature: ScalarFloat
+    """Largest curvature magnitude over all coils, convex or concave, normalized by the
+    minor radius."""
     max_normalized_field_error: ScalarFloat
+    n_coils_per_half_period: ScalarInt
 
-    def to_array(self) -> Float[NpOrJaxArray, " 4"]:
-        """Return the four fields as a length-4 array in declaration order."""
+    def to_array(self) -> Float[NpOrJaxArray, " 4"]:  # noqa: ARR002
+        """Return the four continuous metrics in declaration order.
+
+        The coil count is excluded.
+        """
         import jax.numpy as jnp
 
         return jnp.asarray(
@@ -477,6 +513,57 @@ class DescOutput(
     """Convergence diagnostics from the DESC optimization."""
 
 
+class DescSplineProfile(BaseModel):
+    """A DESC `SplineProfile`."""
+
+    method: str = "cubic2"
+    """Spline interpolation method (e.g. `linear`, `cubic`, `cubic2`)."""
+
+    name: str = ""
+    """Name of the profile (e.g. `pressure`, `current`, `iota`)."""
+
+    knots: Float[NpOrJaxArray, " n_knots"]
+
+    params: Float[NpOrJaxArray, " n_knots"]
+    """Profile values at the knots."""
+
+
+class DescEquilibrium(BaseModel):
+    """A solved DESC `Equilibrium`.
+
+    The dataset's DESC coilsets and their metrics were computed on these equilibria, so
+    scoring a coilset on the same equilibrium reproduces the dataset's metrics.
+    """
+
+    r_lmn: Float[NpOrJaxArray, " n_modes_r"]
+    """Fourier-Zernike coefficients of R."""
+
+    z_lmn: Float[NpOrJaxArray, " n_modes_z"]
+    """Fourier-Zernike coefficients of Z."""
+
+    lambda_lmn: Float[NpOrJaxArray, " n_modes_lambda"]
+    """Fourier-Zernike coefficients of the stream function lambda."""
+
+    radial_resolution: int
+    poloidal_resolution: int
+    toroidal_resolution: int
+    spectral_indexing: str = "ansi"
+    n_field_periods: int
+    is_stellarator_symmetric: bool = True
+
+    total_toroidal_flux: float = 1.0
+    """Total toroidal flux within the last closed flux surface (Wb)."""
+
+    pressure_profile: DescSplineProfile
+    current_profile: DescSplineProfile | None = None
+    iota_profile: DescSplineProfile | None = None
+
+    r_axis: Float[NpOrJaxArray, " n_modes_r_axis"] | None = None
+    z_axis: Float[NpOrJaxArray, " n_modes_z_axis"] | None = None
+    r_boundary_lmn: Float[NpOrJaxArray, " n_boundary_modes_r"] | None = None
+    z_boundary_lmn: Float[NpOrJaxArray, " n_boundary_modes_z"] | None = None
+
+
 @register_pydantic_data
 class Metrics(
     BaseModel,
@@ -506,7 +593,7 @@ class Metrics(
 
     @pydantic.computed_field
     @property
-    def normalized_coil_to_coil_min_distances(
+    def normalized_coil_to_coil_min_distances(  # noqa: ARR002
         self,
     ) -> Float[NpOrJaxArray, " n_coils"]:
         """Minimum coil-to-coil distances normalized by minor radius."""
@@ -517,7 +604,7 @@ class Metrics(
 
     @pydantic.computed_field
     @property
-    def normalized_coil_to_plasma_min_distances(
+    def normalized_coil_to_plasma_min_distances(  # noqa: ARR002
         self,
     ) -> Float[NpOrJaxArray, " n_coils"]:
         """Minimum coil-to-plasma distances normalized by minor radius."""
@@ -528,16 +615,19 @@ class Metrics(
 
     @pydantic.computed_field
     @property
-    def normalized_coil_lengths(self) -> Float[NpOrJaxArray, " n_coil"]:
+    def normalized_coil_lengths(self) -> Float[NpOrJaxArray, " n_coil"]:  # noqa: ARR002
         """Coil lengths normalized by minor radius."""
         return self.coil_lengths / self.minor_radius
 
     coil_curvatures: Annotated[Float[NpOrJaxArray, "n_coil n_coil_eval_points"], Binary]
-    """Curvature along each unique coil at each evaluation point (1/m)."""
+    """Signed curvature along each unique coil at each evaluation point (1/m).
+
+    Following DESC, it is negative where the coil is concave relative to its centre.
+    """
 
     @pydantic.computed_field
     @property
-    def normalized_coil_curvatures(
+    def normalized_coil_curvatures(  # noqa: ARR002
         self,
     ) -> Float[NpOrJaxArray, "n_coil n_coil_eval_points"]:
         """Curvatures normalized by minor radius."""
@@ -556,7 +646,7 @@ class Metrics(
 
     @pydantic.computed_field
     @property
-    def normalized_coil_torsions(
+    def normalized_coil_torsions(  # noqa: ARR002
         self,
     ) -> Float[NpOrJaxArray, "n_coil n_coil_eval_points"] | None:
         """Torsions normalized by minor radius."""
@@ -630,8 +720,12 @@ class FlaxNnxCheckpoint[ConfigT](BaseModel):
     """Typed init config used to reconstruct the module's abstract template."""
 
 
-class CoilPredictorConfig(BaseModel):
-    """Init config for `CoilPredictor`, stored alongside its checkpoint."""
+class _FixedShapeCoilPredictorConfig(BaseModel):
+    """Fields shared by the fixed-shape coil predictors.
+
+    The number of field periods and unique coils are architecture constants, so a model
+    only supports the single value of each it was trained on.
+    """
 
     is_stellarator_symmetric: bool
     n_field_periods: int
@@ -646,129 +740,79 @@ class CoilPredictorConfig(BaseModel):
     helper signatures all use this value.
     """
     coil_currents_mean: float
+    """Mean used to standardize the predicted currents, in units of the major radius.
+
+    `train` sets it to the median over the training coils.
+    """
     coil_currents_std: float
+    """Std used to standardize the predicted currents and to scale the currents loss.
+
+    `train` sets it to the normal-consistent interquartile range over the training
+    coils, in units of the major radius.
+    """
 
     hidden_dim: int = 512
     num_layers: int = 4
     requirement_metrics_means: list[float]
-    """Per-feature train-set means used to standardize `RequirementMetrics` inputs.
+    """Means used to standardize the four `RequirementMetrics` inputs.
 
-    Populated from the train split when the resolved config is built. Length is always
-    4, matching `RequirementMetrics.to_array()`.
+    Ordered like `model_definition.requirement_metrics_vector`. `train` sets them to the
+    medians over the training rows.
     """
     requirement_metrics_stds: list[float]
-    """Per-feature train-set stds (clamped at `1e-8`) used for standardization."""
+    """Stds used to standardize the four `RequirementMetrics` inputs.
+
+    Ordered like `requirement_metrics_means`. `train` sets them to the
+    normal-consistent interquartile ranges over the training rows, floored at `1e-8`.
+    """
     spectral_scaling_alpha: float = 1.2
     spectral_scaling_min: float = 1e-7
     spectral_scaling_order: float = float("inf")
+
+
+class CoilPredictorConfig(_FixedShapeCoilPredictorConfig):
+    """Init config for `CoilPredictor`, stored alongside its checkpoint."""
+
+    model_kind: Literal["mlp"] = "mlp"
+    """Tag that disambiguates this config in `AnyModelConfig` unions."""
 
 
 CoilPredictorCheckpoint = FlaxNnxCheckpoint[CoilPredictorConfig]
 
 
-class ResMlpCoilPredictorConfig(BaseModel):
-    """Init config for `ResMlpCoilPredictor`, stored alongside its checkpoint.
+class ResMlpCoilPredictorConfig(_FixedShapeCoilPredictorConfig):
+    """Init config for `ResMlpCoilPredictor`, stored alongside its checkpoint."""
 
-    Sibling of `CoilPredictorConfig` for the residual-block MLP variant.
-    Dataset/scaling fields are duplicated because `BaseModel` does not
-    support subclassing.
-    """
-
-    is_stellarator_symmetric: bool
-    n_field_periods: int
-    n_poloidal_modes: int
-    n_toroidal_modes: int
-    n_unique_coils: int
-    n_modes_coils_max: int
-    """Global max fourier order over the training dataset.
-
-    Inferred via `eval_data_utils.infer_max_fourier_order(train_df)` and frozen
-    into the resolved config. The MLP readout dimensions and the spectral-scaling
-    helper signatures all use this value.
-    """
-    coil_currents_mean: float
-    coil_currents_std: float
-
-    hidden_dim: int = 512
-    num_layers: int = 4
+    model_kind: Literal["res_mlp"] = "res_mlp"
+    """Tag that disambiguates this config in `AnyModelConfig` unions."""
     dropout: float = 0.2
     """Dropout rate applied inside each residual block.
 
     0.0 disables dropout.
     """
-    requirement_metrics_means: list[float]
-    """Per-feature train-set means used to standardize `RequirementMetrics` inputs."""
-    requirement_metrics_stds: list[float]
-    """Per-feature train-set stds (clamped at `1e-8`) used for standardization."""
-    spectral_scaling_alpha: float = 1.2
-    spectral_scaling_min: float = 1e-7
-    spectral_scaling_order: float = float("inf")
 
 
 ResMlpCoilPredictorCheckpoint = FlaxNnxCheckpoint[ResMlpCoilPredictorConfig]
 
 
-class MlpEnsembleCoilPredictorConfig(BaseModel):
-    """Init config for `MlpEnsembleCoilPredictor`, stored alongside its checkpoint.
+class MlpEnsembleCoilPredictorConfig(_FixedShapeCoilPredictorConfig):
+    """Init config for `MlpEnsembleCoilPredictor`, stored alongside its checkpoint."""
 
-    Sibling of `CoilPredictorConfig`. Dataset/scaling fields are duplicated
-    because `BaseModel` does not support subclassing.
-    """
-
-    is_stellarator_symmetric: bool
-    n_field_periods: int
-    n_poloidal_modes: int
-    n_toroidal_modes: int
-    n_unique_coils: int
-    n_modes_coils_max: int
-    """Global max fourier order over the training dataset.
-
-    Inferred via `eval_data_utils.infer_max_fourier_order(train_df)` and frozen
-    into the resolved config. The MLP readout dimensions and the spectral-scaling
-    helper signatures all use this value.
-    """
-    coil_currents_mean: float
-    coil_currents_std: float
-
-    hidden_dim: int = 512
-    num_layers: int = 4
+    model_kind: Literal["mlp_ensemble"] = "mlp_ensemble"
+    """Tag that disambiguates this config in `AnyModelConfig` unions."""
     n_ensemble_members: int = 5
     """Number of independent MLPs whose predictions are averaged at inference."""
-    requirement_metrics_means: list[float]
-    """Per-feature train-set means used to standardize `RequirementMetrics` inputs."""
-    requirement_metrics_stds: list[float]
-    """Per-feature train-set stds (clamped at `1e-8`) used for standardization."""
-    spectral_scaling_alpha: float = 1.2
-    spectral_scaling_min: float = 1e-7
-    spectral_scaling_order: float = float("inf")
 
 
 MlpEnsembleCoilPredictorCheckpoint = FlaxNnxCheckpoint[MlpEnsembleCoilPredictorConfig]
 
 
-class ResMlpEnsembleCoilPredictorConfig(BaseModel):
-    """Init config for `ResMlpEnsembleCoilPredictor`, stored alongside its checkpoint.
+class ResMlpEnsembleCoilPredictorConfig(_FixedShapeCoilPredictorConfig):
+    """Init config for `ResMlpEnsembleCoilPredictor`, stored alongside its
+    checkpoint."""
 
-    Sibling of `ResMlpCoilPredictorConfig` for ensembles of residual-block MLPs.
-    """
-
-    is_stellarator_symmetric: bool
-    n_field_periods: int
-    n_poloidal_modes: int
-    n_toroidal_modes: int
-    n_unique_coils: int
-    n_modes_coils_max: int
-    """Global max fourier order over the training dataset.
-
-    Inferred via `eval_data_utils.infer_max_fourier_order(train_df)` and frozen
-    into the resolved config. The MLP readout dimensions and the spectral-scaling
-    helper signatures all use this value.
-    """
-    coil_currents_mean: float
-    coil_currents_std: float
-
-    hidden_dim: int = 512
-    num_layers: int = 4
+    model_kind: Literal["res_mlp_ensemble"] = "res_mlp_ensemble"
+    """Tag that disambiguates this config in `AnyModelConfig` unions."""
     dropout: float = 0.2
     """Dropout rate applied inside each residual block.
 
@@ -776,17 +820,93 @@ class ResMlpEnsembleCoilPredictorConfig(BaseModel):
     """
     n_ensemble_members: int = 5
     """Number of independent MLPs whose predictions are averaged at inference."""
+
+
+ResMlpEnsembleCoilPredictorCheckpoint = FlaxNnxCheckpoint[
+    ResMlpEnsembleCoilPredictorConfig
+]
+
+
+class _VariableShapeCoilPredictorConfig(BaseModel):
+    """Fields shared by the variable-shape coil predictors.
+
+    The number of field periods and unique coils are inputs of the model rather than
+    architecture constants; the value sets below fix the one-hot widths.
+    """
+
+    is_stellarator_symmetric: bool
+    n_poloidal_modes: int
+    n_toroidal_modes: int
+    n_modes_coils_max: int
+    coil_currents_mean: float
+    """See `CoilPredictorConfig.coil_currents_mean`."""
+    coil_currents_std: float
+    """See `CoilPredictorConfig.coil_currents_std`."""
+    n_field_periods_values: list[int]
+    """Supported numbers of field periods (one-hot encoding vocabulary)."""
+    n_coils_values: list[int]
+    """Supported numbers of unique coils (one-hot encoding vocabulary)."""
+    max_coils: int
+    """Number of coil slots in the padded output."""
+
+    hidden_dim: int = 512
+    num_layers: int = 4
     requirement_metrics_means: list[float]
-    """Per-feature train-set means used to standardize `RequirementMetrics` inputs."""
+    """See `CoilPredictorConfig.requirement_metrics_means`."""
     requirement_metrics_stds: list[float]
-    """Per-feature train-set stds (clamped at `1e-8`) used for standardization."""
+    """See `CoilPredictorConfig.requirement_metrics_stds`."""
     spectral_scaling_alpha: float = 1.2
     spectral_scaling_min: float = 1e-7
     spectral_scaling_order: float = float("inf")
 
 
-ResMlpEnsembleCoilPredictorCheckpoint = FlaxNnxCheckpoint[
-    ResMlpEnsembleCoilPredictorConfig
+class PerCoilCoilPredictorConfig(_VariableShapeCoilPredictorConfig):
+    """Init config for `PerCoilCoilPredictor`, stored alongside its checkpoint."""
+
+    model_kind: Literal["per_coil"] = "per_coil"
+    """Tag that disambiguates this config in `AnyModelConfig` unions."""
+
+
+PerCoilCoilPredictorCheckpoint = FlaxNnxCheckpoint[PerCoilCoilPredictorConfig]
+
+
+class MaskedCoilPredictorConfig(_VariableShapeCoilPredictorConfig):
+    """Init config for `MaskedCoilPredictor`, stored alongside its checkpoint."""
+
+    model_kind: Literal["masked"] = "masked"
+    """Tag that disambiguates this config in `AnyModelConfig` unions."""
+
+
+MaskedCoilPredictorCheckpoint = FlaxNnxCheckpoint[MaskedCoilPredictorConfig]
+
+
+class PerCoilEnsembleCoilPredictorConfig(_VariableShapeCoilPredictorConfig):
+    """Init config for `PerCoilEnsembleCoilPredictor`, stored alongside its
+    checkpoint."""
+
+    model_kind: Literal["per_coil_ensemble"] = "per_coil_ensemble"
+    """Tag that disambiguates this config in `AnyModelConfig` unions."""
+    n_ensemble_members: int = 5
+    """Number of independent members whose predictions are averaged at inference."""
+
+
+PerCoilEnsembleCoilPredictorCheckpoint = FlaxNnxCheckpoint[
+    PerCoilEnsembleCoilPredictorConfig
+]
+
+
+class MaskedEnsembleCoilPredictorConfig(_VariableShapeCoilPredictorConfig):
+    """Init config for `MaskedEnsembleCoilPredictor`, stored alongside its
+    checkpoint."""
+
+    model_kind: Literal["masked_ensemble"] = "masked_ensemble"
+    """Tag that disambiguates this config in `AnyModelConfig` unions."""
+    n_ensemble_members: int = 5
+    """Number of independent members whose predictions are averaged at inference."""
+
+
+MaskedEnsembleCoilPredictorCheckpoint = FlaxNnxCheckpoint[
+    MaskedEnsembleCoilPredictorConfig
 ]
 
 
@@ -804,6 +924,11 @@ class Batch(BaseModel):
     `n_modes = 2 * batch_max_fourier_order + 1`. Created at collate time so
     that loss can mask per-sample padded entries.
     """
+    coil_mask: Float[NpOrJaxArray, "batch_size max_coils"]
+    """1.0 at real coil slots, 0.0 at zero-padded coil slots.
+
+    All ones when coilsets are not padded to a common coil count.
+    """
     batch_max_fourier_order: int
     """Per-batch fourier order N.
 
@@ -811,20 +936,40 @@ class Batch(BaseModel):
     """
 
 
-pytree.register_pydantic_data(Batch, meta_fields=["batch_max_fourier_order"])
+register_pydantic_data(Batch, meta_fields=["batch_max_fourier_order"])
 
-AnyModelLiteral = Literal["mlp", "res_mlp", "mlp_ensemble", "res_mlp_ensemble"]
+AnyModelLiteral = Literal[
+    "mlp",
+    "res_mlp",
+    "mlp_ensemble",
+    "res_mlp_ensemble",
+    "per_coil",
+    "masked",
+    "per_coil_ensemble",
+    "masked_ensemble",
+]
+VARIABLE_SHAPE_MODEL_KIND = frozenset(
+    {"per_coil", "masked", "per_coil_ensemble", "masked_ensemble"}
+)
 AnyModelConfig = (
     CoilPredictorConfig
     | ResMlpCoilPredictorConfig
     | MlpEnsembleCoilPredictorConfig
     | ResMlpEnsembleCoilPredictorConfig
+    | PerCoilCoilPredictorConfig
+    | MaskedCoilPredictorConfig
+    | PerCoilEnsembleCoilPredictorConfig
+    | MaskedEnsembleCoilPredictorConfig
 )
 AnyModelCheckpoint = (
     CoilPredictorCheckpoint
     | ResMlpCoilPredictorCheckpoint
     | MlpEnsembleCoilPredictorCheckpoint
     | ResMlpEnsembleCoilPredictorCheckpoint
+    | PerCoilCoilPredictorCheckpoint
+    | MaskedCoilPredictorCheckpoint
+    | PerCoilEnsembleCoilPredictorCheckpoint
+    | MaskedEnsembleCoilPredictorCheckpoint
 )
 
 
@@ -843,23 +988,35 @@ class TrainConfig(BaseModel):
     early_stopping_patience: int | None = None
     weight_decay: float = 1e-4
     grad_clip: float = 1.0
-    model_type: AnyModelLiteral = "mlp"
+    model_kind: AnyModelLiteral = "mlp"
     model_config_overrides: AnyModelConfig | None = None
+    validation: Literal["eval_split", "train_holdout"] = "eval_split"
+    """Validate on the dataset's eval split, or on a boundary-disjoint holdout carved
+    out of the train split."""
+    holdout_fraction: float = pydantic.Field(default=0.05, gt=0.0, lt=1.0)
+    """Approximate fraction of train-split boundaries held out when `validation` is
+    `"train_holdout"`."""
+    checkpoint_best: bool = False
+    """Checkpoint the weights at the best evaluation instead of the final weights."""
 
     @pydantic.model_validator(mode="after")
-    def _check_overrides_match_model_type(self) -> Self:
+    def _check_overrides_match_model_kind(self) -> Self:
         if self.model_config_overrides is None:
             return self
-        expected_config_types: dict[str, type] = {
+        expected_config_kind: dict[str, type] = {
             "mlp": CoilPredictorConfig,
             "res_mlp": ResMlpCoilPredictorConfig,
             "mlp_ensemble": MlpEnsembleCoilPredictorConfig,
             "res_mlp_ensemble": ResMlpEnsembleCoilPredictorConfig,
+            "per_coil": PerCoilCoilPredictorConfig,
+            "masked": MaskedCoilPredictorConfig,
+            "per_coil_ensemble": PerCoilEnsembleCoilPredictorConfig,
+            "masked_ensemble": MaskedEnsembleCoilPredictorConfig,
         }
-        expected = expected_config_types[self.model_type]
+        expected = expected_config_kind[self.model_kind]
         if not isinstance(self.model_config_overrides, expected):
-            raise ValueError(
-                f"model_type={self.model_type!r} requires {expected.__name__} "
+            raise TypeError(
+                f"model_kind={self.model_kind!r} requires {expected.__name__} "
                 f"overrides; got {type(self.model_config_overrides).__name__}."
             )
         return self
@@ -879,3 +1036,5 @@ class EvalData(BaseModel):
     true_metrics: str | Metrics
     requirement_metrics: RequirementMetrics
     predicted_coilset: Coilset | None = None
+    desc_equilibrium: DescEquilibrium | None = None
+    """The equilibrium `requirement_metrics` were computed on."""

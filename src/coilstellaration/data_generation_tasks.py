@@ -9,14 +9,16 @@ from coilstellaration import (
     coilset_optimization_utils,
     coilset_utils,
     desc_utils,
-    metrics_utils,
     metrics_utils_v2,
     regcoil_types,
     regcoil_utils,
     sampling_utils,
     types,
 )
-from coilstellaration.types import ScalarFloat, ScalarInt
+from coilstellaration.types import (
+    ScalarFloat,
+    ScalarInt,
+)
 
 logger = logging.getLogger(__name__)
 

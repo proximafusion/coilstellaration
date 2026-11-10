@@ -2,10 +2,9 @@ from unittest import mock
 
 import numpy as np
 import pytest
+from coilstellaration import coilset_utils, types
 from desc.coils import CoilSet as DescCoilSet
 from desc.equilibrium import Equilibrium as DescEquilibrium
-
-from coilstellaration import coilset_utils, types
 
 
 def _make_coilset(n_unique_coils: int, fourier_order: int) -> types.Coilset:
@@ -23,7 +22,7 @@ def _make_coilset(n_unique_coils: int, fourier_order: int) -> types.Coilset:
     )
 
 
-@pytest.mark.parametrize("fourier_order, n_max", [(1, 1), (2, 4), (3, 6)])
+@pytest.mark.parametrize(("fourier_order", "n_max"), [(1, 1), (2, 4), (3, 6)])
 def test_pad_coilset_to_fourier_order_symmetric(fourier_order: int, n_max: int):
     coilset = _make_coilset(n_unique_coils=2, fourier_order=fourier_order)
     padded = coilset_utils.pad_coilset_to_fourier_order(coilset, n_max)
@@ -64,7 +63,7 @@ def test_pad_coilset_to_fourier_order_rejects_shrinking():
         coilset_utils.pad_coilset_to_fourier_order(coilset, 2)
 
 
-@pytest.mark.parametrize("n, n_max", [(1, 4), (2, 2), (0, 3)])
+@pytest.mark.parametrize(("n", "n_max"), [(1, 4), (2, 2), (0, 3)])
 def test_make_fourier_order_mask_shape_and_values(n: int, n_max: int):
     mask = coilset_utils.make_fourier_order_mask(n, n_max)
     assert mask.shape == (2 * n_max + 1,)
@@ -159,3 +158,36 @@ def test_scale_coil_currents_returns_copy_not_original():
 
     coilset.copy.assert_called_once()
     assert result is copied_coilset
+
+
+def test_pad_then_trim_roundtrip():
+    """Pad 5 coils to 8, trim back to 5; all four arrays match original."""
+    original = _make_coilset(n_unique_coils=5, fourier_order=2)
+    padded = coilset_utils.pad_coilset_to_n_coils(original, max_coils=8)
+    trimmed = coilset_utils.trim_to_n_coils(padded, n_coils=5)
+
+    np.testing.assert_array_equal(trimmed.coil_x_n, original.coil_x_n)
+    np.testing.assert_array_equal(trimmed.coil_y_n, original.coil_y_n)
+    np.testing.assert_array_equal(trimmed.coil_z_n, original.coil_z_n)
+    np.testing.assert_array_equal(trimmed.currents, original.currents)
+
+
+def test_pad_rejects_shrinking():
+    """pad_coilset_to_n_coils raises ValueError when max_coils < n_unique_coils."""
+    coilset = _make_coilset(n_unique_coils=5, fourier_order=2)
+    with pytest.raises(ValueError, match="cannot shrink"):
+        coilset_utils.pad_coilset_to_n_coils(coilset, max_coils=3)
+
+
+def test_trim_rejects_growing():
+    """trim_to_n_coils raises ValueError when n_coils > n_unique_coils."""
+    coilset = _make_coilset(n_unique_coils=5, fourier_order=2)
+    with pytest.raises(ValueError, match="cannot grow"):
+        coilset_utils.trim_to_n_coils(coilset, n_coils=8)
+
+
+def test_make_coil_mask_values():
+    """make_coil_mask(5, 8) produces [1,1,1,1,1,0,0,0]."""
+    mask = coilset_utils.make_coil_mask(n_coils=5, max_coils=8)
+    expected = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0])
+    np.testing.assert_array_equal(mask, expected)

@@ -37,10 +37,10 @@ mkdir -p ~/tmp/outputs
 # "outputs" / "coilstellaration"`, which resolves to /root/... when the
 # container runs as root) at ~/tmp/outputs/coilstellaration/ on the host.
 docker run --rm -it --platform=linux/amd64 --shm-size=16g \
-    -v "$PWD":/workspaces/constellaration_update \
+    -v "$PWD":/workspaces/coilstellaration \
     -v ~/tmp/outputs:/root/tmp/outputs \
-    -w /workspaces/constellaration_update \
-    -e PYTHONPATH=/workspaces/constellaration_update/src \
+    -w /workspaces/coilstellaration \
+    -e PYTHONPATH=/workspaces/coilstellaration/src \
     coilstellaration \
     bash -c "pipx install hatch && hatch env create && hatch run python examples/run_regcoil.py"
 ```
@@ -61,15 +61,17 @@ hatch env create
 hatch run python examples/run_regcoil.py
 ```
 
+`run_regcoil.py` also needs the `regcoil` executable on your `PATH`. Build it from [landreman/regcoil](https://github.com/landreman/regcoil) with the Fortran NetCDF bindings and BLAS/LAPACK (`libnetcdff-dev`, `libopenblas-dev`). `.devcontainer/Dockerfile` has the pinned commit and the `make` flags that work with gfortran ≥ 10.
+
 If a fresh install fails, suspect a missing system build dep before suspecting Python.
 
 ## Use the library
 
-Four runnable examples sit under `examples/`. Each is a thin script that exercises a real piece of the pipeline; treat them as starting points for your own work, not as production runners.
+Five runnable examples sit under `examples/`: the four below, plus `run_benchmark_scoring.py`, which is covered in [Run the benchmark](#run-the-benchmark). Each is a thin script that exercises a real piece of the pipeline; treat them as starting points for your own work, not as production runners.
 
 ### Where outputs go
 
-Every example writes artifacts to `paths.OUTPUTS_PATH`, defined in `src/coilstellaration/paths.py:31` as `pathlib.Path.home() / "tmp" / "outputs" / "coilstellaration"`. Inside the devcontainer this is bind-mounted to `~/tmp/outputs/coilstellaration/` on the host; outside, the directory is created on first run. The filenames listed below are relative to that directory.
+Every example writes artifacts to `paths.OUTPUTS_PATH`, defined in `src/coilstellaration/paths.py` as `pathlib.Path.home() / "tmp" / "outputs" / "coilstellaration"`. Inside the devcontainer this is bind-mounted to `~/tmp/outputs/coilstellaration/` on the host; outside, the directory is created on first run. The filenames listed below are relative to that directory.
 
 Run any example with:
 
@@ -90,7 +92,7 @@ The first run pulls real data from `proxima-fusion/constellaration` and `proxima
 
 ### `run_desc.py` — REGCOIL warm-start + DESC optimization
 
-Same setup as `run_regcoil.py`, then runs DESC's augmented-Lagrangian coilset optimizer (`data_generation_tasks_no_proxima.optimize_coilset_using_desc`) on top of the REGCOIL warm-start. The example uses `maxiter=10`, which is illustrative rather than production; bump it for real runs.
+Uses the same requirements and equilibrium as `run_regcoil.py`, but loads a precomputed REGCOIL coilset (`DPT3MjzMbmJw5VV2mUrWrmQ`) from `proxima-fusion/coilstellaration` instead of running REGCOIL. It then runs DESC's augmented-Lagrangian coilset optimizer (`data_generation_tasks.optimize_coilset_using_desc`) from that warm start. The example uses `maxiter=10`, which is illustrative rather than production; bump it for real runs.
 
 **Outputs**
 - `desc_coilset.json` — the post-DESC coilset.
@@ -106,16 +108,22 @@ Trains a 4000-step MLP `CoilPredictor` with `TrainConfig` overrides (`batch_size
 
 A full 4000-step run on a laptop CPU takes well under the 1-hour wall-time cap; expect it to complete on its own without hanging.
 
+`TrainConfig.model_kind` selects one of eight model types. `mlp`, `res_mlp`, `mlp_ensemble` and `res_mlp_ensemble` train on the `fixed_shape` track. `per_coil`, `masked`, `per_coil_ensemble` and `masked_ensemble` train on the `variable_shape` track, where the number of field periods and coils varies. Set `validation="train_holdout"` to validate on plasma boundaries held out of the train split instead of on the eval split. `eval_batch_size` must not exceed the number of holdout rows.
+
 ### `run_model_prediction.py` — run a saved checkpoint on one eval row
 
-Loads the bundled checkpoint `D2HbzeYjo57Aif48z5T6axt` (one of three bundled MLP checkpoints; `src/coilstellaration/data/models/` ships 12 checkpoints in total — three each across `mlp` / `res_mlp` / `mlp_ensemble` / `res_mlp_ensemble`), runs it on one row of the `track="fixed_shape", stratum="tight"` eval split, and overlays the predicted coilset on the true coilset.
+Loads the bundled `mlp` checkpoint (see [Bundled checkpoint](#bundled-checkpoint)), runs it on one row of the `track="fixed_shape", stratum="tight"` eval split, and overlays the predicted coilset on the true coilset.
 
 **Outputs**
 - `predicted_coilset.json` — the predicted `Coilset`.
 - `predicted_coilset_and_equilibrium.html` — Plotly overlay (predicted in blue, true in green).
 - `predicted_coilset_metrics.json` — achieved `Metrics` for the predicted coilset, evaluated by `metrics_utils_v2.evaluate_coilset_metrics_from_boundary`.
 
-The bundled checkpoint format is documented in [`src/coilstellaration/data/models/README.md`](src/coilstellaration/data/models/README.md). Models you train yourself follow the same shape — that's what `run_model_training.py` writes.
+### Bundled checkpoint
+
+`src/coilstellaration/data/models/` ships one trained checkpoint, `mlp_DHmCARHZ4ay9rsMDPdjVCu3.json`: an `mlp` model for the `fixed_shape` track (NFP 3, 5 coils per half period). `paths.model_path("DHmCARHZ4ay9rsMDPdjVCu3")` resolves it from its ID alone, and `machine_learning.utils.read_checkpoint_from_id("mlp", "DHmCARHZ4ay9rsMDPdjVCu3")` reads it with the right type. For the other model types, train your own with `run_model_training.py`.
+
+The file format is documented in [`src/coilstellaration/data/models/README.md`](src/coilstellaration/data/models/README.md). Models you train yourself follow the same shape — that's what `run_model_training.py` writes.
 
 ## Run the benchmark
 
@@ -132,17 +140,17 @@ $$
 where:
 
 - `boundary` is a `surface_rz_fourier.SurfaceRZFourier` (the plasma surface in Fourier representation).
-- `target metrics` is a `RequirementMetrics` (`src/coilstellaration/types.py:404`) — four normalized scalars: `min_normalized_coil_to_coil_distance`, `min_normalized_coil_to_plasma_distance`, `max_normalized_coil_curvature`, `max_normalized_field_error`.
-- `predicted coilset` is a `Coilset` (`src/coilstellaration/types.py:355`) in DESC's `FourierXYZCoil` representation, storing only unique pre-symmetry coils.
+- `target metrics` is a `RequirementMetrics` (`src/coilstellaration/types.py`) — four normalized scalars: `min_normalized_coil_to_coil_distance`, `min_normalized_coil_to_plasma_distance`, `max_normalized_coil_curvature`, `max_normalized_field_error`, plus the integer `n_coils_per_half_period` (the target number of unique coils). A predicted coilset with a different coil count scores 0. `max_normalized_coil_curvature` is the largest curvature magnitude over all coils: DESC signs curvature by convexity, and a tight concave bend counts as much as a convex one.
+- `predicted coilset` is a `Coilset` (`src/coilstellaration/types.py`) in DESC's `FourierXYZCoil` representation, storing only unique pre-symmetry coils.
 
-The eval set is a fixed list of `(boundary, target)` rows published in `proxima-fusion/coilstellaration` on Hugging Face. Scoring re-evaluates the **achieved** metrics on your predicted coilset (via `metrics_utils_v2.evaluate_coilset_metrics_from_boundary`) and compares them to the target with the soft-feasibility pipeline below. You never get to see the held-out targets at training time — they live only in the `eval` split.
+The eval set is a fixed list of `(boundary, target)` rows published in `proxima-fusion/coilstellaration` on Hugging Face. Scoring re-evaluates the **achieved** metrics on your predicted coilset with `metrics_utils_v2.evaluate_coilset_metrics`. It does this on the row's DESC equilibrium (`EvalData.desc_equilibrium`), the equilibrium the targets were computed on, and compares the result to the target with the soft-feasibility pipeline below. You never get to see the held-out targets at training time — they live only in the `eval` split.
 
 ### Tracks: `fixed_shape` and `variable_shape`
 
-Two independent tracks, selected by the `track=` argument to `load_benchmark_dataset` (`src/coilstellaration/data_utils.py:280`):
+Two independent tracks, selected by the `track=` argument to `load_benchmark_dataset` (`src/coilstellaration/data_utils.py`):
 
-- **`fixed_shape`** — every train and eval row shares the same plasma boundary. The model only generalizes over requirement targets. This is the easier of the two and a natural starting point. Filtered by the `benchmark/fixed_shape_track` boolean column on the dataset.
-- **`variable_shape`** — boundaries vary across rows; the model must generalize over both boundary geometry and target metrics. Filtered by the `benchmark/variable_shape_track` boolean column.
+- **`fixed_shape`** — every train and eval row uses NFP 3 and 5 coils per half period, across many plasma boundaries. This is the easier of the two and a natural starting point. Filtered by the `benchmark/fixed_shape_track` boolean column on the dataset.
+- **`variable_shape`** — the number of field periods and coils per half period vary across rows; the model must generalize over boundary geometry, coil count and target metrics. Filtered by the `benchmark/variable_shape_track` boolean column.
 
 A model trained for one track is not expected to transfer to the other, and the two are scored independently on the leaderboard.
 
@@ -157,11 +165,13 @@ eval_variable = data_utils.load_benchmark_dataset(
 )
 ```
 
-`n=0` means "load the whole filtered split"; pass `n=4` for a quick smoke test (this is what `examples/run_benchmark_scoring.py` does with `EVAL_N = 4`).
+For training data, `data_utils.load_ml_baseline_dataframe(track=..., split=...)` selects the ML-baseline rows of a track (default `fixed_shape`): `fixed_shape` uses `baseline_labels/used_for_ml_baseline`; `variable_shape` uses rows in `benchmark/variable_shape_track` that also satisfy `baseline_labels/meets_relative_error_thresholds`. Loaded rows are checked for consistent coil counts and field periods.
+
+`n=0` means "load the whole filtered split"; pass `n=4` for a quick smoke test (this is what `examples/run_benchmark_scoring.py` does by default with `--n 4`).
 
 ### Strata: `loose`, `medium`, `tight`
 
-Each row in the dataset belongs to exactly one stratum, recorded in the `benchmark/stratification` column (the constant `StratificationColumn` in `src/coilstellaration/data_utils.py:49`). Strata are **tertiles of the column `desc_metrics/normalized_field_error/mean`** (the constant `FIELD_ERROR_MEAN_COLUMN` in `src/coilstellaration/data_utils.py:145`) — the mean normalized field error achieved by the data-generation pipeline that produced that row's coilset. In other words, strata partition the dataset by how cleanly the upstream pipeline could solve the problem:
+Each row in the dataset belongs to exactly one stratum, recorded in the `benchmark/stratification` column (the constant `StratificationColumn` in `src/coilstellaration/data_utils.py`). Strata are **tertiles of the column `desc_metrics/normalized_field_error/mean`** (the constant `FIELD_ERROR_MEAN_COLUMN` in the same file) — the mean normalized field error achieved by the data-generation pipeline that produced that row's coilset. In other words, strata partition the dataset by how cleanly the upstream pipeline could solve the problem:
 
 - **`tight`** — bottom tertile. Lowest achievable field error in the source pipeline, i.e. the most demanding requirements. **This is the headline stratum reported on the leaderboard, and what the rest of this section walks through.**
 - **`medium`** — middle tertile.
@@ -171,7 +181,7 @@ Switch strata by passing `stratum="loose"` or `"medium"` to `load_benchmark_data
 
 ### Scoring (soft feasibility)
 
-Scoring is implemented in `src/coilstellaration/benchmark/scoring.py` and parameterized by `ScoringSettings` in `src/coilstellaration/benchmark/types.py`. The pipeline has four stages: per-metric normalized violation, saturating soft-score map, metric aggregation (per instance), instance aggregation (across the eval set). Each stage below states the formula, the symbol meanings, and the default values pulled from `ScoringSettings`.
+Scoring is implemented in `src/coilstellaration/benchmark/scoring.py` and parameterized by `ScoringSettings` in `src/coilstellaration/benchmark/scoring_types.py`. The pipeline has four stages: per-metric normalized violation, saturating soft-score map, metric aggregation (per instance), instance aggregation (across the eval set). Each stage below states the formula, the symbol meanings, and the default values pulled from `ScoringSettings`.
 
 #### 1. Per-metric normalized violation
 
@@ -193,7 +203,9 @@ $$
 - $\tau_i$ — the target value from the eval row's `RequirementMetrics`.
 - $\mathrm{floor}$ — `ScoringSettings.target_floor`, default `1e-6`. It clamps $|\tau_i|$ from below so that targets at or near zero don't blow $v_i$ up to absurd values.
 
-The direction (upper/lower bound) for each field is fixed in `REQUIREMENT_METRIC_DIRECTIONS` (`src/coilstellaration/benchmark/types.py:20`).
+A non-finite $g_i$ or $\tau_i$ (e.g. from a failed evaluation) gives $v_i = \infty$, as does every metric of a coilset with the wrong number of coils per half period.
+
+The direction (upper/lower bound) for each field is fixed in `REQUIREMENT_METRIC_DIRECTIONS` (`src/coilstellaration/benchmark/scoring_types.py`).
 
 #### 2. Soft-score map
 
@@ -242,48 +254,70 @@ The headline column on the leaderboard is the geometric mean.
 
 #### 4. Instance aggregation (across the eval set)
 
-Per-instance scalars $S_j$ collapse across the eval set into named diagnostics, controlled by `ScoringSettings.instance_aggregations` (`src/coilstellaration/benchmark/types.py:82`). The defaults compute all five:
+Per-instance scalars $S_j$ collapse across the eval set into named diagnostics, controlled by `ScoringSettings.instance_aggregations` (`src/coilstellaration/benchmark/scoring_types.py`). The defaults compute all five:
 
 | Diagnostic               | What it tells you                                                  |
 | ------------------------ | ------------------------------------------------------------------ |
-| `mean`                   | **Headline ranking column.** Larger is better.                     |
+| `mean`                   | **Headline score.** Larger is better.                              |
 | `median`                 | Robustness check against tail outliers in `mean`.                  |
 | `p10`                    | 10th percentile of $S_j$. Tail diagnostic — how bad are the worst? |
 | `feasibility_rate_0p9`   | Fraction of instances with $S_j \geq 0.9$ (soft-feasible).         |
-| `strict_feasibility`     | Fraction with $v_i = 0$ for every metric (every hard bound met).   |
+| `strict_feasibility`     | Fraction with $v_i \leq$ `strict_feasibility_tolerance` (default `1e-3`) for every metric. |
 
-`mean` is the leaderboard column under default settings. The other four are reported alongside it for context.
+The leaderboard ranks by `strict_feasibility`, then by `mean`. The other three are reported alongside them for context.
 
 ### End-to-end walkthrough
 
-Six steps to score a model on the public eval set. The canonical implementation is `examples/run_benchmark_scoring.py`; this section explains the *why* of each step. To run end-to-end without reading the prose, just run that example.
+Six steps to score a model on the public eval set. They score the model's prediction as is, as the Hugging Face Space does. `examples/run_benchmark_scoring.py` runs the same pipeline from the command line, with an optional DESC refinement on top; this section explains the *why* of each step.
+
+> **Quick check only.** `examples/run_benchmark_scoring.py` is a local quick check on a small subset of the eval split. Official benchmark numbers come from the Hugging Face Space.
+
+```bash
+python examples/run_benchmark_scoring.py --checkpoint-id <id> --model-kind mlp \
+    --track fixed_shape --stratum tight --n 4
+```
+
+Flags:
+
+- `--checkpoint-id` (required) — the ID of a checkpoint in `src/coilstellaration/data/models/`, e.g. the bundled `DHmCARHZ4ay9rsMDPdjVCu3`. To score a model you trained, copy its JSON there. The ID also names the output files.
+- `--model-kind` — any `AnyModelLiteral`; default `mlp`.
+- `--track` — `fixed_shape` (default) or `variable_shape`.
+- `--stratum` — `loose`, `medium`, `tight` (default) or `all`; `all` scores each stratum.
+- `--n` — instances per stratum, default 4; `0` loads all of them.
+- `--stratify-nfp-nc` — sample `--n` instances per NFP × coils-per-half-period cell instead.
+- `--seed` — sampling seed, used only with `--stratify-nfp-nc`.
+- `--desc-refine-from` — the starting coilset: `model` (default, the prediction) or `regcoil` (the dataset's REGCOIL coilset of each row).
+- `--desc-maxiters` — iterations of DESC's coilset optimization to refine the starting coilset with, under each instance's own requirements, before scoring. The default, `0`, scores the starting coilset as is, like the Space. Repeat the flag to score several values in one worker per instance, which then compiles once. Scanning it from both starting points on the same rows measures how much the model's prediction speeds up the optimization.
+- `--instance-timeout-s` — default 1800. Each instance runs in a fresh subprocess, and the timeout covers all of its `--desc-maxiters`. A value that times out or fails scores zero.
+
+Outputs are written to `paths.OUTPUTS_PATH`, one set per `--desc-maxiters` value, with `<run>` = `<checkpoint-id>_desc_from_<start>_maxiter<n>`:
+
+- `quickcheck_scores_<run>.csv` — one row per instance; see [What to submit](#what-to-submit).
+- `quickcheck_summary_<run>.csv` — the five diagnostics, overall and per stratum.
+- `quickcheck_summary_nfp_nc_<run>.csv` — mean score, strict feasibility and count per NFP × coils-per-half-period cell.
+- `quickcheck_soft_feasibility_<run>.png` — histograms of the four per-metric soft scores and the aggregate.
+
+Run with `--help` for the full list of flags and defaults.
 
 **1. Load the eval split.** `n=0` means full split; bump it down for a smoke test. Only the `eval` split is scored — `train` is for fitting only.
 
 ```python
 from coilstellaration import data_utils
 
-EVAL_N = 4  # public-test cap; 0 to score the full eval split (slow)
+# n=4 is a quick check; n=0 loads the full eval split (slow). The CLI's `--n` does the same.
 eval_dataset = data_utils.load_benchmark_dataset(
-    track="fixed_shape", stratum="tight", split="eval", n=EVAL_N
+    track="fixed_shape", stratum="tight", split="eval", n=4
 )
 ```
 
-**2. Load your model.** Bundled checkpoints follow the `FlaxNnxCheckpoint` JSON format (see [`src/coilstellaration/data/models/README.md`](src/coilstellaration/data/models/README.md)). Models you train with `run_model_training.py` follow the same shape.
+**2. Load your model.** The bundled checkpoint follows the `FlaxNnxCheckpoint` JSON format (see [`src/coilstellaration/data/models/README.md`](src/coilstellaration/data/models/README.md)). Models you train with `run_model_training.py` follow the same shape. `read_checkpoint_from_id` reads `data/models/<model_kind>_<id>.json`; pass `model_data_path=` to read a checkpoint stored somewhere else, such as one you trained.
 
 ```python
-from coilstellaration import flax_nnx_checkpoint_util, paths, types
 from coilstellaration.machine_learning import model_definition
+from coilstellaration.machine_learning import utils as ml_utils
 
-MODEL_CHECKPOINT_ID = "D2HbzeYjo57Aif48z5T6axt"
-model_path = paths.model_path(MODEL_CHECKPOINT_ID)
-checkpoint = types.CoilPredictorCheckpoint.model_validate_json(
-    model_path.read_text()
-)
-model = flax_nnx_checkpoint_util.from_checkpoint(
-    checkpoint, module_cls=model_definition.CoilPredictor
-)
-model.eval()
+checkpoint = ml_utils.read_checkpoint_from_id("mlp", "DHmCARHZ4ay9rsMDPdjVCu3")
+model = model_definition.read_model_from_checkpoint(checkpoint)  # in eval mode
 ```
 
 **3. Predict coilsets.** `predict_coilsets` returns a list of `EvalData` with `predicted_coilset` populated.
@@ -292,22 +326,20 @@ model.eval()
 predictions = model_definition.predict_coilsets(model, eval_dataset)
 ```
 
-**4. Evaluate achieved metrics.** This is the costly step — DESC re-evaluates each predicted coilset against the boundary. `metrics_to_requirement_metrics` projects the full `Metrics` down to the four scalars the benchmark scores against.
+**4. Evaluate achieved metrics.** This is the costly step — DESC re-evaluates each predicted coilset on the row's DESC equilibrium, the one the targets were computed on. An equilibrium rebuilt from the boundary alone can have a different minor radius and axis, so even the reference coilset may miss its targets on it. `metrics_to_requirement_metrics` projects the full `Metrics` down to the four scalars the benchmark scores against, plus the coil count.
 
 ```python
 import warnings
-from constellaration.geometry import surface_utils_desc
 
-from coilstellaration import coilset_utils, data_utils, metrics_utils_v2
+from coilstellaration import coilset_utils, data_utils, desc_utils, metrics_utils_v2
 
 achieved_metrics_per_instance = []
 for eval_data in predictions:
     assert eval_data.predicted_coilset is not None
+    assert eval_data.desc_equilibrium is not None
     with warnings.catch_warnings(action="ignore"):
-        achieved_metrics = metrics_utils_v2.evaluate_coilset_metrics_from_boundary(
-            boundary=surface_utils_desc.to_desc_fourier_rz_toroidal_surface(
-                eval_data.boundary
-            ),
+        achieved_metrics = metrics_utils_v2.evaluate_coilset_metrics(
+            eq=desc_utils.desc_equilibrium_to_desc_object(eval_data.desc_equilibrium),
             coilset=coilset_utils.coilstellaration_to_desc(
                 eval_data.predicted_coilset
             ),
@@ -320,10 +352,9 @@ for eval_data in predictions:
 **5. Score.** Per-instance, then aggregate across the eval set.
 
 ```python
-from coilstellaration.benchmark import scoring
-from coilstellaration.benchmark import types as benchmark_types
+from coilstellaration.benchmark import scoring, scoring_types
 
-settings = benchmark_types.ScoringSettings()  # all defaults
+settings = scoring_types.ScoringSettings()  # all defaults
 instance_scores = [
     scoring.score_eval_data(eval_data, achieved, settings)
     for eval_data, achieved in zip(predictions, achieved_metrics_per_instance)
@@ -352,41 +383,49 @@ summary_df = scoring.summarize_scores(
 )
 ```
 
-`benchmark.summaries["mean"]` under the default `ScoringSettings` is your headline number. `examples/run_benchmark_scoring.py` additionally writes a 2x3 PNG of per-metric soft-score histograms to `paths.OUTPUTS_PATH`.
+`benchmark.summaries["mean"]` and `benchmark.summaries["strict_feasibility"]` under the default `ScoringSettings` are the numbers the leaderboard ranks by. `examples/run_benchmark_scoring.py` additionally writes a PNG of soft-score histograms to `paths.OUTPUTS_PATH`.
 
 ### What to submit
 
-Two artifacts.
+Official scores come from the coilstellaration benchmark Space on Hugging Face, which scores submitted models itself. Submit a public Hugging Face model repo containing a `model.onnx` that follows the ONNX contract in the Space's About tab:
 
-**1. Per-instance CSV.** This is what `examples/run_benchmark_scoring.py` writes to `paths.OUTPUTS_PATH / f"scores_{MODEL_CHECKPOINT_ID}.csv"`:
+- **Inputs** (unscaled): the boundary's `boundary_r_cos` and `boundary_z_sin`, `[n_pol, n_tor]`, plus `boundary_r_sin` and `boundary_z_cos` for non-stellarator-symmetric instances; and `requirement_metrics`, `[4]`, in `RequirementMetrics` field order.
+- **Outputs**: `coil_x_n`, `coil_y_n`, `coil_z_n`, `[n_unique_coils, n_modes]`, and `currents`, `[n_unique_coils]`. Use dynamic axes for shapes that vary per instance. The number of field periods and stellarator symmetry come from the instance.
+
+The Space evaluates each model on every track it supports, over all three strata, with the default `ScoringSettings` listed below. Its leaderboard shows one track at a time, either over all strata pooled or for a single stratum, and ranks by `strict_feasibility`, then `mean`.
+
+For your own diagnostics, `examples/run_benchmark_scoring.py` writes a per-instance CSV, `quickcheck_scores_<run>.csv`, to `paths.OUTPUTS_PATH`:
 
 | Column                        | Meaning                                                              |
 | ----------------------------- | -------------------------------------------------------------------- |
-| `boundary_id`                 | Identifier of the eval row.                                          |
+| `boundary_id`                 | Identifier of the eval row's boundary.                               |
+| `stratum`                     | Stratum the row was loaded from (a boundary can appear in several).  |
+| `boundary.n_field_periods`    | Number of field periods of the boundary.                             |
+| `reqs/n_coils_per_half_period`| Required number of unique coils.                                     |
+| `desc_coilset_id`             | Identifier of the reference coilset of the row.                      |
 | `score`                       | Per-instance scalar $S_j$ under the default geometric-mean aggregation. |
-| `strictly_feasible`           | `True` iff $v_i = 0$ for every metric on this instance.              |
+| `strictly_feasible`           | `True` iff $v_i \leq$ `strict_feasibility_tolerance` for every metric on this instance. |
 | `violation/<field>` (×4)      | Per-metric normalized violation $v_i$.                               |
 | `soft_score/<field>` (×4)     | Per-metric soft score $s_i$ under the default exponential map.       |
 
-This file is enough for the leaderboard to recompute every aggregation and reproduce the summary statistics — the per-instance breakdown is what makes diagnostics like `p10` and `strict_feasibility` reproducible.
+The per-instance breakdown is enough to recompute every aggregation, including tail diagnostics like `p10` and `strict_feasibility`.
 
-**2. Headline number.** `summaries["mean"]` from `score_benchmark` under default `ScoringSettings`:
+The default `ScoringSettings`, which the Space uses:
 - `soft_score = "exponential"`
 - `metric_aggregation = "geometric_mean"`
 - `tolerances` as listed in the [Soft-score map](#2-soft-score-map) table
 - `target_floor = 1e-6`
+- `strict_feasibility_tolerance = 1e-3`
 - `instance_aggregations = ["mean", "median", "p10", "feasibility_rate_0p9", "strict_feasibility"]`
 
-Report `fixed_shape` and `variable_shape` separately. If you also want to claim a number on a non-`tight` stratum, label it explicitly (e.g. `fixed_shape / loose / mean = 0.84`); the leaderboard only ranks the `tight` stratum by default.
-
-This README intentionally does not specify a submission URL or upload mechanism — that infrastructure lives outside this repo. Reach out via the [issue tracker](https://github.com/proximafusion/coilstellaration/issues) if you need a current submission link.
+When you quote numbers outside the leaderboard, report `fixed_shape` and `variable_shape` separately and label the stratum (e.g. `fixed_shape / tight / mean = 0.84`). Reach out via the [issue tracker](https://github.com/proximafusion/coilstellaration/issues) if you need a link to the Space.
 
 ## Datasets
 
-The benchmark pulls from two public Hugging Face datasets, joined at load time by `data_utils.load_dataframes` (`src/coilstellaration/data_utils.py:148`).
+The benchmark pulls from two public Hugging Face datasets, joined at load time by `data_utils.load_dataframes` (`src/coilstellaration/data_utils.py`).
 
-- **[`proxima-fusion/constellaration`](https://huggingface.co/datasets/proxima-fusion/constellaration)** — plasma boundaries, VMECPP equilibria, DESC metrics. Source of `boundary` and the `desc_metrics/...` columns. The strata tertiles are computed from the column `desc_metrics/normalized_field_error/mean` in this dataset.
-- **[`proxima-fusion/coilstellaration`](https://huggingface.co/datasets/proxima-fusion/coilstellaration)** — coilsets, requirements, and the benchmark eval split. Joined to the constellaration dataset via `desc_coilset_id`, `requirements_id`, and `constellaration_boundary_id`.
+- **[`proxima-fusion/coilstellaration`](https://huggingface.co/datasets/proxima-fusion/coilstellaration)** — the `results` table (the `desc_metrics/...`, `reqs/...`, `benchmark/...` and `baseline_labels/...` columns, split into `train` and `eval`), plus the `coilsets` and `requirements` tables it references via `desc_coilset_id` and `requirements_id`. The strata tertiles are computed from its column `desc_metrics/normalized_field_error/mean`.
+- **[`proxima-fusion/constellaration`](https://huggingface.co/datasets/proxima-fusion/constellaration)** — plasma boundaries, their VMEC++ and DESC equilibria, and the ConStellaration metrics (loaded as `constellaration_metrics/...`). Joined to each `results` row via `constellaration_boundary_id`.
 
 The columns relevant to selecting a track or stratum:
 

@@ -7,7 +7,6 @@ the package `README.md` for the rationale behind each design choice.
 from typing import Literal, Self
 
 import pydantic
-
 from coilstellaration.types import BaseModel
 
 ConstraintDirection = Literal["lower_bound", "upper_bound"]
@@ -63,6 +62,13 @@ class ScoringSettings(BaseModel):
     """Lower clamp on `|tau_i|` when normalizing violation, to keep near-zero targets
     from blowing up `v_i`."""
 
+    strict_feasibility_tolerance: float = 1e-3
+    """Largest normalized violation `v_i` that still counts as strictly feasible.
+
+    The default, 0.1% of the target, absorbs quadrature and float noise in the
+    metric evaluation; `0.0` requires every target to be met exactly.
+    """
+
     metric_aggregation: Literal[
         "geometric_mean", "weighted_geometric_mean", "min", "arithmetic_mean"
     ] = "geometric_mean"
@@ -94,7 +100,8 @@ class ScoringSettings(BaseModel):
 
     `mean` is the headline ranking
     column; `p10` and `feasibility_rate_0p9` are tail diagnostics;
-    `strict_feasibility` is the hard-bound rate (`v_i = 0` for all metrics).
+    `strict_feasibility` is the hard-bound rate (`v_i <= strict_feasibility_tolerance`
+    for all metrics).
     """
 
     @pydantic.model_validator(mode="after")
@@ -107,6 +114,8 @@ class ScoringSettings(BaseModel):
             )
         if any(a <= 0.0 for a in self.tolerances.values()):
             raise ValueError("tolerances values must be strictly positive.")
+        if self.strict_feasibility_tolerance < 0.0:
+            raise ValueError("strict_feasibility_tolerance must be non-negative.")
         if self.metric_aggregation == "weighted_geometric_mean":
             if self.metric_weights is None:
                 raise ValueError(
@@ -131,7 +140,7 @@ class MetricScores(BaseModel):
     soft_scores: dict[str, float]
     """Per-metric `s_i in [0, 1]` after the saturating map."""
     strictly_feasible: bool
-    """True iff every `v_i == 0` (all hard bounds satisfied)."""
+    """True iff every `v_i <= ScoringSettings.strict_feasibility_tolerance`."""
 
 
 class InstanceScore(BaseModel):

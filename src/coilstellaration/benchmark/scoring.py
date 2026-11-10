@@ -1,6 +1,6 @@
 """Soft-feasibility scoring of predicted coilsets against `RequirementMetrics`.
 
-See `_types.ScoringSettings` for the knobs and the package `README.md` for
+See `scoring_types.ScoringSettings` for the knobs and the package `README.md` for
 the full design rationale. Pipeline:
 
 1. `compute_violations`: per-metric normalized violation `v_i >= 0`.
@@ -13,22 +13,26 @@ Top-level entry points are `score_instance`, `score_eval_data`, and
 into a dict suitable for an analysis dataframe.
 """
 
+import logging
 import math
 from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
-
 from coilstellaration import types
-from coilstellaration.benchmark import types as benchmark_types
+from coilstellaration.benchmark import (
+    scoring_types,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def score_instance(
     boundary_id: str,
     achieved: types.RequirementMetrics,
     target: types.RequirementMetrics,
-    settings: benchmark_types.ScoringSettings,
-) -> benchmark_types.InstanceScore:
+    settings: scoring_types.ScoringSettings,
+) -> scoring_types.InstanceScore:
     """End-to-end scoring of one test instance.
 
     Args:
@@ -44,12 +48,14 @@ def score_instance(
     violations = compute_violations(achieved, target, settings.target_floor)
     soft = apply_soft_score(violations, settings)
     aggregate = aggregate_metrics(soft, settings)
-    metric_scores = benchmark_types.MetricScores(
+    metric_scores = scoring_types.MetricScores(
         violations=violations,
         soft_scores=soft,
-        strictly_feasible=all(v == 0.0 for v in violations.values()),
+        strictly_feasible=all(
+            v <= settings.strict_feasibility_tolerance for v in violations.values()
+        ),
     )
-    return benchmark_types.InstanceScore(
+    return scoring_types.InstanceScore(
         boundary_id=boundary_id,
         metric_scores=metric_scores,
         aggregate=aggregate,
@@ -59,14 +65,26 @@ def score_instance(
 def score_eval_data(
     eval_data: types.EvalData,
     achieved: types.RequirementMetrics,
-    settings: benchmark_types.ScoringSettings,
-) -> benchmark_types.InstanceScore:
+    settings: scoring_types.ScoringSettings,
+) -> scoring_types.InstanceScore:
     """`score_instance` driven by an `EvalData`.
 
     Uses `eval_data.boundary_id` and `eval_data.requirement_metrics` (the
     target) so callers only have to supply the achieved metrics evaluated on
-    the predicted coilset.
+    the predicted coilset. A coilset with a different coil count than the
+    target is invalid and scores zero.
     """
+    if int(achieved.n_coils_per_half_period) != int(
+        eval_data.requirement_metrics.n_coils_per_half_period
+    ):
+        logger.warning(
+            "%s is receiving zero score for producing the wrong N_C (exp=%d, act=%d)"
+            "...",
+            eval_data.boundary_id,
+            eval_data.requirement_metrics.n_coils_per_half_period,
+            achieved.n_coils_per_half_period,
+        )
+        return zero_instance_score(eval_data.boundary_id)
     return score_instance(
         boundary_id=eval_data.boundary_id,
         achieved=achieved,
@@ -75,13 +93,27 @@ def score_eval_data(
     )
 
 
+def zero_instance_score(boundary_id: str) -> scoring_types.InstanceScore:
+    """Score of an invalid prediction: every metric infinitely violated, so zero."""
+    fields = list(scoring_types.REQUIREMENT_METRIC_DIRECTIONS)
+    return scoring_types.InstanceScore(
+        boundary_id=boundary_id,
+        metric_scores=scoring_types.MetricScores(
+            violations=dict.fromkeys(fields, math.inf),
+            soft_scores=dict.fromkeys(fields, 0.0),
+            strictly_feasible=False,
+        ),
+        aggregate=0.0,
+    )
+
+
 def score_benchmark(
-    instance_scores: Iterable[benchmark_types.InstanceScore],
-    settings: benchmark_types.ScoringSettings,
-) -> benchmark_types.BenchmarkScore:
+    instance_scores: Iterable[scoring_types.InstanceScore],
+    settings: scoring_types.ScoringSettings,
+) -> scoring_types.BenchmarkScore:
     """Aggregate per-instance scores into headline + diagnostic summaries."""
     instances = list(instance_scores)
-    return benchmark_types.BenchmarkScore(
+    return scoring_types.BenchmarkScore(
         per_instance=instances,
         summaries=aggregate_instances(instances, settings),
     )
@@ -96,11 +128,17 @@ def compute_violations(
 
     For upper-bound constraints `v_i = max(0, (g - tau) / max(|tau|, floor))`;
     for lower-bound constraints `v_i = max(0, (tau - g) / max(|tau|, floor))`.
+    A non-finite achieved or target value, e.g. from a failed evaluation, is an
+    infinite violation.
     """
     violations: dict[str, float] = {}
-    for field, direction in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS.items():
+    for field, direction in scoring_types.REQUIREMENT_METRIC_DIRECTIONS.items():
         g = float(getattr(achieved, field))
         tau = float(getattr(target, field))
+        # `max(0.0, nan)` is `0.0`, so a NaN would otherwise score as satisfied.
+        if not (math.isfinite(g) and math.isfinite(tau)):
+            violations[field] = math.inf
+            continue
         denom = max(abs(tau), target_floor)
         if direction == "upper_bound":
             violations[field] = max(0.0, (g - tau) / denom)
@@ -111,7 +149,7 @@ def compute_violations(
 
 def apply_soft_score(
     violations: dict[str, float],
-    settings: benchmark_types.ScoringSettings,
+    settings: scoring_types.ScoringSettings,
 ) -> dict[str, float]:
     """Map `v_i >= 0` to `s_i in [0, 1]` per `settings.soft_score`."""
     soft: dict[str, float] = {}
@@ -126,7 +164,7 @@ def apply_soft_score(
 
 def aggregate_metrics(
     soft_scores: dict[str, float],
-    settings: benchmark_types.ScoringSettings,
+    settings: scoring_types.ScoringSettings,
 ) -> float:
     """Collapse per-metric soft scores to a per-instance scalar."""
     fields = list(soft_scores)
@@ -152,8 +190,8 @@ def aggregate_metrics(
 
 
 def aggregate_instances(
-    instance_scores: Iterable[benchmark_types.InstanceScore],
-    settings: benchmark_types.ScoringSettings,
+    instance_scores: Iterable[scoring_types.InstanceScore],
+    settings: scoring_types.ScoringSettings,
 ) -> dict[str, float]:
     """Compute the diagnostics named in `settings.instance_aggregations`."""
     instances = list(instance_scores)
@@ -178,7 +216,7 @@ def aggregate_instances(
 
 
 def instance_score_to_row(
-    instance_score: benchmark_types.InstanceScore,
+    instance_score: scoring_types.InstanceScore,
 ) -> dict[str, int | float | bool]:
     """Flatten an `InstanceScore` into a row for an analysis dataframe.
 
@@ -199,7 +237,7 @@ def instance_score_to_row(
 
 
 def instance_scores_to_dataframe(
-    instance_scores: Iterable[benchmark_types.InstanceScore],
+    instance_scores: Iterable[scoring_types.InstanceScore],
     weights: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """Wide dataframe with every per-metric value and every aggregation variant.

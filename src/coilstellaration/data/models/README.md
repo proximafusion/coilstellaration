@@ -1,11 +1,18 @@
 # Local model checkpoints
 
-This directory holds Flax NNX checkpoints copied out of the dapper-based
-pipeline. Files here are bundled into
+This directory holds one trained Flax NNX checkpoint,
+`mlp_DHmCARHZ4ay9rsMDPdjVCu3.json`: an `mlp` model for the `fixed_shape` track
+(NFP 3, 5 coils per half period). `examples/run_model_prediction.py`, the unit
+tests and the fixed-shape golden file use it. Files here are bundled into
 the wheel by hatchling's `include = ["src/coilstellaration/**", ...]` rule
 (see `pyproject.toml`), so they ship with `pip install coilstellaration`
 and are reachable at runtime via `importlib.resources` regardless of the
 current working directory.
+
+Files are named `<model_kind>_<id>.json`, where `<model_kind>` is the
+checkpoint's `config.model_kind` and `<id>` identifies the training run it came
+from. `paths.model_path("<id>")` resolves a file from its ID alone, and also
+accepts a plain `<id>.json`, the name `examples/run_model_training.py` writes.
 
 The on-disk format is JSON produced by pydantic's `model_dump_json()`. The
 archive payload is `coilstellaration.types.Blob`; its JSON shape is a
@@ -14,37 +21,20 @@ superset of `dapper.Blob`'s, so a JSON dump of a dapper-era
 `dapper_is_blob` marker is silently dropped by pydantic's default
 `extra="ignore"`).
 
-## One-shot export
-
-```python
-from pathlib import Path
-
-import dapper
-from beta.coilstellaration.machine_learning import types as legacy_types
-
-storage_id = "<paste_dapper_storage_id_here>"
-out_path = Path(
-    "/workspaces/constellaration_update/src/coilstellaration/data/models"
-    "/<friendly_name>.json"
-)
-
-ckpt = dapper.read(legacy_types.CoilPredictorCheckpoint, storage_id)
-out_path.write_text(ckpt.model_dump_json())
-```
-
 ## Loading from `coilstellaration`
 
 ```python
-from coilstellaration import flax_nnx_checkpoint_util, paths, types
 from coilstellaration.machine_learning import model_definition
+from coilstellaration.machine_learning import utils as ml_utils
 
-ckpt = types.CoilPredictorCheckpoint.model_validate_json(
-    paths.model_path("<friendly_name>").read_text()
-)
-model = flax_nnx_checkpoint_util.from_checkpoint(
-    ckpt, model_definition.CoilPredictor
-)
+ckpt = ml_utils.read_checkpoint_from_id("<model_kind>", "<id>")
+model = model_definition.read_model_from_checkpoint(ckpt)
 ```
+
+`read_checkpoint_from_id` validates the JSON against the checkpoint type of
+`<model_kind>`, and `read_model_from_checkpoint` rebuilds the matching module
+in eval mode. To load a checkpoint you trained yourself, pass its path as
+`read_checkpoint_from_id(..., model_data_path=...)`.
 
 ## Sizing note
 

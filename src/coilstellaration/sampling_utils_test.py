@@ -7,6 +7,8 @@ from coilstellaration import sampling_utils
 
 
 class _ProbeTemplate[Numeric, Categorical](pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(frozen=True)
+
     a: Numeric
     b: Categorical
 
@@ -26,7 +28,7 @@ def test_template_parametrizes_into_distinct_classes() -> None:
 
 def test_template_parametrized_instances_freeze() -> None:
     bounds = _ProbeBounds(a=(1, 5), b=frozenset({"x"}))
-    with pytest.raises(Exception):
+    with pytest.raises(pydantic.ValidationError, match="Instance is frozen"):
         bounds.a = (2, 6)
 
 

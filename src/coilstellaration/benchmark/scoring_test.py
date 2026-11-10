@@ -6,10 +6,11 @@ from unittest import mock
 import pandas as pd
 import pydantic
 import pytest
-
 from coilstellaration import types
-from coilstellaration.benchmark import scoring
-from coilstellaration.benchmark import types as benchmark_types
+from coilstellaration.benchmark import (
+    scoring,
+    scoring_types,
+)
 
 
 def _make_target(
@@ -18,12 +19,14 @@ def _make_target(
     coil_to_plasma: float = 0.4,
     curvature: float = 2.0,
     field_error: float = 0.01,
+    n_coils: int = 5,
 ) -> types.RequirementMetrics:
     return types.RequirementMetrics(
         min_normalized_coil_to_coil_distance=coil_to_coil,
         min_normalized_coil_to_plasma_distance=coil_to_plasma,
         max_normalized_coil_curvature=curvature,
         max_normalized_field_error=field_error,
+        n_coils_per_half_period=n_coils,
     )
 
 
@@ -44,7 +47,7 @@ def test_compute_violations_feasible_is_zero():
     target = _make_target()
     v = scoring.compute_violations(achieved, target, target_floor=1e-6)
     assert all(val == 0.0 for val in v.values())
-    assert set(v) == set(benchmark_types.REQUIREMENT_METRIC_DIRECTIONS)
+    assert set(v) == set(scoring_types.REQUIREMENT_METRIC_DIRECTIONS)
 
 
 def test_compute_violations_upper_bound_violation_is_relative():
@@ -80,11 +83,26 @@ def test_compute_violations_target_floor_caps_near_zero_target():
     )
 
 
+@pytest.mark.parametrize("bad_value", [math.nan, math.inf])
+def test_score_instance_non_finite_metric_is_infeasible_and_scores_zero(
+    bad_value: float,
+):
+    achieved = _make_target(
+        coil_to_coil=0.6, coil_to_plasma=0.5, curvature=1.5, field_error=bad_value
+    )
+    score = scoring.score_instance(
+        "b", achieved, _make_target(), scoring_types.ScoringSettings()
+    )
+    assert score.metric_scores.violations["max_normalized_field_error"] == math.inf
+    assert not score.metric_scores.strictly_feasible
+    assert score.aggregate == 0.0
+
+
 # --- apply_soft_score ---
 
 
 def test_apply_soft_score_exponential_at_zero_and_alpha():
-    settings = benchmark_types.ScoringSettings(soft_score="exponential")
+    settings = scoring_types.ScoringSettings(soft_score="exponential")
     violations = {
         "min_normalized_coil_to_coil_distance": 0.0,
         "min_normalized_coil_to_plasma_distance": settings.tolerances[
@@ -99,7 +117,7 @@ def test_apply_soft_score_exponential_at_zero_and_alpha():
 
 
 def test_apply_soft_score_linear_ramp_hits_zero_at_alpha():
-    settings = benchmark_types.ScoringSettings(soft_score="linear_ramp")
+    settings = scoring_types.ScoringSettings(soft_score="linear_ramp")
     alpha = settings.tolerances["max_normalized_field_error"]
     violations = {
         "min_normalized_coil_to_coil_distance": 0.0,
@@ -121,18 +139,18 @@ def test_apply_soft_score_linear_ramp_hits_zero_at_alpha():
 def _all_ones_except(field: str, value: float) -> dict[str, float]:
     return {
         f: (value if f == field else 1.0)
-        for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS
+        for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS
     }
 
 
 def test_aggregate_metrics_geometric_mean_zero_collapses_to_zero():
-    settings = benchmark_types.ScoringSettings(metric_aggregation="geometric_mean")
+    settings = scoring_types.ScoringSettings(metric_aggregation="geometric_mean")
     soft = _all_ones_except("max_normalized_field_error", 0.0)
     assert scoring.aggregate_metrics(soft, settings) == 0.0
 
 
 def test_aggregate_metrics_geometric_mean_matches_formula():
-    settings = benchmark_types.ScoringSettings(metric_aggregation="geometric_mean")
+    settings = scoring_types.ScoringSettings(metric_aggregation="geometric_mean")
     soft = {
         "min_normalized_coil_to_coil_distance": 0.5,
         "min_normalized_coil_to_plasma_distance": 0.5,
@@ -143,13 +161,13 @@ def test_aggregate_metrics_geometric_mean_matches_formula():
 
 
 def test_aggregate_metrics_min():
-    settings = benchmark_types.ScoringSettings(metric_aggregation="min")
+    settings = scoring_types.ScoringSettings(metric_aggregation="min")
     soft = _all_ones_except("max_normalized_coil_curvature", 0.3)
     assert scoring.aggregate_metrics(soft, settings) == pytest.approx(0.3)
 
 
 def test_aggregate_metrics_arithmetic_mean():
-    settings = benchmark_types.ScoringSettings(metric_aggregation="arithmetic_mean")
+    settings = scoring_types.ScoringSettings(metric_aggregation="arithmetic_mean")
     soft = _all_ones_except("max_normalized_coil_curvature", 0.0)
     # Three 1.0s and a 0.0 average to 0.75 (the case the agent flagged).
     assert scoring.aggregate_metrics(soft, settings) == pytest.approx(0.75)
@@ -162,7 +180,7 @@ def test_aggregate_metrics_weighted_geometric_mean():
         "max_normalized_coil_curvature": 0.2,
         "max_normalized_field_error": 0.6,
     }
-    settings = benchmark_types.ScoringSettings(
+    settings = scoring_types.ScoringSettings(
         metric_aggregation="weighted_geometric_mean",
         metric_weights=weights,
     )
@@ -183,7 +201,7 @@ def test_aggregate_metrics_weighted_geometric_mean_zero_collapses():
         "max_normalized_coil_curvature": 0.25,
         "max_normalized_field_error": 0.25,
     }
-    settings = benchmark_types.ScoringSettings(
+    settings = scoring_types.ScoringSettings(
         metric_aggregation="weighted_geometric_mean",
         metric_weights=weights,
     )
@@ -195,7 +213,7 @@ def test_aggregate_metrics_weighted_geometric_mean_zero_collapses():
 
 
 def test_score_instance_feasible_yields_one_and_strictly_feasible():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instance = scoring.score_instance(
         boundary_id="b0",
         achieved=_make_achieved_feasible(),
@@ -209,7 +227,7 @@ def test_score_instance_feasible_yields_one_and_strictly_feasible():
 
 
 def test_score_instance_infeasible_drops_aggregate():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     target = _make_target(field_error=0.01)
     achieved = _make_target(
         coil_to_coil=0.6,
@@ -227,16 +245,31 @@ def test_score_instance_infeasible_drops_aggregate():
     ] == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize(
+    ("tolerance", "expected_feasible"), [(0.0, False), (0.01, True), (0.001, False)]
+)
+def test_score_instance_strict_feasibility_tolerance(
+    tolerance: float, expected_feasible: bool
+):
+    # Curvature 0.5% over the cap.
+    achieved = _make_target(
+        coil_to_coil=0.6, coil_to_plasma=0.5, curvature=2.01, field_error=0.005
+    )
+    settings = scoring_types.ScoringSettings(strict_feasibility_tolerance=tolerance)
+    instance = scoring.score_instance("b", achieved, _make_target(), settings)
+    assert instance.metric_scores.strictly_feasible is expected_feasible
+
+
 # --- aggregate_instances + score_benchmark ---
 
 
 def _instance(
     boundary_id: str, aggregate: float, feasible: bool
-) -> benchmark_types.InstanceScore:
-    zeros = {f: 0.0 for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS}
-    return benchmark_types.InstanceScore(
+) -> scoring_types.InstanceScore:
+    zeros = {f: 0.0 for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS}
+    return scoring_types.InstanceScore(
         boundary_id=boundary_id,
-        metric_scores=benchmark_types.MetricScores(
+        metric_scores=scoring_types.MetricScores(
             violations=zeros,
             soft_scores=zeros,
             strictly_feasible=feasible,
@@ -246,7 +279,7 @@ def _instance(
 
 
 def test_aggregate_instances_reports_each_summary():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instances = [
         _instance("a", 1.0, feasible=True),
         _instance("b", 0.95, feasible=False),
@@ -262,7 +295,7 @@ def test_aggregate_instances_reports_each_summary():
 
 
 def test_score_benchmark_round_trip():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     target = _make_target()
     achieved_good = _make_achieved_feasible()
     achieved_bad = _make_target(
@@ -283,29 +316,29 @@ def test_score_benchmark_round_trip():
 
 def test_scoring_settings_rejects_missing_tolerance_fields():
     with pytest.raises(pydantic.ValidationError, match="tolerances keys"):
-        benchmark_types.ScoringSettings(
+        scoring_types.ScoringSettings(
             tolerances={"min_normalized_coil_to_coil_distance": 0.1},
         )
 
 
 def test_scoring_settings_rejects_nonpositive_tolerance():
-    bad = {f: 0.1 for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS}
+    bad = {f: 0.1 for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS}
     bad["max_normalized_field_error"] = 0.0
     with pytest.raises(pydantic.ValidationError, match="strictly positive"):
-        benchmark_types.ScoringSettings(tolerances=bad)
+        scoring_types.ScoringSettings(tolerances=bad)
 
 
 def test_scoring_settings_weighted_requires_weights():
     with pytest.raises(pydantic.ValidationError, match="requires metric_weights"):
-        benchmark_types.ScoringSettings(metric_aggregation="weighted_geometric_mean")
+        scoring_types.ScoringSettings(metric_aggregation="weighted_geometric_mean")
 
 
 def test_scoring_settings_weights_must_sum_to_one():
     with pytest.raises(pydantic.ValidationError, match="must sum to 1"):
-        benchmark_types.ScoringSettings(
+        scoring_types.ScoringSettings(
             metric_aggregation="weighted_geometric_mean",
             metric_weights={
-                f: 0.1 for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS
+                f: 0.1 for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS
             },
         )
 
@@ -324,7 +357,7 @@ def _stub_eval_data(
 
 
 def test_score_eval_data_uses_eval_data_target_and_id():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     target = _make_target()
     achieved = _make_achieved_feasible()
     eval_data = _stub_eval_data("boundary-42", target)
@@ -337,7 +370,7 @@ def test_score_eval_data_uses_eval_data_target_and_id():
 
 
 def test_score_eval_data_matches_score_instance_directly():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     target = _make_target()
     achieved = _make_target(
         coil_to_coil=0.6, coil_to_plasma=0.5, curvature=1.5, field_error=0.02
@@ -354,8 +387,8 @@ def test_score_eval_data_matches_score_instance_directly():
 # --- instance_score_to_row ---
 
 
-def test_instance_score_to_row_keys_and_value_benchmark_types():
-    settings = benchmark_types.ScoringSettings()
+def test_instance_score_to_row_keys_and_value_scoring_types():
+    settings = scoring_types.ScoringSettings()
     instance = scoring.score_instance(
         boundary_id="b0",
         achieved=_make_achieved_feasible(),
@@ -369,16 +402,16 @@ def test_instance_score_to_row_keys_and_value_benchmark_types():
     assert "boundary_id" not in row
     assert set(row) == (
         {"score", "strictly_feasible"}
-        | {f"violation/{f}" for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS}
-        | {f"soft_score/{f}" for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS}
+        | {f"violation/{f}" for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS}
+        | {f"soft_score/{f}" for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS}
     )
-    # Value benchmark_types match the slack contract: int | float | bool only.
+    # Value scoring_types match the slack contract: int | float | bool only.
     for k, v in row.items():
         assert isinstance(v, (int, float, bool)), f"{k} -> {type(v).__name__}"
 
 
 def test_instance_score_to_row_values_match_instance():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     achieved = _make_target(
         coil_to_coil=0.6, coil_to_plasma=0.5, curvature=1.5, field_error=0.02
     )
@@ -393,13 +426,13 @@ def test_instance_score_to_row_values_match_instance():
 
     assert row["score"] == instance.aggregate
     assert row["strictly_feasible"] == instance.metric_scores.strictly_feasible
-    for field in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS:
+    for field in scoring_types.REQUIREMENT_METRIC_DIRECTIONS:
         assert row[f"violation/{field}"] == instance.metric_scores.violations[field]
         assert row[f"soft_score/{field}"] == instance.metric_scores.soft_scores[field]
 
 
 def test_instance_score_to_row_is_dataframe_friendly():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instances = [
         scoring.score_instance(
             "good", _make_achieved_feasible(), _make_target(), settings
@@ -433,12 +466,54 @@ def test_instance_score_to_row_is_dataframe_friendly():
     assert scores[1] < 1.0
 
 
+def test_coil_count_mismatch_scores_zero():
+    settings = scoring_types.ScoringSettings()
+    eval_data = mock.Mock(boundary_id="b", requirement_metrics=_make_target(n_coils=5))
+    achieved = _make_achieved_feasible().model_copy(
+        update={"n_coils_per_half_period": 4}
+    )
+    score = scoring.score_eval_data(eval_data, achieved, settings)
+    assert score.boundary_id == "b"
+    assert score.aggregate == 0.0
+    assert score.metric_scores.strictly_feasible is False
+    fields = set(scoring_types.REQUIREMENT_METRIC_DIRECTIONS)
+    assert set(score.metric_scores.violations) == fields
+    assert set(score.metric_scores.soft_scores) == fields
+    assert all(v == math.inf for v in score.metric_scores.violations.values())
+    assert all(v == 0.0 for v in score.metric_scores.soft_scores.values())
+
+
+def test_coil_count_match_keeps_existing_score():
+    settings = scoring_types.ScoringSettings()
+    eval_data = mock.Mock(boundary_id="b", requirement_metrics=_make_target())
+    score = scoring.score_eval_data(eval_data, _make_achieved_feasible(), settings)
+    assert score == scoring.score_instance(
+        "b", _make_achieved_feasible(), _make_target(), settings
+    )
+    assert score.aggregate == pytest.approx(1.0)
+    assert score.metric_scores.strictly_feasible is True
+
+
+def test_instance_score_to_row_for_zero_score_has_all_columns():
+    normal = scoring.score_instance(
+        "n",
+        _make_achieved_feasible(),
+        _make_target(),
+        scoring_types.ScoringSettings(),
+    )
+    zero = scoring.zero_instance_score("z")
+    zero_row = scoring.instance_score_to_row(zero)
+    assert set(zero_row) == set(scoring.instance_score_to_row(normal))
+    assert zero_row["score"] == 0.0
+    assert zero_row["strictly_feasible"] is False
+
+
 # --- instance_scores_to_dataframe + summarize_scores ---
 
 
 def _scored_pair(
-    settings: benchmark_types.ScoringSettings,
-) -> list[benchmark_types.InstanceScore]:
+    settings: scoring_types.ScoringSettings,
+) -> list[scoring_types.InstanceScore]:
     """A 2-instance set: one feasible, one with a single bad metric."""
     target = _make_target()
     achieved_good = _make_achieved_feasible()
@@ -455,7 +530,7 @@ def _scored_pair(
 
 
 def test_instance_scores_to_dataframe_columns_and_shape():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instances = _scored_pair(settings)
 
     df = scoring.instance_scores_to_dataframe(instances)
@@ -463,8 +538,8 @@ def test_instance_scores_to_dataframe_columns_and_shape():
     assert len(df) == 2
     expected_columns = (
         {"boundary_id", "strictly_feasible"}
-        | {f"violation/{f}" for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS}
-        | {f"soft_score/{f}" for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS}
+        | {f"violation/{f}" for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS}
+        | {f"soft_score/{f}" for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS}
         | {"score/geometric_mean", "score/min", "score/arithmetic_mean"}
     )
     assert set(df.columns) == expected_columns
@@ -474,7 +549,7 @@ def test_instance_scores_to_dataframe_columns_and_shape():
 def test_instance_scores_to_dataframe_geometric_mean_matches_instance():
     """`score/geometric_mean` column equals the per-instance aggregate when settings use
     that aggregation."""
-    settings = benchmark_types.ScoringSettings(metric_aggregation="geometric_mean")
+    settings = scoring_types.ScoringSettings(metric_aggregation="geometric_mean")
     instances = _scored_pair(settings)
 
     df = scoring.instance_scores_to_dataframe(instances)
@@ -486,7 +561,7 @@ def test_instance_scores_to_dataframe_geometric_mean_matches_instance():
 
 def test_instance_scores_to_dataframe_min_and_arithmetic_consistent():
     """Min and arithmetic_mean values match what `aggregate_metrics` would compute."""
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instances = _scored_pair(settings)
 
     df = scoring.instance_scores_to_dataframe(instances)
@@ -500,7 +575,7 @@ def test_instance_scores_to_dataframe_min_and_arithmetic_consistent():
 
 
 def test_instance_scores_to_dataframe_weighted_column_only_when_weights_given():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instances = _scored_pair(settings)
 
     df_no_weights = scoring.instance_scores_to_dataframe(instances)
@@ -521,17 +596,17 @@ def test_instance_scores_to_dataframe_weighted_column_only_when_weights_given():
 
 
 def test_instance_scores_to_dataframe_rejects_bad_weights():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instances = _scored_pair(settings)
     with pytest.raises(ValueError, match="must sum to 1"):
         scoring.instance_scores_to_dataframe(
             instances,
-            weights={f: 0.1 for f in benchmark_types.REQUIREMENT_METRIC_DIRECTIONS},
+            weights={f: 0.1 for f in scoring_types.REQUIREMENT_METRIC_DIRECTIONS},
         )
 
 
 def test_summarize_scores_rows_and_columns():
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instances = _scored_pair(settings)
     df = scoring.instance_scores_to_dataframe(instances)
 
@@ -556,7 +631,7 @@ def test_summarize_scores_rows_and_columns():
 
 def test_summarize_scores_can_rank_aggregations():
     """For the test pair, arithmetic_mean is more lenient than geometric_mean."""
-    settings = benchmark_types.ScoringSettings()
+    settings = scoring_types.ScoringSettings()
     instances = _scored_pair(settings)
     df = scoring.instance_scores_to_dataframe(instances)
 

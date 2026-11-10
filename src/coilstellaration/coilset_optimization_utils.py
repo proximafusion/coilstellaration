@@ -96,9 +96,7 @@ class CoilCurvatureResidual(_CoilObjective):
 
         _Objective.build(self, use_jit=use_jit, verbose=verbose)
 
-    def compute(
-        self, params, constants=None
-    ):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def compute(self, params, constants=None):  # pyright: ignore[reportIncompatibleMethodOverride]
         data = cast(
             Any,
             tree_leaves(
@@ -143,8 +141,10 @@ def optimize_filamentary_coilset(
     major_radius = data["R0"]
     aspect_ratio = major_radius / minor_radius
     logger.info(
-        f"Equilibrium has {minor_radius=:.3f}m, {major_radius=:.3f}m, "
-        f"and {aspect_ratio=:.3f}"
+        "Equilibrium has minor_radius=%.3fm, major_radius=%.3fm, and aspect_ratio=%.3f",
+        minor_radius,
+        major_radius,
+        aspect_ratio,
     )
 
     coil_plasma_min_distance = normalized_coil_plasma_min_distance * minor_radius
@@ -152,9 +152,11 @@ def optimize_filamentary_coilset(
     coil_max_curvature = normalized_coil_max_curvature / minor_radius
 
     logger.info(
-        f"Using {coil_coil_min_distance=:.3f}m, "
-        f"{coil_plasma_min_distance=:.3f}m, and "
-        f"{coil_max_curvature:.3f}m^-1"
+        "Using coil_coil_min_distance=%.3fm, coil_plasma_min_distance=%.3fm, and "
+        "%.3fm^-1",
+        coil_coil_min_distance,
+        coil_plasma_min_distance,
+        coil_max_curvature,
     )
 
     if not (0.0 <= objective_lambda <= 1.0):
@@ -176,8 +178,7 @@ def optimize_filamentary_coilset(
         coilset,
         target=0,
         grid=coil_grid,
-        weight=objective_lambda
-        * objective_scaling_factor,  # pyright: ignore[reportArgumentType]
+        weight=objective_lambda * objective_scaling_factor,  # pyright: ignore[reportArgumentType]
         normalize=True,
     )
     obj_quadratic_flux = QuadraticFlux(
@@ -187,8 +188,7 @@ def optimize_filamentary_coilset(
         eval_grid=surf_grid,
         field_grid=coil_grid,
         vacuum=True,
-        weight=(1.0 - objective_lambda)
-        * objective_scaling_factor,  # pyright: ignore[reportArgumentType]
+        weight=(1.0 - objective_lambda) * objective_scaling_factor,  # pyright: ignore[reportArgumentType]
         normalize=True,
     )
 
@@ -239,7 +239,7 @@ def optimize_filamentary_coilset(
     optimizer = Optimizer(settings.optimizer)
 
     logger.info(
-        f"Running optimization ({settings.optimizer}, maxiter={settings.maxiter})"
+        "Running optimization (%s, maxiter=%s)", settings.optimizer, settings.maxiter
     )
     optimizer_options = settings.optimizer_options or {}
     if x_scale_mode == "ess":
