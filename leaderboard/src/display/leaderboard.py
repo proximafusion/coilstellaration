@@ -79,11 +79,11 @@ def style_frame(df: pd.DataFrame, highlight_columns, integer_columns=()):
 
 
 _HTML_TAG = re.compile(r"<[^>]+>")
-_LINK = re.compile(r'<a\b[^>]*\bhref="([^"]+)"[^>]*>\s*Link\s*</a>')
+_LINK = re.compile(r'<a\b[^>]*\bhref="([^"]+)"[^>]*>\s*link\s*</a>')
 
 
 def _plain(value):
-    """A cell as plain text: a "Link" anchor becomes its URL, other HTML its text."""
+    """A cell as plain text: a "link" anchor becomes its URL, other HTML its text."""
     if not isinstance(value, str):
         return value
     if match := _LINK.fullmatch(value.strip()):
@@ -94,7 +94,7 @@ def _plain(value):
 def write_csv(df: pd.DataFrame, name: str) -> str:
     """Write `df` to a new CSV file called `<name>.csv`; return its path.
 
-    "Link" cells become their URL, and other HTML links are reduced to their
+    "link" cells become their URL, and other HTML links are reduced to their
     text.
     Each call gets its own directory, so concurrent users don't overwrite each
     other's files.

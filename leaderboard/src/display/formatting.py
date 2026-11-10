@@ -22,11 +22,11 @@ def make_user_link(username):
 
 
 def make_results_link(results_repo, path):
-    """A "Link" to `path` in the `results_repo` dataset; blank without a path."""
+    """A "link" to `path` in the `results_repo` dataset; blank without a path."""
     if not path:
         return ""
     link = f"https://huggingface.co/datasets/{results_repo}/blob/main/{path}"
-    return model_hyperlink(link, "Link")
+    return model_hyperlink(link, "link")
 
 
 def make_clickable_commit(model_name, commit_hash):

@@ -37,7 +37,7 @@ _column("submitted", "submission time", "date", True)
 _column("user", "user", "markdown", True)
 _column("strict", "strict", "number", True)
 _column("mean", "mean", "number", True)
-# "Link" to the per-instance scores parquet in the results dataset.
+# "link" to the per-instance scores parquet in the results dataset.
 _column("full_results", "full results", "markdown", True)
 
 # Offered in the Columns selector.

@@ -70,7 +70,7 @@ def test_write_csv_turns_links_into_urls():
     path = write_csv(df, "board-fixed_shape-All")
     assert path.endswith("board-fixed_shape-All.csv")
     out = pd.read_csv(path)
-    # A "Link" cell becomes the URL it points to; other links become their text.
+    # A "link" cell becomes the URL it points to; other links become their text.
     base = f"https://huggingface.co/datasets/{RESULTS_REPO}/blob/main"
     assert list(out["full results"]) == [
         f"{base}/org/alpha_abc_model.parquet",
