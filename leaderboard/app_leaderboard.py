@@ -50,6 +50,8 @@ try:
         repo_id=RESULTS_REPO,
         local_dir=EVAL_RESULTS_PATH,
         repo_type="dataset",
+        # Only the JSON summaries; the parquet and ONNX files aren't displayed.
+        allow_patterns="*.json",
         tqdm_class=None,
         etag_timeout=30,
         token=TOKEN,
