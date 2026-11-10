@@ -15,8 +15,8 @@ OWNER = os.environ.get("COILBENCH_OWNER", "proxima-fusion")
 REPO_NAME = os.environ.get("COILBENCH_REPO", "coilstellaration-bench")
 
 REPO_ID = f"{OWNER}/{REPO_NAME}"
-QUEUE_REPO = f"{OWNER}/requests"
-RESULTS_REPO = f"{OWNER}/results"
+QUEUE_REPO = f"{OWNER}/{REPO_NAME}-requests"
+RESULTS_REPO = f"{OWNER}/{REPO_NAME}-results"
 
 # If you setup a cache later, just change HF_HOME
 CACHE_PATH = os.getenv("HF_HOME", ".")

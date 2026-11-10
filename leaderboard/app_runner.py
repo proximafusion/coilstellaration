@@ -12,7 +12,7 @@ variable COILBENCH_ROLE=worker — `app.py` then imports and launches this modul
     app_file: runner_app.py
 
 Required secrets / variables on the worker Space:
-    HF_TOKEN          write access to <OWNER>/requests and <OWNER>/results,
+    HF_TOKEN          write access to the requests and results datasets,
                       read access to submitted model repos
     COILBENCH_OWNER   org owning the requests/results datasets (default proxima-fusion)
 Optional:

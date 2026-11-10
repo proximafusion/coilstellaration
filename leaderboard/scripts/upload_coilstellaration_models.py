@@ -7,10 +7,11 @@ git-ignored (see `.gitignore`); this script gets them onto the Hub instead:
   1. Upload every `examples/*.onnx` model into one Hub *model* repo
      (`jhewers/coilstellaration-models` by default), each kept at its own
      filename so a single repo holds all architectures.
-  2. For each uploaded file, queue an eval *request* in the `requests` dataset
-     (`jhewers/requests`) with `n_instances=10`, by delegating to the leaderboard's
-     own `add_new_eval` -- so the request JSON, ONNX-contract validation, and
-     dedup all match exactly what the backend produces for a web submission.
+  2. For each uploaded file, queue an eval *request* in the requests dataset
+     (`<owner>/coilstellaration-bench-requests`) with `n_instances=10`, by
+     delegating to the leaderboard's own `add_new_eval` -- so the request JSON,
+     ONNX-contract validation, and dedup all match exactly what the backend
+     produces for a web submission.
 
 Auth: needs a write `HF_TOKEN` for the target org.
 
@@ -89,9 +90,14 @@ def main() -> int:
     print(f"Found {len(onnx_files)} model(s) in {args.examples_dir}:")
     for f in onnx_files:
         print(f"  {f.name}")
+    # Point the leaderboard's QUEUE_REPO at <owner>'s requests dataset. envs.py
+    # reads this at import time, so set it before importing anything under `src`.
+    os.environ.setdefault("COILBENCH_OWNER", owner)
+    from leaderboard.src.envs import QUEUE_REPO
+
     print(f"-> model repo:   {models_repo}")
     print(
-        f"-> requests repo: {owner}/requests  "
+        f"-> requests repo: {QUEUE_REPO}  "
         f"(n_instances={args.n_instances}, submitter={submitter})"
     )
 
@@ -106,11 +112,7 @@ def main() -> int:
         )
         return 1
 
-    # Point the leaderboard's QUEUE_REPO at <owner>/requests. envs.py reads this
-    # at import time, so it must be set before importing anything under `src`.
-    os.environ.setdefault("COILBENCH_OWNER", owner)
-
-    from leaderboard.src.envs import API, QUEUE_REPO, TOKEN  # pyright: ignore[reportMissingImports]
+    from leaderboard.src.envs import API, TOKEN  # pyright: ignore[reportMissingImports]
     from leaderboard.src.submission.submit import add_new_eval  # pyright: ignore[reportMissingImports]
 
     # 1) Ensure the model repo exists, then push the ONNX files + a model card.

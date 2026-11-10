@@ -16,18 +16,20 @@ those at sync time: the README from the matching `space.*.md`, the requirements
 from `uv.lock` (this package plus the `leaderboard` dependency group). Edit
 `space.*.md`, not the README on the Hub; the next sync overwrites it.
 
-The Spaces communicate only through two datasets under `<OWNER>` (set by
-`COILBENCH_OWNER`, default `proxima-fusion`):
+The Spaces communicate only through two datasets, `<OWNER>/<REPO>-requests` (the
+submission queue) and `<OWNER>/<REPO>-results` (scored results). `<OWNER>` is
+`COILBENCH_OWNER` (default `proxima-fusion`) and `<REPO>` is `COILBENCH_REPO`
+(default `coilstellaration-bench`), so by default:
 
-- `<OWNER>/requests` — the submission queue
-- `<OWNER>/results` — scored results
+- `proxima-fusion/coilstellaration-bench-requests`
+- `proxima-fusion/coilstellaration-bench-results`
 
 Create them once and make sure your token can write to them:
 
 ```bash
 huggingface-cli login
-huggingface-cli repo create requests --type dataset --organization <OWNER>
-huggingface-cli repo create results  --type dataset --organization <OWNER>
+huggingface-cli repo create coilstellaration-bench-requests --type dataset --organization proxima-fusion
+huggingface-cli repo create coilstellaration-bench-results  --type dataset --organization proxima-fusion
 ```
 
 The workflow needs a GitHub secret `HF_TOKEN` with write access to both Spaces.
@@ -45,8 +47,8 @@ branches on the `COILBENCH_ROLE` variable. Add these Space **secrets / variables
 
 - `COILBENCH_ROLE` = `runner`  ← this flips the Space into worker mode, which
   launches `app_runner.py` instead of the leaderboard.
-- `HF_TOKEN` — write access to `<OWNER>/requests` + `<OWNER>/results`, read
-  access to submitted model repos.
+- `HF_TOKEN` — write access to the requests and results datasets, read access
+  to submitted model repos.
 - `COILBENCH_OWNER` — only if not `proxima-fusion`.
 - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
 - `COILBENCH_N` (optional) — instances per track; `0` = full split.
