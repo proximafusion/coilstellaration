@@ -45,8 +45,10 @@ def search_rows(df: pd.DataFrame, query: str, columns) -> pd.DataFrame:
     return df[mask]
 
 
-# How the best value in each metric column is marked.
-BEST_VALUE_CSS = "font-weight: bold; color: var(--color-accent);"
+# How the best value in each metric column is marked: Medium weight on a pale
+# surface (the design system has no bold, and teal text is not allowed).
+# `--pf-best-bg` is set per light/dark mode in the app's CSS.
+BEST_VALUE_CSS = "font-weight: 500; background: var(--pf-best-bg);"
 
 
 def style_frame(df: pd.DataFrame, highlight_columns, integer_columns=()):
@@ -105,6 +107,7 @@ def Leaderboard(
     track_labels=None,
     track_label="Track",
     stratum_label="Stratum",
+    stratum_info=None,
     highlight_columns=None,
     integer_columns=None,
     label=None,
@@ -172,30 +175,47 @@ def Leaderboard(
             write_csv(df, csv_name(track, stratum)),
         )
 
-    # The track/stratum switches sit above the table; a plain State stands in
-    # for an axis with a single value so `view`'s signature stays uniform.
-    track_radio = (
-        gr.Radio(
-            choices=[track_labels[t] for t in tracks],
-            value=track_labels[default_track],
-            label=track_label,
+    # Search and the track/stratum switches share a row above the table; the column
+    # picker is folded away below them. A plain State stands in for an axis with a
+    # single value so `view`'s signature stays uniform.
+    with gr.Row(equal_height=True):
+        search_box = (
+            gr.Textbox(
+                label="Search",
+                placeholder="Model or submitter",
+                scale=2,
+            )
+            if search_columns
+            else None
         )
-        if len(tracks) > 1
-        else None
-    )
-    stratum_radio = (
-        gr.Radio(choices=strata, value=default_stratum, label=stratum_label)
-        if len(strata) > 1
-        else None
-    )
-    column_picker = gr.CheckboxGroup(
-        choices=selectable,
-        value=select_columns.default_selection,
-        label=select_columns.label,
-    )
-    search_box = (
-        gr.Textbox(label="Search", placeholder="Search…") if search_columns else None
-    )
+        track_radio = (
+            gr.Radio(
+                choices=[track_labels[t] for t in tracks],
+                value=track_labels[default_track],
+                label=track_label,
+                scale=1,
+            )
+            if len(tracks) > 1
+            else None
+        )
+        stratum_radio = (
+            gr.Radio(
+                choices=strata,
+                value=default_stratum,
+                label=stratum_label,
+                info=stratum_info,
+                scale=2,
+            )
+            if len(strata) > 1
+            else None
+        )
+    with gr.Accordion("Columns", open=False):
+        column_picker = gr.CheckboxGroup(
+            choices=selectable,
+            value=select_columns.default_selection,
+            label=select_columns.label,
+            show_label=False,
+        )
     filter_boxes = [
         gr.CheckboxGroup(
             choices=sorted(value[flt.column].astype(str).unique())
@@ -221,6 +241,8 @@ def Leaderboard(
         wrap=True,
         show_row_numbers=True,
         label=label,
+        show_label=False,
+        elem_id="leaderboard-table",
     )
     # Its file always matches the table: every view change rewrites it.
     download = gr.DownloadButton(
@@ -229,6 +251,7 @@ def Leaderboard(
             default_frame[default_keep], csv_name(default_track, default_stratum)
         ),
         size="sm",
+        variant="secondary",
     )
 
     controls = (

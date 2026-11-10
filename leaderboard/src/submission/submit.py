@@ -233,15 +233,15 @@ def add_new_eval(
         ) from exc
     if set(tracks) == set(get_args(config.TRACKS)):
         detail = (
-            "Model declares `supported_tracks=fixed_shape,variable_shape` — "
-            "will be scored on both tracks."
+            "It declares `supported_tracks=fixed_shape,variable_shape`, so it will "
+            "be scored on both tracks."
         )
     else:
         detail = (
-            "Model declares `supported_tracks=fixed_shape` — "
-            "will be scored on the fixed_shape track only."
+            "It declares `supported_tracks=fixed_shape`, so it will be scored on "
+            "the fixed_shape track only."
         )
     logger.info("Submission %s queued (PENDING) at %s", model, current_time)
-    message = "Your model has been submitted to the evaluation queue! " + detail
+    message = f"Submitted `{model}` to the evaluation queue. {detail}"
     gr.Info(message)
     return message

@@ -12,10 +12,12 @@ from leaderboard.src.about import (
     CITATION_INTRO_TEXT,
     CITATION_TEXT,
     EVALUATION_QUEUE_TEXT,
+    FOOTER_TEXT,
     INTRODUCTION_TEXT,
-    TITLE,
+    TITLE_CONT,
+    TITLE_LEAD,
 )
-from leaderboard.src.display.css_html_js import custom_css, theme
+from leaderboard.src.display.css_html_js import custom_css, header_html, theme
 from leaderboard.src.display.leaderboard import Leaderboard, SelectColumns
 from leaderboard.src.display.utils import (
     COLS,
@@ -99,16 +101,15 @@ def init_leaderboard(frames):
         strata=STRATUM_VIEWS,
         track_labels=TRACK_LABELS,
         track_label="Track",
-        stratum_label=(
-            "Stratum (All = paper headline; tight/medium/loose slice one stratum)"
-        ),
+        stratum_label="Stratum",
+        stratum_info="All pools the three strata (the paper's headline view).",
         datatype=[c.type for c in fields(AutoEvalColumn)],
         select_columns=SelectColumns(
             default_selection=[
                 c.name for c in fields(AutoEvalColumn) if c.displayed_by_default
             ],
             cant_deselect=[c.name for c in fields(AutoEvalColumn) if c.never_hidden],
-            label="Select Columns to Display:",
+            label="Columns",
         ),
         search_columns=[
             AutoEvalColumn.model_name.name,
@@ -135,20 +136,16 @@ def select_tab_from_url(request: gr.Request):
 # Passed to `app_leaderboard.launch()` (here and in app.py).
 LAUNCH_KWARGS = {"css": custom_css, "theme": theme}
 
-app_leaderboard = gr.Blocks()
+app_leaderboard = gr.Blocks(title="Coilstellaration benchmark | Proxima Fusion")
 with app_leaderboard:
-    gr.HTML(TITLE)
+    gr.HTML(header_html(TITLE_LEAD, TITLE_CONT))
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
-        with gr.TabItem(
-            "🏅 Coilstellaration Benchmark",
-            elem_id="benchmark-tab-table",
-            id="leaderboard",
-        ):
+        with gr.TabItem("Leaderboard", elem_id="benchmark-tab-table", id="leaderboard"):
             init_leaderboard(LEADERBOARD_FRAMES)
 
-        with gr.TabItem("📝 About", elem_id="about-tab", id="about"):
+        with gr.TabItem("About", elem_id="about-tab", id="about"):
             gr.Markdown(ABOUT_TEXT, elem_classes="markdown-text")
             gr.Markdown(CITATION_INTRO_TEXT, elem_classes="markdown-text")
             gr.Code(
@@ -159,70 +156,13 @@ with app_leaderboard:
             )
             gr.Markdown(CHANGELOG_TEXT, elem_classes="markdown-text")
 
-        with gr.TabItem("🚀 Submit here! ", elem_id="submit-tab", id="submit"):
-            with gr.Column():
-                with gr.Row():
-                    gr.Markdown(EVALUATION_QUEUE_TEXT, elem_classes="markdown-text")
-
-                with gr.Column():
-                    with gr.Accordion(
-                        f"✅ Finished Evaluations ({len(finished_eval_queue_df)})",
-                        open=False,
-                    ):
-                        with gr.Row():
-                            finished_eval_table = gr.components.Dataframe(
-                                value=finished_eval_queue_df,
-                                label="Finished evaluations",
-                                headers=EVAL_COLS,
-                                datatype=EVAL_TYPES,
-                                row_count=5,
-                            )
-                    with gr.Accordion(
-                        f"🔄 Running Evaluation Queue ({len(running_eval_queue_df)})",
-                        open=False,
-                    ):
-                        with gr.Row():
-                            running_eval_table = gr.components.Dataframe(
-                                value=running_eval_queue_df,
-                                label="Running evaluations",
-                                headers=EVAL_COLS,
-                                datatype=EVAL_TYPES,
-                                row_count=5,
-                            )
-
-                    with gr.Accordion(
-                        f"⏳ Pending Evaluation Queue ({len(pending_eval_queue_df)})",
-                        open=False,
-                    ):
-                        with gr.Row():
-                            pending_eval_table = gr.components.Dataframe(
-                                value=pending_eval_queue_df,
-                                label="Pending evaluations",
-                                headers=EVAL_COLS,
-                                datatype=EVAL_TYPES,
-                                row_count=5,
-                            )
-                    with gr.Accordion(
-                        f"❌ Failed Evaluations ({len(failed_eval_queue_df)})",
-                        open=False,
-                    ):
-                        with gr.Row():
-                            failed_eval_table = gr.components.Dataframe(
-                                value=failed_eval_queue_df,
-                                label="Failed evaluations",
-                                headers=EVAL_COLS,
-                                datatype=EVAL_TYPES,
-                                row_count=5,
-                            )
+        with gr.TabItem("Submit", elem_id="submit-tab", id="submit"):
+            # The form on the left, how submission works on the right.
             with gr.Row():
-                gr.Markdown(
-                    "# ✉️✨ Submit your model here!", elem_classes="markdown-text"
-                )
-
-            with gr.Row():
-                with gr.Column():
+                with gr.Column(scale=3):
                     model_name_textbox = gr.Textbox(
-                        label="Model repo (org/model)",
+                        label="Model repo",
+                        placeholder="org/model",
                         info="A public Hugging Face model repo.",
                     )
                     revision_name_textbox = gr.Textbox(
@@ -237,16 +177,19 @@ with app_leaderboard:
                         info="Path of the ONNX file within the repo.",
                     )
                     submitter_textbox = gr.Textbox(
-                        label="Submitter / contact",
-                        info="Shown on the leaderboard next to your model.",
+                        label="Submitter",
+                        info="Your name or contact. Shown on the leaderboard next "
+                        "to your model.",
                     )
                     no_eval_training_checkbox = gr.Checkbox(
                         label=NO_EVAL_TRAINING_DECLARATION,
                         value=False,
                     )
+                    submit_button = gr.Button("Submit model", variant="primary")
+                    submission_result = gr.Markdown(elem_classes="markdown-text")
+                with gr.Column(scale=2):
+                    gr.Markdown(EVALUATION_QUEUE_TEXT, elem_classes="markdown-text")
 
-            submit_button = gr.Button("Submit Eval", variant="primary")
-            submission_result = gr.Markdown()
             submission_inputs = [
                 model_name_textbox,
                 revision_name_textbox,
@@ -270,6 +213,25 @@ with app_leaderboard:
                 None,
                 submit_button,
             )
+
+            gr.Markdown("## Evaluation queue", elem_classes="markdown-text")
+            for title, frame in [
+                ("Running", running_eval_queue_df),
+                ("Pending", pending_eval_queue_df),
+                ("Finished", finished_eval_queue_df),
+                ("Failed", failed_eval_queue_df),
+            ]:
+                with gr.Accordion(f"{title} ({len(frame)})", open=False):
+                    gr.Dataframe(
+                        value=frame,
+                        label=f"{title} evaluations",
+                        show_label=False,
+                        datatype=EVAL_TYPES,
+                        row_count=5,
+                        interactive=False,
+                    )
+
+    gr.Markdown(FOOTER_TEXT, elem_id="pf-footer")
 
     # `?tab=about` or `?tab=submit` in the URL opens that tab.
     app_leaderboard.load(select_tab_from_url, None, tabs)

@@ -43,7 +43,8 @@ def test_style_frame_marks_column_maxima_and_rounds():
     ctx = styled._compute().ctx
     highlighted = {cell for cell, props in ctx.items() if props}
     assert highlighted == {(1, 1), (0, 2)}
-    assert BEST_VALUE_CSS.startswith("font-weight: bold")
+    # Medium weight on a pale surface: no bold, no teal text.
+    assert "font-weight: 500" in BEST_VALUE_CSS
 
 
 def test_style_frame_formats_counts_as_integers_and_other_numbers_to_3dp():

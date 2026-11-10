@@ -26,10 +26,9 @@ match coilbench_role:
 
         app_leaderboard.launch(**LAUNCH_KWARGS)
     case "runner":
-        from leaderboard.app_runner import app_runner
-        from leaderboard.src.display.css_html_js import theme
+        from leaderboard.app_runner import LAUNCH_KWARGS, app_runner
 
-        app_runner.launch(theme=theme)
+        app_runner.launch(**LAUNCH_KWARGS)
     case _:
         raise SystemExit(
             f"Unknown COILBENCH_ROLE={coilbench_role!r}; "

@@ -24,6 +24,7 @@ import gradio as gr
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from leaderboard.src.backend import runner
+from leaderboard.src.display.css_html_js import custom_css, header_html, theme
 from leaderboard.src.envs import OWNER, QUEUE_REPO, RESULTS_REPO
 
 INTERVAL = int(os.environ.get("COILBENCH_RUNNER_INTERVAL", "300"))
@@ -51,7 +52,6 @@ def poll_once() -> None:
 
 def _status_md() -> str:
     return (
-        f"# Coilstellaration backend worker\n\n"
         f"Polling `{QUEUE_REPO}` every **{INTERVAL}s**, "
         f"pushing to `{RESULTS_REPO}`.\n\n"
         f"- Owner: `{OWNER}`\n"
@@ -71,12 +71,16 @@ scheduler.add_job(
 )
 scheduler.start()
 
+# Passed to `app_runner.launch()` (here and in app.py).
+LAUNCH_KWARGS = {"css": custom_css, "theme": theme}
+
 # How often an open status page refreshes itself, in seconds.
 STATUS_REFRESH = 30
 
-with gr.Blocks() as app_runner:
-    status = gr.Markdown(_status_md())
-    refresh = gr.Button("Refresh status")
+with gr.Blocks(title="Coilstellaration evaluator | Proxima Fusion") as app_runner:
+    gr.HTML(header_html("Coilstellaration", "evaluator"))
+    status = gr.Markdown(_status_md(), elem_classes="markdown-text")
+    refresh = gr.Button("Refresh status", variant="secondary", size="sm")
     refresh.click(_status_md, outputs=status)
     # The Markdown value above is computed once, when the app starts. Recompute it
     # for each page load and keep open pages current.
@@ -84,6 +88,4 @@ with gr.Blocks() as app_runner:
     gr.Timer(STATUS_REFRESH).tick(_status_md, outputs=status, show_progress="hidden")
 
 if __name__ == "__main__":
-    from leaderboard.src.display.css_html_js import theme
-
-    app_runner.launch(theme=theme)
+    app_runner.launch(**LAUNCH_KWARGS)
