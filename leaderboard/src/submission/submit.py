@@ -9,13 +9,19 @@ from huggingface_hub import hf_hub_download
 
 from leaderboard.src.backend import config
 from leaderboard.src.display.formatting import styled_error, styled_message
-from leaderboard.src.envs import API, QUEUE_REPO, TOKEN
+from leaderboard.src.envs import API, QUEUE_REPO
 from leaderboard.src.submission import requests_dataset
 from leaderboard.src.submission.check_validity import validate_local_onnx
 
 logger = logging.getLogger(__name__)
 
 ONNX_FILENAME = "model.onnx"
+
+
+# Submitted repos are read anonymously, never with the Space's token: only public
+# models can be submitted, and a private repo that the token could read stays
+# invisible to the submission form. It must be `token=False`: `token=None` falls
+# back to the client's token (or HF_TOKEN).
 
 
 def add_new_eval(
@@ -42,7 +48,7 @@ def add_new_eval(
 
     try:
         info = API.repo_info(
-            repo_id=model, revision=revision, repo_type="model", token=TOKEN
+            repo_id=model, revision=revision, repo_type="model", token=False
         )
         commit_hash = info.sha
     except Exception as exc:  # noqa: BLE001
@@ -74,7 +80,7 @@ def add_new_eval(
             paths=[onnx_path],
             revision=commit_hash,
             repo_type="model",
-            token=TOKEN,
+            token=False,
         )
         size = next(
             (
@@ -106,7 +112,7 @@ def add_new_eval(
                 filename=onnx_path,
                 revision=commit_hash,
                 local_dir=tmp,
-                token=TOKEN,
+                token=False,
             )
             actual = Path(local).stat().st_size
             if size is None and actual > config.MAX_ONNX_BYTES:

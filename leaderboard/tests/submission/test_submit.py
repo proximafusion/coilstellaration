@@ -23,7 +23,12 @@ def _wire(
     `size` is the file size get_paths_info reports; `supported_tracks` is the
     dummy ONNX's track metadata.
     """
-    monkeypatch.setattr(submit.API, "repo_info", lambda **kw: _Info())
+
+    def fake_repo_info(**kw):
+        captured["repo_info_token"] = kw.get("token", "unset")
+        return _Info()
+
+    monkeypatch.setattr(submit.API, "repo_info", fake_repo_info)
     monkeypatch.setattr(requests_dataset, "list_request_files", lambda: list(existing))
 
     class _PathInfo:
@@ -33,12 +38,17 @@ def _wire(
 
     def fake_paths_info(repo_id, paths, **kw):
         captured["paths_info"] = {"repo_id": repo_id, "paths": list(paths)}
+        captured["paths_info_token"] = kw.get("token", "unset")
         return [_PathInfo(paths[0], size)]
 
     monkeypatch.setattr(submit.API, "get_paths_info", fake_paths_info)
 
     def fake_download(repo_id, filename, revision, local_dir, token):
-        captured["download"] = {"filename": filename, "revision": revision}
+        captured["download"] = {
+            "filename": filename,
+            "revision": revision,
+            "token": token,
+        }
         return build_dummy_onnx(tmp_path / "dl.onnx", supported_tracks=supported_tracks)
 
     monkeypatch.setattr(submit, "hf_hub_download", fake_download)
@@ -62,6 +72,19 @@ def test_submission_records_commit_hash_and_default_path(tmp_path, monkeypatch):
     assert captured["path_in_repo"] == "org/m_eval_request_%s_model.json" % _Info.sha
     assert captured["download"]["revision"] == _Info.sha
     assert captured["download"]["filename"] == "model.onnx"
+
+
+def test_submission_reads_the_repo_anonymously(tmp_path, monkeypatch):
+    """The Space's token must not be used to read submitted repos, so private
+    repos it can see are not submittable."""
+    captured = {}
+    _wire(monkeypatch, tmp_path, captured)
+
+    submit.add_new_eval("org/m", "main", "alice")
+
+    assert captured["repo_info_token"] is False
+    assert captured["paths_info_token"] is False
+    assert captured["download"]["token"] is False
 
 
 def test_submission_accepts_custom_onnx_path(tmp_path, monkeypatch):
