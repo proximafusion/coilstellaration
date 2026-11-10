@@ -391,6 +391,8 @@ Official scores come from the coilstellaration benchmark Space on Hugging Face, 
 
 The Space evaluates each model on every track it supports, over all three strata, with the default `ScoringSettings` listed below. Its leaderboard shows one track at a time, either over all strata pooled or for a single stratum, and ranks by `strict_feasibility`, then `mean`.
 
+The Space's source lives in [`leaderboard/`](leaderboard/). Its dependencies are the `leaderboard` dependency group in `pyproject.toml` (installed by `uv sync`), its tests run with the rest (`uv run pytest`), and `.github/workflows/sync-leaderboard-to-hf-spaces.yml` deploys it. See [`leaderboard/HOSTING.md`](leaderboard/HOSTING.md).
+
 For your own diagnostics, `examples/run_benchmark_scoring.py` writes a per-instance CSV, `quickcheck_scores_<run>.csv`, to `paths.OUTPUTS_PATH`:
 
 | Column                        | Meaning                                                              |
