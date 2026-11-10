@@ -118,6 +118,7 @@ def init_leaderboard(frames):
         highlight_columns=METRIC_COLS,
         integer_columns=INTEGER_COLS,
         label="Leaderboard",
+        download_name="coilstellaration-leaderboard",
         interactive=False,
     )
 

@@ -57,3 +57,14 @@ def test_style_frame_formats_counts_as_integers_and_other_numbers_to_3dp():
     assert "2,771" in html
     assert "2771.0" not in html
     assert "nan" not in html
+
+
+def test_write_csv_strips_links_to_their_text():
+    from leaderboard.src.display.leaderboard import write_csv
+
+    df = _frame()[["Model", "Submitter", "mean"]]
+    path = write_csv(df, "board-fixed_shape-All")
+    assert path.endswith("board-fixed_shape-All.csv")
+    out = pd.read_csv(path)
+    assert list(out["Model"]) == ["org/alpha", "lab/beta"]
+    assert list(out["mean"]) == [0.5, 0.5]

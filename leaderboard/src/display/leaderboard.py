@@ -5,6 +5,10 @@ read-only table with column selection, free-text search and a checkbox
 filter. Built entirely from stock gradio components.
 """
 
+import re
+import tempfile
+from pathlib import Path
+
 import gradio as gr
 import pandas as pd
 
@@ -66,6 +70,27 @@ def style_frame(df: pd.DataFrame, highlight_columns, integer_columns=()):
     )
 
 
+_HTML_TAG = re.compile(r"<[^>]+>")
+
+
+def write_csv(df: pd.DataFrame, name: str) -> str:
+    """Write `df` to a new CSV file called `<name>.csv`; return its path.
+
+    HTML links are reduced to their text, so the Model column holds `org/model`.
+    Each call gets its own directory, so concurrent users don't overwrite each
+    other's files.
+    """
+    plain = df.copy()
+    for col in plain.columns:
+        if plain[col].dtype == object:
+            plain[col] = plain[col].map(
+                lambda v: _HTML_TAG.sub("", v) if isinstance(v, str) else v
+            )
+    path = Path(tempfile.mkdtemp(prefix="leaderboard-csv-")) / f"{name}.csv"
+    plain.to_csv(path, index=False)
+    return str(path)
+
+
 def Leaderboard(
     value,
     datatype=None,
@@ -83,6 +108,7 @@ def Leaderboard(
     highlight_columns=None,
     integer_columns=None,
     label=None,
+    download_name="leaderboard",
 ):
     """Render the leaderboard controls and table, returning the table component.
 
@@ -92,7 +118,8 @@ def Leaderboard(
 
     `highlight_columns` (optional) are the metric columns whose best (maximum)
     value is highlighted. `integer_columns` (optional) are shown as whole numbers.
-    `label` is the table's label.
+    `label` is the table's label. A download button offers the displayed table as
+    `<download_name>-<track>-<stratum>.csv`.
 
     `frames` (optional) maps a `(track, stratum)` key to a same-columns frame;
     with `tracks`/`strata` giving the axis orders, a Track radio and a Stratum
@@ -121,6 +148,9 @@ def Leaderboard(
     # Columns the user can choose from (drop the always-hidden ones).
     selectable = [c for c in all_columns if c not in hide_columns]
 
+    def csv_name(track, stratum):
+        return "-".join(str(p) for p in (download_name, track, stratum) if p)
+
     def view(selected, query, track_choice, stratum, *filter_values):
         track = label_to_track.get(track_choice, track_choice)
         df = frames.get((track, stratum), value)
@@ -134,9 +164,12 @@ def Leaderboard(
             c for c in all_columns if c in selected or c in select_columns.cant_deselect
         ]
         df = df[keep]
-        return gr.update(
-            value=style_frame(df, highlight_columns, integer_columns),
-            datatype=[type_of[c] for c in keep],
+        return (
+            gr.update(
+                value=style_frame(df, highlight_columns, integer_columns),
+                datatype=[type_of[c] for c in keep],
+            ),
+            write_csv(df, csv_name(track, stratum)),
         )
 
     # The track/stratum switches sit above the table; a plain State stands in
@@ -189,6 +222,14 @@ def Leaderboard(
         show_row_numbers=True,
         label=label,
     )
+    # Its file always matches the table: every view change rewrites it.
+    download = gr.DownloadButton(
+        "Download CSV",
+        value=write_csv(
+            default_frame[default_keep], csv_name(default_track, default_stratum)
+        ),
+        size="sm",
+    )
 
     controls = (
         [column_picker]
@@ -204,6 +245,6 @@ def Leaderboard(
         stratum_radio or gr.State(default_stratum),
     ] + filter_boxes
     for control in controls:
-        control.change(view, inputs=inputs, outputs=table)
+        control.change(view, inputs=inputs, outputs=[table, download])
 
     return table
