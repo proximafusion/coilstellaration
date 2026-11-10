@@ -24,19 +24,21 @@ ALERT_RED = "#CC0000"
 
 TABLE_ZEBRA_SCREEN = "#EEF3F7"
 
-# Dark mode: navy page with lifted navy cards and white text. Borders are white
-# pre-blended over navy: 30% for card edges, 40% (3.8:1) for control edges.
+# Dark mode: navy page with lifted navy cards and white text. Edges are
+# steel-blue, as in light mode: 5.6:1 on the navy page, 4.6:1 on cards.
 NAVY_CARD = "#0D2447"
 NAVY_TINT = "#0A1A36"
 NAVY_TINT_2 = "#14233F"
-BORDER_ON_DARK = "#4C586D"
-CONTROL_BORDER_ON_DARK = "#667082"
+BORDER_ON_DARK = STEEL_BLUE
+CONTROL_BORDER_ON_DARK = STEEL_BLUE
 
-# Contrast (WCAG 2.2 asks 3:1 for control edges, 4.5:1 for text). In light mode
-# the page is pale blue-grey and cards are white, so content reads as layered.
-# Inputs, radio chips and checkboxes are edged in steel-blue (3.4:1 on white);
-# secondary buttons in navy. Teal is 2:1 on white, too faint for state, so the
-# selected tab and focus ring are navy; on navy, teal is 9.6:1 and is kept.
+# Contrast (WCAG 2.2 asks 3:1 for the edges of controls, 4.5:1 for text). Pale
+# surfaces can't reach 3:1 against white or each other (white on #E1EAF2 is
+# 1.2:1), so in light mode edges carry the contrast: the page is white, and cards,
+# inputs, radio chips and checkboxes are edged in steel-blue (3.4:1 on white).
+# Secondary buttons have a navy outline. Teal is 2:1 on white, too faint to mark
+# state, so the selected tab and focus ring are navy; on navy, teal is 9.6:1 and
+# is kept.
 
 _FONT = (gr.themes.GoogleFont("Inter Tight"), "system-ui", "sans-serif")
 
@@ -46,7 +48,7 @@ theme = gr.themes.Base(
     radius_size=gr.themes.sizes.radius_sm,
 ).set(
     # Page and blocks: white, flat, hairline borders.
-    body_background_fill=SURFACE_PALE,
+    body_background_fill=WHITE,
     body_background_fill_dark=NAVY,
     body_text_color=NAVY,
     body_text_color_dark=WHITE,
@@ -59,16 +61,16 @@ theme = gr.themes.Base(
     background_fill_secondary_dark=NAVY_TINT,
     block_background_fill=WHITE,
     block_background_fill_dark=NAVY_CARD,
-    block_border_color=SURFACE_COOL,
+    block_border_color=STEEL_BLUE,
     block_border_color_dark=BORDER_ON_DARK,
     block_shadow="none",
     block_shadow_dark="none",
     block_radius="4px",
     panel_background_fill=WHITE,
     panel_background_fill_dark=NAVY_CARD,
-    panel_border_color=SURFACE_COOL,
+    panel_border_color=STEEL_BLUE,
     panel_border_color_dark=BORDER_ON_DARK,
-    border_color_primary=SURFACE_COOL,
+    border_color_primary=STEEL_BLUE,
     border_color_primary_dark=BORDER_ON_DARK,
     border_color_accent=NAVY,
     border_color_accent_dark=TEAL,
@@ -83,7 +85,7 @@ theme = gr.themes.Base(
     block_label_text_color=NAVY,
     block_label_text_color_dark=WHITE,
     block_label_text_weight="500",
-    block_label_border_color=SURFACE_COOL,
+    block_label_border_color=STEEL_BLUE,
     block_label_border_color_dark=BORDER_ON_DARK,
     block_label_shadow="none",
     block_title_text_color=NAVY,
@@ -149,6 +151,8 @@ theme = gr.themes.Base(
     checkbox_border_color_selected=NAVY,
     checkbox_border_color_selected_dark=TEAL,
     checkbox_border_color_focus=NAVY,
+    checkbox_border_color_hover=NAVY,
+    checkbox_border_color_hover_dark=WHITE,
     checkbox_border_color_focus_dark=TEAL,
     checkbox_border_radius="2px",
     checkbox_shadow="none",
@@ -194,7 +198,7 @@ theme = gr.themes.Base(
     table_text_color_dark=WHITE,
     table_odd_background_fill=WHITE,
     table_odd_background_fill_dark=NAVY_CARD,
-    table_even_background_fill=TABLE_ZEBRA_SCREEN,
+    table_even_background_fill=SURFACE_PALE,
     table_even_background_fill_dark=NAVY_TINT_2,
     table_border_color=SURFACE_COOL,
     table_border_color_dark=BORDER_ON_DARK,
@@ -319,17 +323,16 @@ custom_css = """
 }
 .dark #leaderboard-table th {
     background: #14233F;
-    border-bottom-color: #667082;
 }
 #leaderboard-table td, #leaderboard-table th { font-size: 15px; }
 
 /* Best value per metric column (set by the table's Styler). */
-:root { --pf-best-bg: #CEDDE8; }
+:root { --pf-best-bg: #CEDDE8; }  /* Darker than the #E1EAF2 zebra rows. */
 .dark { --pf-best-bg: #143F5F; }
 
 /* The accent (selected tab, loader) is navy on light; on navy it is teal.
    The theme has no dark variant for it, so set it here. */
-.dark { --color-accent: #34CEB7; }
+.dark { --color-accent: #34CEB7 !important; }
 
 /* Focus: 2px outline with 2px offset; navy on light, teal on navy. */
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
