@@ -8,10 +8,10 @@ coilbench_role = os.environ.get("COILBENCH_ROLE", "leaderboard").lower()
 
 match coilbench_role:
     case "leaderboard":
-        from app_leaderboard import demo as leaderboard_demo
+        from app_leaderboard import app_leaderboard
 
-        leaderboard_demo.launch()
+        app_leaderboard.launch()
     case "runner":
-        from app_runner import demo as worker_demo
+        from app_runner import app_runner
 
-        worker_demo.launch()
+        app_runner.launch()

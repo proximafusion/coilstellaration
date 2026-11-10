@@ -11,15 +11,13 @@ def test_request_path_encodes_identity():
 
 
 def test_request_path_defaults_match_default_onnx():
-    assert (
-        requests_dataset.request_path("org/m", "abc123", "model.onnx")
-        == "org/m_eval_request_abc123_model.json"
-    )
+    assert requests_dataset.request_path("org/m", "abc123", "model.onnx") == "org/m_eval_request_abc123_model.json"
 
 
 def test_list_request_files_keeps_only_json(monkeypatch):
     monkeypatch.setattr(
-        requests_dataset.API, "list_repo_files",
+        requests_dataset.API,
+        "list_repo_files",
         lambda **kw: ["org/a.json", "README.md", ".gitattributes", "org/b.json"],
     )
     assert requests_dataset.list_request_files() == ["org/a.json", "org/b.json"]

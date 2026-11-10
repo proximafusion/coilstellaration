@@ -1,9 +1,10 @@
-"""onnxruntime wrapper + contract validation for submitted models."""
+"""Onnxruntime wrapper + contract validation for submitted models."""
+
 import logging
+from typing import Literal, Mapping
 
 import numpy as np
 import onnxruntime as ort
-
 from src.backend import config
 
 logger = logging.getLogger(__name__)
@@ -14,9 +15,7 @@ class OnnxModel:
 
     def __init__(self, model_path: str):
         logger.debug("Loading ONNX model from %s", model_path)
-        self.session = ort.InferenceSession(
-            model_path, providers=["CPUExecutionProvider"]
-        )
+        self.session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
         self.input_names = [i.name for i in self.session.get_inputs()]
         self.output_names = [o.name for o in self.session.get_outputs()]
         logger.debug(
@@ -25,79 +24,53 @@ class OnnxModel:
             self.output_names,
         )
 
-    def run(self, inputs: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    def run(self, inputs: Mapping[str, np.ndarray]) -> dict[str, np.ndarray]:
         """Feed only the tensors the graph declares; return all named outputs."""
         feed = {k: v for k, v in inputs.items() if k in self.input_names}
-        results = self.session.run(self.output_names, feed)
+        results = map(np.asarray, self.session.run(self.output_names, feed))
         return dict(zip(self.output_names, results))
 
 
 def validate_onnx_contract(model_path: str) -> list[str]:
-    """Open the graph and check input/output tensor names against the contract.
+    """Check a graph against the I/O contract; empty means valid.
 
-    Shapes are intentionally not checked (native/dynamic; the model owns them).
-    Returns a list of human-readable error strings; empty means valid.
+    Shapes are intentionally not checked (the model owns them).
     """
-    logger.debug("Validating ONNX contract for %s", model_path)
-    errors: list[str] = []
-    try:
-        session = ort.InferenceSession(
-            model_path, providers=["CPUExecutionProvider"]
+    return inspect_onnx(model_path)[0]
+
+
+def read_supported_tracks(session: ort.InferenceSession) -> list[Literal["fixed_shape", "variable_shape"]]:
+    """Tracks a model declares in its `supported_tracks` ONNX metadata.
+
+    Raises:
+        ValueError: If the metadata is missing or not exactly one of
+            `config.SUPPORTED_TRACKS_VALUES`. There is no fallback: an undeclared
+            or malformed value must not silently pick a track.
+    """
+    metadata = session.get_modelmeta().custom_metadata_map
+    value = metadata.get(config.SUPPORTED_TRACKS_METADATA_KEY)
+    if value is None:
+        raise ValueError(
+            f"Missing ONNX metadata {config.SUPPORTED_TRACKS_METADATA_KEY!r}; "
+            f"expected one of {list(config.SUPPORTED_TRACKS_VALUES)}"
         )
-    except Exception as exc:  # noqa: BLE001 - surface any load failure to the user
-        logger.warning("Could not load ONNX model %s: %s", model_path, exc)
-        return [f"Could not load ONNX model: {exc}"]
-
-    input_names = {i.name for i in session.get_inputs()}
-    output_names = {o.name for o in session.get_outputs()}
-
-    for name in config.REQUIRED_INPUT_NAMES:
-        if name not in input_names:
-            errors.append(f"Missing required input tensor: {name!r}")
-    for name in config.OUTPUT_NAMES:
-        if name not in output_names:
-            errors.append(f"Missing required output tensor: {name!r}")
-    if errors:
-        logger.debug("ONNX contract check found %d error(s)", len(errors))
-    else:
-        logger.debug("ONNX contract check passed")
-    return errors
+    if value not in config.SUPPORTED_TRACKS_VALUES:
+        raise ValueError(
+            f"Invalid ONNX metadata {config.SUPPORTED_TRACKS_METADATA_KEY}={value!r}; "
+            f"expected exactly one of {list(config.SUPPORTED_TRACKS_VALUES)}"
+        )
+    return value.split(",")
 
 
-# Boundary Fourier tensors whose declared dims decide track capability. The
-# requirement_metrics vector is fixed-length regardless of track and is ignored.
-_BOUNDARY_INPUT_NAMES = ("boundary_r_cos", "boundary_z_sin", *config.OPTIONAL_INPUT_NAMES)
-
-
-def detect_supported_tracks(session: ort.InferenceSession) -> list[str]:
-    """Which tracks a model can be scored on, from its declared input shapes.
-
-    Any dynamic dim (onnxruntime reports it as a non-int: a symbolic name string
-    or None) on any boundary tensor means the graph accepts varying resolutions,
-    so it supports both tracks. An all-static-dims graph supports fixed_shape
-    only. Result is ordered per config.TRACKS.
-    """
-    declared = {i.name: i.shape for i in session.get_inputs()}
-    has_dynamic = any(
-        any(not isinstance(dim, int) for dim in declared[name])
-        for name in _BOUNDARY_INPUT_NAMES
-        if name in declared
-    )
-    if has_dynamic:
-        return list(config.TRACKS)
-    return ["fixed_shape"]
-
-
-def inspect_onnx(model_path: str) -> tuple[list[str], list[str]]:
+def inspect_onnx(model_path: str) -> tuple[list[str], list[Literal["fixed_shape", "variable_shape"]]]:
     """Open the graph once; return (contract_errors, supported_tracks).
 
-    A load failure returns ([load error], []) - nothing can be scored.
+    `supported_tracks` is empty whenever there are contract errors (including a load
+    failure or invalid track metadata): nothing can be scored.
     """
     logger.debug("Inspecting ONNX graph %s", model_path)
     try:
-        session = ort.InferenceSession(
-            model_path, providers=["CPUExecutionProvider"]
-        )
+        session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
     except Exception as exc:  # noqa: BLE001 - surface any load failure to the user
         logger.warning("Could not load ONNX model %s: %s", model_path, exc)
         return [f"Could not load ONNX model: {exc}"], []
@@ -111,4 +84,12 @@ def inspect_onnx(model_path: str) -> tuple[list[str], list[str]]:
     for name in config.OUTPUT_NAMES:
         if name not in output_names:
             errors.append(f"Missing required output tensor: {name!r}")
-    return errors, detect_supported_tracks(session)
+    tracks: list[Literal["fixed_shape", "variable_shape"]] = []
+    try:
+        tracks = read_supported_tracks(session)
+    except ValueError as exc:
+        errors.append(str(exc))
+    if errors:
+        logger.debug("ONNX contract check found %d error(s)", len(errors))
+        return errors, []
+    return errors, tracks

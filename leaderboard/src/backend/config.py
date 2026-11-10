@@ -1,28 +1,20 @@
 import os
+from typing import Literal
 
-from coilstellaration.benchmark import types as benchmark_types
+from coilstellaration.benchmark import scoring_types
 
-# Both tracks are evaluated for every submission, over every stratum of the
-# `eval` split. The paper's headline is the mean over all strata; the leaderboard
-# additionally reports the per-stratum breakdown (loose/medium/tight/all) so the
-# numbers line up with the paper's stratified figure.
-TRACKS: list[str] = ["fixed_shape", "variable_shape"]
-STRATA: list[str] = ["loose", "medium", "tight"]
-SPLIT: str = "eval"
-# The reference stratum used by the patch-equivalence tests (the tightest, where
-# the plasma single-period tiling is exact). Not the only stratum scored.
-STRATUM: str = "tight"
+# The tracks a submission is scored on are declared by its ONNX metadata (see
+# `SUPPORTED_TRACKS_METADATA_KEY`), over every stratum of the `eval` split. The
+# paper's headline is the mean over all strata; the leaderboard additionally
+# reports the per-stratum breakdown (loose/medium/tight/all) so the numbers line
+# up with the paper's stratified figure.
+
+TRACKS = Literal["fixed_shape", "variable_shape"]
+STRATA = Literal["loose", "medium", "tight"]
+SPLITS = Literal["train", "eval"]
 
 # Number of instances per track. 0 = full split (production). Override for dev via env.
 N_INSTANCES: int = int(os.environ.get("COILBENCH_N", "0"))
-
-# Field periods of plasma surface retained when computing coil-to-plasma min
-# distance (see src/backend/plasma_distance_patch.py). 1 (the default) tiles the
-# plasma to a single period instead of the full NFP-torus; bit-exact on the
-# benchmark instances because each (period-0) coil's nearest plasma point is in
-# its own period. Raise toward NFP for a geometric safety margin at less
-# speedup; >= NFP reproduces upstream exactly. 0 also means full NFP.
-PLASMA_PERIODS: int = int(os.environ.get("COILBENCH_PLASMA_PERIODS", "1"))
 
 # Wall-clock kill for a single evaluation (download + all tracks). 0 disables the
 # subprocess guard and runs the eval inline.
@@ -41,7 +33,7 @@ JAX_COMPILE_CACHE_DIR: str = os.environ.get(
 )
 
 # Frozen scoring definition for the benchmark.
-SCORING_SETTINGS: benchmark_types.ScoringSettings = benchmark_types.ScoringSettings()
+SCORING_SETTINGS: scoring_types.ScoringSettings = scoring_types.ScoringSettings()
 
 # ONNX I/O contract
 # Reject submissions whose ONNX file exceeds this size (checked from Hub
@@ -51,7 +43,13 @@ REQUIRED_INPUT_NAMES: tuple[str, ...] = (
     "boundary_r_cos",
     "boundary_z_sin",
     "requirement_metrics",
+    "n_field_periods",
+    "n_coils_per_half_period",
 )
+# ONNX `metadata_props` key declaring which tracks the model supports. Its value
+# must be exactly one of `SUPPORTED_TRACKS_VALUES`.
+SUPPORTED_TRACKS_METADATA_KEY: str = "supported_tracks"
+SUPPORTED_TRACKS_VALUES: tuple[str, ...] = ("fixed_shape", "fixed_shape,variable_shape")
 # Present only for non-stellarator-symmetric instances.
 OPTIONAL_INPUT_NAMES: tuple[str, ...] = ("boundary_r_sin", "boundary_z_cos")
 OUTPUT_NAMES: tuple[str, ...] = ("coil_x_n", "coil_y_n", "coil_z_n", "currents")

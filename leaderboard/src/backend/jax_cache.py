@@ -22,9 +22,9 @@ _ENABLED = False
 def enable() -> None:
     """Point JAX at the on-disk compilation cache (idempotent, best-effort).
 
-    Must run before the first jitted physics call. A missing/unwritable cache
-    directory is logged and ignored -- evaluation just falls back to compiling
-    in-process, exactly as before.
+    Must run before the first jitted physics call. A missing/unwritable cache directory
+    is logged and ignored -- evaluation just falls back to compiling in-process, exactly
+    as before.
     """
     global _ENABLED
     if _ENABLED:

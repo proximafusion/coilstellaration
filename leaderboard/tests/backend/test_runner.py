@@ -5,63 +5,96 @@ import time
 
 import pytest
 
-from src.backend import eval_one, runner
+from src.backend import evaluate_one, runner
+from tests.backend.conftest import build_dummy_onnx
 
 UTC = datetime.timezone.utc
 
 
 # --- _run_eval: download/eval argument wiring (was test_run_once_pins_commit...) ---
 
-def test_run_eval_pins_commit_and_passes_onnx_path(tmp_path, monkeypatch):
+
+def test_run_eval_pins_commit_and_records_onnx_path(tmp_path, monkeypatch):
     captured = {}
     monkeypatch.setattr(runner.jax_cache, "enable", lambda: None)
-    monkeypatch.setattr(runner, "OnnxModel", lambda path: object())
 
     def fake_download(repo_id, filename, revision, local_dir, token):
         captured["filename"] = filename
         captured["revision"] = revision
-        onnx = tmp_path / "x.onnx"
-        onnx.write_bytes(b"")  # _run_eval stats the file for its size log
-        return str(onnx)
+        return build_dummy_onnx(tmp_path / "x.onnx")
 
     monkeypatch.setattr(runner, "hf_hub_download", fake_download)
+    monkeypatch.setattr(runner.evaluate, "evaluate_model", lambda **kw: ({"status": "FINISHED"}, []))
+
+    record, _rows, model_bytes = runner._run_eval(
+        {
+            "model": "org/m",
+            "revision": "main",
+            "commit_hash": "deadbeefcafebabe",
+            "onnx_path": "models/best.onnx",
+            "submitter": "alice",
+            "stochastic": False,
+            "k_samples": 1,
+            "submitted_time": "2026-06-11T00:00:00Z",
+            "n_instances": -1,
+        }
+    )
+
+    assert captured["revision"] == "deadbeefcafebabe"  # pinned SHA, not "main"
+    assert captured["filename"] == "models/best.onnx"
+    assert record["commit_hash"] == "deadbeefcafebabe"
+    assert record["onnx_path"] == "models/best.onnx"
+    assert record["model"] == "org/m"
+    assert record["submitter"] == "alice"
+    # Read before the download temp dir is torn down.
+    assert model_bytes == (tmp_path / "x.onnx").read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("declared", "queued", "expected"),
+    [
+        ("fixed_shape", ["fixed_shape", "variable_shape"], ["fixed_shape"]),
+        ("fixed_shape,variable_shape", ["fixed_shape"], ["fixed_shape", "variable_shape"]),
+    ],
+)
+def test_run_eval_scores_only_metadata_declared_tracks(tmp_path, monkeypatch, declared, queued, expected):
+    captured = {}
+    monkeypatch.setattr(runner.jax_cache, "enable", lambda: None)
+    monkeypatch.setattr(
+        runner,
+        "hf_hub_download",
+        lambda **kw: build_dummy_onnx(tmp_path / "x.onnx", supported_tracks=declared),
+    )
 
     def fake_eval(**kw):
-        captured["commit_hash"] = kw["commit_hash"]
-        captured["onnx_path"] = kw["onnx_path"]
-        return {"model": "org/m", "revision": "main", "status": "FINISHED"}, []
+        captured["tracks"] = kw["tracks"]
+        return {"model": "org/m", "status": "FINISHED"}, []
 
-    monkeypatch.setattr(runner.beval, "evaluate_model", fake_eval)
+    monkeypatch.setattr(runner.evaluate, "evaluate_model", fake_eval)
 
-    runner._run_eval({
-        "model": "org/m", "revision": "main",
-        "commit_hash": "deadbeefcafebabe", "onnx_path": "models/best.onnx",
-        "submitter": "alice", "stochastic": False, "k_samples": 1,
-        "submitted_time": "2026-06-11T00:00:00Z", "n_instances": -1,
-    })
+    runner._run_eval({"model": "org/m", "revision": "main", "tracks": queued})
 
-    assert captured["revision"] == "deadbeefcafebabe"     # pinned SHA, not "main"
-    assert captured["filename"] == "models/best.onnx"
-    assert captured["commit_hash"] == "deadbeefcafebabe"
-    assert captured["onnx_path"] == "models/best.onnx"
+    assert captured["tracks"] == expected
 
 
 def test_push_result_path_disambiguates_by_commit_and_onnx(monkeypatch):
     captured = {}
-    monkeypatch.setattr(runner.API, "upload_file",
-                        lambda **kw: captured.update(path_in_repo=kw["path_in_repo"]))
-    runner._push_result({
-        "model": "org/m", "revision": "main",
-        "commit_hash": "deadbeefcafebabe", "onnx_path": "models/best.onnx",
-        "status": "FINISHED",
-    })
+    monkeypatch.setattr(runner.API, "upload_file", lambda **kw: captured.update(path_in_repo=kw["path_in_repo"]))
+    runner._push_result(
+        {
+            "model": "org/m",
+            "revision": "main",
+            "commit_hash": "deadbeefcafebabe",
+            "onnx_path": "models/best.onnx",
+            "status": "FINISHED",
+        }
+    )
     assert captured["path_in_repo"] == "org/m_deadbeefcafebabe_models-best.json"
 
 
 def test_push_result_falls_back_for_legacy_record(monkeypatch):
     captured = {}
-    monkeypatch.setattr(runner.API, "upload_file",
-                        lambda **kw: captured.update(path_in_repo=kw["path_in_repo"]))
+    monkeypatch.setattr(runner.API, "upload_file", lambda **kw: captured.update(path_in_repo=kw["path_in_repo"]))
     runner._push_result({"model": "org/m", "revision": "main", "status": "FINISHED"})
     # No commit_hash/onnx_path -> falls back to revision + default model file slug.
     assert captured["path_in_repo"] == "org/m_main_model.json"
@@ -69,15 +102,21 @@ def test_push_result_falls_back_for_legacy_record(monkeypatch):
 
 def test_push_result_parquet_uses_sibling_path_and_uploads_bytes(monkeypatch):
     captured = {}
-    monkeypatch.setattr(runner.API, "upload_file",
-                        lambda **kw: captured.update(path=kw["path_in_repo"],
-                                                     repo=kw["repo_id"],
-                                                     obj=kw["path_or_fileobj"]))
-    runner._push_result_parquet({
-        "model": "org/m", "revision": "main",
-        "commit_hash": "deadbeefcafebabe", "onnx_path": "models/best.onnx",
-        "status": "FINISHED",
-    }, b"PARQUET-BYTES")
+    monkeypatch.setattr(
+        runner.API,
+        "upload_file",
+        lambda **kw: captured.update(path=kw["path_in_repo"], repo=kw["repo_id"], obj=kw["path_or_fileobj"]),
+    )
+    runner._push_result_parquet(
+        {
+            "model": "org/m",
+            "revision": "main",
+            "commit_hash": "deadbeefcafebabe",
+            "onnx_path": "models/best.onnx",
+            "status": "FINISHED",
+        },
+        b"PARQUET-BYTES",
+    )
     # Same disambiguation as the JSON summary, .parquet extension.
     assert captured["path"] == "org/m_deadbeefcafebabe_models-best.parquet"
     assert captured["repo"] == runner.RESULTS_REPO
@@ -85,14 +124,15 @@ def test_push_result_parquet_uses_sibling_path_and_uploads_bytes(monkeypatch):
 
 
 # --- per-eval timeout (item 1) ---
-# The eval runs in a plain freshly-exec'd subprocess (`python -m src.backend.eval_one
+# The eval runs in a plain freshly-exec'd subprocess (`python -m src.backend.evaluate_one
 # <request_path> <result_path>`), so multiprocessing's spawn/forkserver main-module
 # bootstrap machinery is never touched. The subprocess is its own session leader, so a
 # timeout kills the whole process group (the eval plus any JAX/DESC helpers it spawned).
 # These stubs stand in for that command: same contract (read the request from argv[1],
 # write the result to argv[2]), without the heavy eval.
 _STUB_OK = [
-    sys.executable, "-c",
+    sys.executable,
+    "-c",
     "import sys, json; req = json.load(open(sys.argv[1])); "
     "json.dump({'model': req['model'], 'status': 'FINISHED'}, open(sys.argv[2], 'w'))",
 ]
@@ -103,16 +143,17 @@ _STUB_SEGV = [sys.executable, "-c", "import os, signal; os.kill(os.getpid(), sig
 
 def test_evaluate_with_timeout_returns_record(monkeypatch):
     monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_OK)
-    rec, parquet = runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
+    rec, parquet, model = runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
     assert rec == {"model": "org/m", "status": "FINISHED"}
-    # The stub writes no parquet sibling, so there is nothing to upload.
+    # The stub writes no parquet or ONNX sibling, so there is nothing to upload.
     assert parquet is None
+    assert model is None
 
 
 _STUB_DEADLINE = [
-    sys.executable, "-c",
-    "import sys, json, os; "
-    "json.dump({'deadline': os.environ.get('COILBENCH_EVAL_DEADLINE')}, open(sys.argv[2], 'w'))",
+    sys.executable,
+    "-c",
+    "import sys, json, os; json.dump({'deadline': os.environ.get('COILBENCH_EVAL_DEADLINE')}, open(sys.argv[2], 'w'))",
 ]
 
 
@@ -121,7 +162,7 @@ def test_evaluate_with_timeout_passes_absolute_deadline_to_child(monkeypatch):
     # an absolute wall-clock deadline (now + timeout) for time-left logging.
     monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_DEADLINE)
     before = time.time()
-    rec, _parquet = runner._evaluate_with_timeout({"model": "org/m"}, timeout=120)
+    rec, _parquet, _model = runner._evaluate_with_timeout({"model": "org/m"}, timeout=120)
     assert rec["deadline"] is not None
     deadline = float(rec["deadline"])
     assert before + 120 <= deadline <= time.time() + 120
@@ -144,7 +185,7 @@ def test_evaluate_with_timeout_kills_whole_process_group(tmp_path, monkeypatch):
         "import sys, json, subprocess, time\n"
         "sentinel = json.load(open(sys.argv[1]))['sentinel']\n"
         "subprocess.Popen([sys.executable, '-c',\n"
-        "    'import sys, time; time.sleep(1.5); open(sys.argv[1], \"w\").write(\"x\")',\n"
+        '    \'import sys, time; time.sleep(1.5); open(sys.argv[1], "w").write("x")\',\n'
         "    sentinel])\n"
         "time.sleep(30)\n"
     )
@@ -174,52 +215,54 @@ def test_evaluate_with_timeout_streams_child_output(capfd, monkeypatch):
     # The child inherits the worker's stdout/stderr, so the eval's progress (and an
     # OOM-kill that leaves no exception) is visible in the console, not discarded.
     stub = [
-        sys.executable, "-c",
+        sys.executable,
+        "-c",
         "import sys, json; print('hello-from-child'); sys.stdout.flush(); "
         "json.dump({'model': 'org/m', 'status': 'FINISHED'}, open(sys.argv[2], 'w'))",
     ]
     monkeypatch.setattr(runner, "_EVAL_CMD", stub)
-    rec, _parquet = runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
+    rec, _parquet, _model = runner._evaluate_with_timeout({"model": "org/m"}, timeout=30)
     assert rec == {"model": "org/m", "status": "FINISHED"}
     assert "hello-from-child" in capfd.readouterr().out
 
 
 def test_evaluate_with_timeout_runs_inline_when_disabled(monkeypatch):
-    monkeypatch.setattr(runner, "_run_eval",
-                        lambda req: ({"model": req["model"], "status": "FINISHED"}, []))
-    rec, parquet = runner._evaluate_with_timeout({"model": "org/m"}, timeout=0)
+    monkeypatch.setattr(runner, "_run_eval", lambda req: ({"model": req["model"], "status": "FINISHED"}, [], b"ONNX"))
+    rec, parquet, model = runner._evaluate_with_timeout({"model": "org/m"}, timeout=0)
     assert rec == {"model": "org/m", "status": "FINISHED"}
     assert parquet is None  # no rows -> no parquet
+    assert model == b"ONNX"
 
 
 def test_eval_one_reads_request_file_and_writes_record(tmp_path, monkeypatch):
     # The subprocess entrypoint: request JSON at argv[1] -> record JSON at argv[2].
-    monkeypatch.setattr(runner, "_run_eval",
-                        lambda req: ({"model": req["model"], "status": "FINISHED"}, []))
+    monkeypatch.setattr(runner, "_run_eval", lambda req: ({"model": req["model"], "status": "FINISHED"}, [], b"ONNX"))
     req_path = tmp_path / "req.json"
     req_path.write_text(json.dumps({"model": "org/m"}))
     out = tmp_path / "result.json"
     monkeypatch.setattr(sys, "argv", ["eval_one", str(req_path), str(out)])
 
-    eval_one.main()
+    evaluate_one.main()
 
     assert json.loads(out.read_text()) == {"model": "org/m", "status": "FINISHED"}
+    assert (tmp_path / "result.onnx").read_bytes() == b"ONNX"
     # No rows -> no parquet sibling written.
     assert not (tmp_path / "result.parquet").exists()
 
 
 def test_eval_one_writes_parquet_sibling_when_rows_present(tmp_path, monkeypatch):
     import pandas as pd
-    rows = [{"track": "fixed_shape", "stratum": "tight", "boundary_id": "b0",
-             "score": 0.5, "strictly_feasible": True}]
-    monkeypatch.setattr(runner, "_run_eval",
-                        lambda req: ({"model": req["model"], "status": "FINISHED"}, rows))
+
+    rows = [{"track": "fixed_shape", "stratum": "tight", "boundary_id": "b0", "score": 0.5, "strictly_feasible": True}]
+    monkeypatch.setattr(
+        runner, "_run_eval", lambda req: ({"model": req["model"], "status": "FINISHED"}, rows, b"ONNX")
+    )
     req_path = tmp_path / "req.json"
     req_path.write_text(json.dumps({"model": "org/m"}))
     out = tmp_path / "result.json"
     monkeypatch.setattr(sys, "argv", ["eval_one", str(req_path), str(out)])
 
-    eval_one.main()
+    evaluate_one.main()
 
     parquet = tmp_path / "result.parquet"
     assert parquet.exists()
@@ -228,13 +271,21 @@ def test_eval_one_writes_parquet_sibling_when_rows_present(tmp_path, monkeypatch
 
 # --- claim stamps attempts/started_at/worker_id (items 2 & 3) ---
 
+
 def test_run_once_claims_with_attempt_and_timestamp(tmp_path, monkeypatch):
     queue = tmp_path / "eval-queue" / "org"
     queue.mkdir(parents=True)
-    (queue / "m.json").write_text(json.dumps({
-        "model": "org/m", "revision": "main", "commit_hash": "abc",
-        "onnx_path": "model.onnx", "status": "PENDING",
-    }))
+    (queue / "m.json").write_text(
+        json.dumps(
+            {
+                "model": "org/m",
+                "revision": "main",
+                "commit_hash": "abc",
+                "onnx_path": "model.onnx",
+                "status": "PENDING",
+            }
+        )
+    )
 
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
@@ -244,8 +295,11 @@ def test_run_once_claims_with_attempt_and_timestamp(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_push_request", lambda req, rel: pushed.append(dict(req)))
     monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     monkeypatch.setattr(runner, "_push_result_parquet", lambda rec, blob: None)
-    monkeypatch.setattr(runner, "_evaluate_with_timeout",
-                        lambda req, timeout=None: ({"model": "org/m", "status": "FINISHED"}, None))
+    monkeypatch.setattr(
+        runner,
+        "_evaluate_with_timeout",
+        lambda req, timeout=None: ({"model": "org/m", "status": "FINISHED"}, None, None),
+    )
 
     runner.run_once()
 
@@ -260,18 +314,26 @@ def test_run_once_claims_with_attempt_and_timestamp(tmp_path, monkeypatch):
 def test_run_once_pushes_parquet_when_present(tmp_path, monkeypatch):
     queue = tmp_path / "eval-queue" / "org"
     queue.mkdir(parents=True)
-    (queue / "m.json").write_text(json.dumps({
-        "model": "org/m", "revision": "main", "status": "PENDING",
-    }))
+    (queue / "m.json").write_text(
+        json.dumps(
+            {
+                "model": "org/m",
+                "revision": "main",
+                "status": "PENDING",
+            }
+        )
+    )
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
     monkeypatch.setattr(runner, "_push_request", lambda req, rel: None)
     monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     pushed_parquet = []
-    monkeypatch.setattr(runner, "_push_result_parquet",
-                        lambda rec, blob: pushed_parquet.append(blob))
-    monkeypatch.setattr(runner, "_evaluate_with_timeout",
-                        lambda req, timeout=None: ({"model": "org/m", "status": "FINISHED"}, b"P"))
+    monkeypatch.setattr(runner, "_push_result_parquet", lambda rec, blob: pushed_parquet.append(blob))
+    monkeypatch.setattr(
+        runner,
+        "_evaluate_with_timeout",
+        lambda req, timeout=None: ({"model": "org/m", "status": "FINISHED"}, b"P", None),
+    )
 
     runner.run_once()
 
@@ -281,18 +343,26 @@ def test_run_once_pushes_parquet_when_present(tmp_path, monkeypatch):
 def test_run_once_skips_parquet_when_absent(tmp_path, monkeypatch):
     queue = tmp_path / "eval-queue" / "org"
     queue.mkdir(parents=True)
-    (queue / "m.json").write_text(json.dumps({
-        "model": "org/m", "revision": "main", "status": "PENDING",
-    }))
+    (queue / "m.json").write_text(
+        json.dumps(
+            {
+                "model": "org/m",
+                "revision": "main",
+                "status": "PENDING",
+            }
+        )
+    )
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
     monkeypatch.setattr(runner, "_push_request", lambda req, rel: None)
     monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     pushed_parquet = []
-    monkeypatch.setattr(runner, "_push_result_parquet",
-                        lambda rec, blob: pushed_parquet.append(blob))
-    monkeypatch.setattr(runner, "_evaluate_with_timeout",
-                        lambda req, timeout=None: ({"model": "org/m", "status": "FINISHED"}, None))
+    monkeypatch.setattr(runner, "_push_result_parquet", lambda rec, blob: pushed_parquet.append(blob))
+    monkeypatch.setattr(
+        runner,
+        "_evaluate_with_timeout",
+        lambda req, timeout=None: ({"model": "org/m", "status": "FINISHED"}, None, None),
+    )
 
     runner.run_once()
 
@@ -303,9 +373,15 @@ def test_run_once_marks_failed_on_eval_error_and_continues(tmp_path, monkeypatch
     queue = tmp_path / "eval-queue" / "org"
     queue.mkdir(parents=True)
     for name in ("a", "b"):
-        (queue / f"{name}.json").write_text(json.dumps({
-            "model": f"org/{name}", "revision": "main", "status": "PENDING",
-        }))
+        (queue / f"{name}.json").write_text(
+            json.dumps(
+                {
+                    "model": f"org/{name}",
+                    "revision": "main",
+                    "status": "PENDING",
+                }
+            )
+        )
 
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
@@ -326,13 +402,21 @@ def test_run_once_marks_failed_on_eval_error_and_continues(tmp_path, monkeypatch
 
 # --- reaper for stuck RUNNING (items 2 & 3) ---
 
+
 def _write_running(queue_dir, name, started_at, attempts):
     org = queue_dir / "org"
     org.mkdir(parents=True, exist_ok=True)
-    (org / f"{name}.json").write_text(json.dumps({
-        "model": f"org/{name}", "revision": "main", "status": "RUNNING",
-        "attempts": attempts, "started_at": started_at,
-    }))
+    (org / f"{name}.json").write_text(
+        json.dumps(
+            {
+                "model": f"org/{name}",
+                "revision": "main",
+                "status": "RUNNING",
+                "attempts": attempts,
+                "started_at": started_at,
+            }
+        )
+    )
 
 
 def test_reap_stale_requeues_running_under_attempt_cap(tmp_path, monkeypatch):
@@ -385,10 +469,11 @@ def test_reap_stale_ignores_fresh_running(tmp_path, monkeypatch):
 
 # --- a single malformed request file must not wedge the whole poll loop ---
 
+
 def test_iter_requests_skips_empty_and_malformed_files(tmp_path):
     org = tmp_path / "org"
     org.mkdir(parents=True)
-    (org / "empty.json").write_text("")          # zero-byte file (the production poison pill)
+    (org / "empty.json").write_text("")  # zero-byte file (the production poison pill)
     (org / "garbage.json").write_text("{not json")
     (org / "good.json").write_text(json.dumps({"model": "org/m", "status": "PENDING"}))
 
@@ -401,9 +486,15 @@ def test_run_once_processes_valid_requests_despite_poison_file(tmp_path, monkeyp
     queue = tmp_path / "eval-queue" / "org"
     queue.mkdir(parents=True)
     (queue / "empty.json").write_text("")  # would crash json.load
-    (queue / "m.json").write_text(json.dumps({
-        "model": "org/m", "revision": "main", "status": "PENDING",
-    }))
+    (queue / "m.json").write_text(
+        json.dumps(
+            {
+                "model": "org/m",
+                "revision": "main",
+                "status": "PENDING",
+            }
+        )
+    )
 
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
@@ -411,8 +502,11 @@ def test_run_once_processes_valid_requests_despite_poison_file(tmp_path, monkeyp
     monkeypatch.setattr(runner, "_push_request", lambda req, rel: pushed.append(dict(req)))
     monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     monkeypatch.setattr(runner, "_push_result_parquet", lambda rec, blob: None)
-    monkeypatch.setattr(runner, "_evaluate_with_timeout",
-                        lambda req, timeout=None: ({"model": "org/m", "status": "FINISHED"}, None))
+    monkeypatch.setattr(
+        runner,
+        "_evaluate_with_timeout",
+        lambda req, timeout=None: ({"model": "org/m", "status": "FINISHED"}, None, None),
+    )
 
     runner.run_once()
 
