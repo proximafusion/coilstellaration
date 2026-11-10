@@ -28,6 +28,15 @@ auto_eval_column_dict.append(
         ColumnContent("Model", "markdown", True, never_hidden=True),
     ]
 )
+# The bare `org/model` id. Never shown; the search box matches it instead of the
+# Model column's HTML link, whose markup would otherwise match every row.
+auto_eval_column_dict.append(
+    [
+        "model_name",
+        ColumnContent,
+        ColumnContent("model_name", "str", False, hidden=True),
+    ]
+)
 auto_eval_column_dict.append(
     ["submitter", ColumnContent, ColumnContent("Submitter", "str", True)]
 )
@@ -88,7 +97,8 @@ STRATUM_VIEWS = ["All", "tight", "medium", "loose"]
 # Rows are ordered by strict feasibility, then mean, both descending.
 SORT_COLS = [AutoEvalColumn.strict.name, AutoEvalColumn.mean.name]
 
-# Column selection
-COLS = [c.name for c in fields(AutoEvalColumn) if not c.hidden]
+# Columns of every leaderboard frame. Hidden columns are included, so the search
+# can use them, but are never offered or displayed.
+COLS = [c.name for c in fields(AutoEvalColumn)]
 EVAL_COLS = [c.name for c in fields(EvalQueueColumn)]
 EVAL_TYPES = [c.type for c in fields(EvalQueueColumn)]

@@ -101,7 +101,10 @@ def init_leaderboard(frames):
             cant_deselect=[c.name for c in fields(AutoEvalColumn) if c.never_hidden],
             label="Select Columns to Display:",
         ),
-        search_columns=[AutoEvalColumn.model.name, AutoEvalColumn.submitter.name],
+        search_columns=[
+            AutoEvalColumn.model_name.name,
+            AutoEvalColumn.submitter.name,
+        ],
         hide_columns=[c.name for c in fields(AutoEvalColumn) if c.hidden],
         interactive=False,
     )

@@ -48,6 +48,7 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
 
     return {
         AutoEvalColumn.model.name: make_clickable_model(record["model"]),
+        AutoEvalColumn.model_name.name: record["model"],
         AutoEvalColumn.submitter.name: record.get("submitter", ""),
         AutoEvalColumn.mean.name: _get(summary, "mean"),
         AutoEvalColumn.feas09.name: _get(summary, "feasibility_rate_0p9"),

@@ -29,6 +29,18 @@ class SelectColumns:
         self.label = label
 
 
+def search_rows(df: pd.DataFrame, query: str, columns) -> pd.DataFrame:
+    """Rows where any of `columns` contains `query` (case-insensitive, literal)."""
+    if not query:
+        return df
+    mask = pd.Series(False, index=df.index)
+    for col in columns:
+        mask |= (
+            df[col].astype(str).str.contains(query, case=False, na=False, regex=False)
+        )
+    return df[mask]
+
+
 def Leaderboard(
     value,
     datatype=None,
@@ -78,15 +90,7 @@ def Leaderboard(
     def view(selected, query, track_choice, stratum, *filter_values):
         track = label_to_track.get(track_choice, track_choice)
         df = frames.get((track, stratum), value)
-        if query:
-            mask = pd.Series(False, index=df.index)
-            for col in search_columns:
-                mask |= (
-                    df[col]
-                    .astype(str)
-                    .str.contains(query, case=False, na=False, regex=False)
-                )
-            df = df[mask]
+        df = search_rows(df, query, search_columns)
         for flt, chosen in zip(filter_columns, filter_values):
             if chosen and flt.column in df.columns:
                 df = df[df[flt.column].astype(str).isin(chosen)]
