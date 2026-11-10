@@ -59,20 +59,20 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "src/coilstellaration/__about__.py"
 
-[project.optional-dependencies]
-test = ["pytest"]
-lint = ["pre-commit"]
-
-[tool.hatch.envs.default]
-path = "venv"
-
-[tool.hatch.envs.test]
-dependencies = ["pytest"]
-
-[tool.hatch.envs.lint]
-extra-dependencies = [
-  "ruff"
+[dependency-groups]
+# Installed by default with `uv sync` (uv's default group is `dev`).
+dev = [
+  "pytest",
+  "pre-commit",
+  "ruff",
 ]
+
+# uv is the frontend (env + lockfile in uv.lock, venv in .venv);
+# hatchling (above) only builds the package.
+[tool.uv]
+# The version comes from git via hatch-vcs, so rebuild the editable install
+# when the commit or tags change, not just when pyproject.toml changes.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -132,6 +132,6 @@ profile = "black"
 [tool.pyright]
 typeCheckingMode = "basic"
 venvPath = "."
-venv = "venv"
+venv = ".venv"
 # Ignore files that import modules not yet ported; remove entries as tasks complete.
 ignore = []
