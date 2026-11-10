@@ -15,7 +15,7 @@ resolution. A real submission should condition the coilset on the boundary and
 requirement metrics.
 
 Run:  uv run python -m leaderboard.scripts.make_example_onnx
-Output: examples/model.onnx
+Output: leaderboard/examples/dummy-constant-circle.onnx
 """
 
 from pathlib import Path
