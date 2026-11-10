@@ -21,7 +21,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "constellaration @ git+https://github.com/jhewers-pf/constellaration.git",
+  "constellaration>=0.4.0",
   "beartype",
   "flax",
   "jax>=0.6.2",
