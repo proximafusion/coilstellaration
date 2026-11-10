@@ -21,7 +21,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "constellaration @ git+https://github.com/jhewers-pf/constellaration.git",
+  "constellaration>=0.4.0",
   "beartype",
   "flax",
   "jax>=0.6.2",
@@ -55,27 +55,45 @@ Source = "https://github.com/proximafusion/coilstellaration"
 
 [tool.hatch.version]
 source = "vcs"
+fallback-version = "0.0.0"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/coilstellaration/__about__.py"
 
-[project.optional-dependencies]
-test = ["pytest"]
-lint = ["pre-commit"]
-
-[tool.hatch.envs.default]
-path = "venv"
-
-[tool.hatch.envs.test]
-dependencies = ["pytest"]
-
-[tool.hatch.envs.lint]
-extra-dependencies = [
-  "ruff"
+[dependency-groups]
+# Installed by default with `uv sync` (uv's default group is `dev`).
+dev = [
+  "pytest",
+  "pre-commit",
+  "ruff",
+  # ONNX export tooling (leaderboard/scripts/export_coilstellaration_onnx.py).
+  # onnx >=1.23 writes IR v14, which onnxruntime (<=1.31) cannot load yet.
+  "onnx<1.23",
+  "jax2onnx",
+]
+# The HF Spaces app in leaderboard/. The sync workflow exports this group
+# (plus the package itself) as the Spaces' requirements.txt.
+leaderboard = [
+  "APScheduler",
+  "gradio[oauth]==6.17.3",
+  "gradio_client==2.5.0",
+  "onnxruntime",
+  "pandas",
+  "python-dateutil",
 ]
 
+# uv is the frontend (env + lockfile in uv.lock, venv in .venv);
+# hatchling (above) only builds the package.
+[tool.uv]
+# The version comes from git via hatch-vcs, so rebuild the editable install
+# when the commit or tags change, not just when pyproject.toml changes.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
+default-groups = ["dev", "leaderboard"]
+
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["src", "leaderboard/tests"]
+# leaderboard/ code imports itself as `leaderboard.src...` from the repo root.
+pythonpath = ["."]
 
 [tool.hatch.build]
 packages = ["src/coilstellaration"]
@@ -106,14 +124,19 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 88
+src = ["src"]
 
 [tool.ruff.lint]
+# Pin the pre-0.17 default rule set explicitly so ruff upgrades don't silently
+# enable new rule families; opt in to more via extend-select below.
+select = ["E4", "E7", "E9", "F"]
 external = ["ARR001", "ARR002"]
 extend-select = [
   "ARG",      # flake8-unused-arguments
   "EXE",      # flake8-executable
   "E501",     # line-too-long
   "FURB",     # refurb
+  "I",        # isort
   "G",        # flake8-logging-format
   "ICN",      # flake8-import-conventions
   "NPY",      # NumPy specific rules
@@ -126,12 +149,17 @@ ignore = [
   "F722",     # Disable 'forward-annotation-syntax-error' for jaxtyping compatibility, see https://docs.kidger.site/jaxtyping/faq/#flake8-or-ruff-are-throwing-an-error
 ]
 
-[tool.isort]
-profile = "black"
+[tool.ruff.lint.per-file-ignores]
+# Test doubles must keep the signature of what they replace.
+"leaderboard/tests/**" = ["ARG"]
+
+[tool.ruff.lint.isort]
+# leaderboard/ is imported as `leaderboard.src...` from the repo root.
+known-first-party = ["leaderboard"]
 
 [tool.pyright]
 typeCheckingMode = "basic"
 venvPath = "."
-venv = "venv"
+venv = ".venv"
 # Ignore files that import modules not yet ported; remove entries as tasks complete.
 ignore = []

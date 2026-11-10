@@ -1,0 +1,23 @@
+auto_evals/
+venv/
+.venv/
+__pycache__/
+.env
+
+# build artifacts
+dist/
+build/
+*.egg-info/
+.ipynb_checkpoints
+*ipynb
+.vscode/
+
+eval-queue/
+eval-results/
+eval-queue-bk/
+eval-results-bk/
+logs/
+
+# exported coilstellaration models
+examples/*.onnx
+!examples/dummy-constant-circle.onnx

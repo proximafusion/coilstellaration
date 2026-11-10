@@ -17,7 +17,7 @@ Three install paths, in order of decreasing convenience.
 
 ### Devcontainer (recommended)
 
-Open the repo in VS Code and run **Dev Containers: Reopen in Container**. The first launch installs `hatch`, creates the `default`, `test`, and `lint` Hatch environments, and installs the `pre-commit` git hooks. Artifacts written by the examples land in `/home/vscode/tmp/outputs/coilstellaration/` inside the container, which is bind-mounted to `~/tmp/outputs/coilstellaration/` on the host.
+Open the repo in VS Code and run **Dev Containers: Reopen in Container**. The first launch runs `uv sync` (creating `.venv` from `uv.lock`) and installs the `pre-commit` git hooks. Artifacts written by the examples land in `/home/vscode/tmp/outputs/coilstellaration/` inside the container, which is bind-mounted to `~/tmp/outputs/coilstellaration/` on the host.
 
 ### Without the devcontainer (Docker)
 
@@ -31,8 +31,8 @@ docker build --platform=linux/amd64 -f .devcontainer/Dockerfile -t coilstellarat
 mkdir -p ~/tmp/outputs
 
 # Run an example. PYTHONPATH=src is normally set by devcontainer.json, so we
-# pass it explicitly here. Hatch envs aren't pre-built outside the
-# devcontainer lifecycle, so create the default env on first run. The
+# pass it explicitly here. `uv run` creates/syncs .venv from uv.lock on
+# first use (note: .venv lands in your checkout, owned by root). The
 # second bind mount surfaces `paths.OUTPUTS_PATH` (`Path.home() / "tmp" /
 # "outputs" / "coilstellaration"`, which resolves to /root/... when the
 # container runs as root) at ~/tmp/outputs/coilstellaration/ on the host.
@@ -42,23 +42,22 @@ docker run --rm -it --platform=linux/amd64 --shm-size=16g \
     -w /workspaces/coilstellaration \
     -e PYTHONPATH=/workspaces/coilstellaration/src \
     coilstellaration \
-    bash -c "pipx install hatch && hatch env create && hatch run python examples/run_regcoil.py"
+    uv run python examples/run_regcoil.py
 ```
 
-For repeated runs, mount a persistent volume at `./venv` (or run an editable install with `pip install -e .`) so you don't recreate the Hatch env on every invocation.
+Because `.venv` lives in the bind-mounted checkout, it persists between runs.
 
 ### Native (no devcontainer, no Docker)
 
-You'll need a system Python ≥ 3.12, plus the system build dependencies for `constellaration`'s scientific extensions (notably `booz-xform`, a CMake/Fortran build):
+You'll need [uv](https://docs.astral.sh/uv/) and Python 3.12 (the tested version; `uv sync --python 3.12` fetches it if missing), plus the system build dependencies for `constellaration`'s scientific extensions (notably `booz-xform`, a CMake/Fortran build):
 
 ```bash
 # Debian/Ubuntu
 sudo apt install cmake gfortran libnetcdf-dev ninja-build pkg-config
 
 # Then in the repo root:
-pipx install hatch
-hatch env create
-hatch run python examples/run_regcoil.py
+uv sync
+uv run python examples/run_regcoil.py
 ```
 
 `run_regcoil.py` also needs the `regcoil` executable on your `PATH`. Build it from [landreman/regcoil](https://github.com/landreman/regcoil) with the Fortran NetCDF bindings and BLAS/LAPACK (`libnetcdff-dev`, `libopenblas-dev`). `.devcontainer/Dockerfile` has the pinned commit and the `make` flags that work with gfortran ≥ 10.
@@ -76,7 +75,7 @@ Every example writes artifacts to `paths.OUTPUTS_PATH`, defined in `src/coilstel
 Run any example with:
 
 ```bash
-hatch run python examples/<file>.py
+uv run python examples/<file>.py
 ```
 
 ### `run_regcoil.py` — REGCOIL coilset from an equilibrium
@@ -340,9 +339,7 @@ for eval_data in predictions:
     with warnings.catch_warnings(action="ignore"):
         achieved_metrics = metrics_utils_v2.evaluate_coilset_metrics(
             eq=desc_utils.desc_equilibrium_to_desc_object(eval_data.desc_equilibrium),
-            coilset=coilset_utils.coilstellaration_to_desc(
-                eval_data.predicted_coilset
-            ),
+            coilset=coilset_utils.coilstellaration_to_desc(eval_data.predicted_coilset),
         )
     achieved_metrics_per_instance.append(
         data_utils.metrics_to_requirement_metrics(achieved_metrics)
@@ -394,6 +391,8 @@ Official scores come from the coilstellaration benchmark Space on Hugging Face, 
 
 The Space evaluates each model on every track it supports, over all three strata, with the default `ScoringSettings` listed below. Its leaderboard shows one track at a time, either over all strata pooled or for a single stratum, and ranks by `strict_feasibility`, then `mean`.
 
+The Space's source lives in [`leaderboard/`](leaderboard/). Its dependencies are the `leaderboard` dependency group in `pyproject.toml` (installed by `uv sync`), its tests run with the rest (`uv run pytest`), and `.github/workflows/sync-leaderboard-to-hf-spaces.yml` deploys it. See [`leaderboard/HOSTING.md`](leaderboard/HOSTING.md).
+
 For your own diagnostics, `examples/run_benchmark_scoring.py` writes a per-instance CSV, `quickcheck_scores_<run>.csv`, to `paths.OUTPUTS_PATH`:
 
 | Column                        | Meaning                                                              |
@@ -439,20 +438,21 @@ The columns relevant to selecting a track or stratum:
 
 ## Develop
 
-Three Hatch environments are declared in `pyproject.toml`. The devcontainer creates all three automatically; outside the devcontainer, run `hatch env create` for each.
+uv manages the environment and lockfile; hatchling (with hatch-vcs for the git-derived version) only builds the package. The environment lives in `.venv` and is installed exactly from the committed `uv.lock`. uv uses the first Python ≥ 3.12 it finds; 3.12 is the tested version, so pass `--python 3.12` to `uv sync` if your default is newer. Dev tools (pytest, pre-commit, ruff) are in the `dev` dependency group, which `uv sync` installs by default.
 
 ```bash
-hatch env create               # default env (lives at ./venv)
-hatch env create test          # adds pytest
-hatch env create lint          # adds ruff and pre-commit
-
-hatch run test:pytest          # run all tests
-hatch run lint:pre-commit run --all-files
+uv sync                                        # create/update .venv from uv.lock
+uv run pytest                                  # run all tests
+uv run pytest src/coilstellaration/types_test.py -x
+uv run pre-commit run --all-files              # lint/format/type-check
+uv run python <script>.py                      # run anything else in the env
 ```
 
-Pre-commit hooks (`ruff --fix`, `black`, `isort`, `pyright`, plus generic hygiene hooks) are auto-installed by the devcontainer's `onCreateCommand`. If you're not in the devcontainer, install them with `pre-commit install` after `hatch env create lint`.
+After editing dependencies, run `uv lock` and commit `uv.lock` (or use `uv add` / `uv remove`, which do both). `uv lock --upgrade-package <pkg>` upgrades a single package; `uv lock --check` fails if the lockfile is stale, which is suitable for CI.
 
-The `default` env intentionally uses `path = "venv"` (rather than the Hatch default `.hatch/`) so that VS Code and Pyright pick it up via `python.defaultInterpreterPath` and `[tool.pyright].venv`.
+Pre-commit hooks (`ruff check --fix` including import sorting, `ruff format`, `pyright`, plus generic hygiene hooks) are auto-installed by the devcontainer's `onCreateCommand`. Outside the devcontainer, install them with `uv run pre-commit install`.
+
+VS Code and Pyright pick up the environment via `python.defaultInterpreterPath` and `[tool.pyright].venv`, both pointing at `.venv`.
 
 ## License
 

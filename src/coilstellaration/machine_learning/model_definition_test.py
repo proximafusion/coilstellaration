@@ -4,6 +4,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from constellaration.geometry import surface_rz_fourier
+from flax import nnx
+
 from coilstellaration import (
     flax_nnx_checkpoint_util,
     paths,
@@ -16,8 +19,6 @@ from coilstellaration.machine_learning import (
 from coilstellaration.testing_data import (
     make_fixed_shape_golden,
 )
-from constellaration.geometry import surface_rz_fourier
-from flax import nnx
 
 AnyVariableModel = (
     model_definition.PerCoilCoilPredictor

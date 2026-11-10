@@ -7,6 +7,13 @@ import textwrap
 import jaxtyping as jt
 import netCDF4
 import numpy as np
+from constellaration.mhd import vmec_utils
+from desc.coils import CoilSet as DescCoilSet
+from scipy import constants
+from scipy.io import netcdf_file
+from simsopt import field
+from skimage.measure import find_contours as skimage_find_contours
+
 from coilstellaration import (
     coilset_utils,
     regcoil_types,
@@ -16,12 +23,6 @@ from coilstellaration.types import (
     NpOrJaxArray,
     runtime_check_array_sizes,
 )
-from constellaration.mhd import vmec_utils
-from desc.coils import CoilSet as DescCoilSet
-from scipy import constants
-from scipy.io import netcdf_file
-from simsopt import field
-from skimage.measure import find_contours as skimage_find_contours
 
 logger = logging.getLogger(__name__)
 

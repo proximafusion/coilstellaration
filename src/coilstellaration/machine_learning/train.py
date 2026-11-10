@@ -20,6 +20,9 @@ import pandas as pd
 import pydantic
 import wandb
 from beartype.typing import Any
+from constellaration.geometry import surface_rz_fourier
+from flax import nnx
+
 from coilstellaration import (
     coilset_utils,
     data_utils,
@@ -31,8 +34,6 @@ from coilstellaration.machine_learning import (
     utils,
 )
 from coilstellaration.types import NpOrJaxArray
-from constellaration.geometry import surface_rz_fourier
-from flax import nnx
 
 logger = logging.getLogger(__name__)
 

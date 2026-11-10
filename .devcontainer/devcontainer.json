@@ -33,8 +33,8 @@
         }
     ],
     "initializeCommand": "mkdir -p ${localEnv:HOME}/tmp/outputs",
-    "onCreateCommand": "pipx install hatch && pre-commit install",
-    "updateContentCommand": "hatch env create && hatch env create test && hatch env create lint",
+    "onCreateCommand": "pre-commit install",
+    "updateContentCommand": "uv sync",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -42,17 +42,34 @@
                 "ms-python.vscode-pylance",
                 "ms-pyright.pyright",
                 "charliermarsh.ruff",
-                "ms-python.black-formatter",
                 "redhat.vscode-yaml",
-                "streetsidesoftware.code-spell-checker",
-                "Anthropic.claude-code"
+                "streetsidesoftware.code-spell-checker"
             ],
             "settings": {
+                "terminal.integrated.profiles.linux": {
+                    "tmux": {
+                        "path": "tmux",
+                        "args": [
+                            "new-session",
+                            "-A",
+                            "-s",
+                            "vscode"
+                        ],
+                        "icon": "terminal-tmux"
+                    },
+                    "zsh": {
+                        "path": "/usr/bin/zsh"
+                    }
+                },
+                "terminal.integrated.defaultProfile.linux": "tmux",
                 "python-envs.terminal.autoActivationType": "shellStartup",
-                "python.defaultInterpreterPath": "${containerWorkspaceFolder}/venv/bin/python",
+                "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
                 "[python]": {
-                    "editor.defaultFormatter": "ms-python.black-formatter",
-                    "editor.formatOnSave": true
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.formatOnSave": true,
+                    "editor.codeActionsOnSave": {
+                        "source.organizeImports.ruff": "explicit"
+                    }
                 }
             }
         }

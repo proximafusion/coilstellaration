@@ -15,14 +15,15 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
+from constellaration.geometry import surface_rz_fourier
+from flax import nnx
+
 from coilstellaration import types
 from coilstellaration.machine_learning import (
     model_definition,
     train,
     utils,
 )
-from constellaration.geometry import surface_rz_fourier
-from flax import nnx
 
 CHECKPOINT_ID = "DHmCARHZ4ay9rsMDPdjVCu3"
 GOLDEN_FILENAME = "fixed_shape_golden.npz"

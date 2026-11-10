@@ -1,15 +1,16 @@
 import numpy as np
 import pytest
-from coilstellaration import (
-    desc_utils,
-    metrics_utils_v2,
-    types,
-)
 from constellaration.geometry import surface_rz_fourier, surface_utils_desc
 from desc.equilibrium import Equilibrium
 from desc.geometry import FourierRZToroidalSurface
 from desc.grid import QuadratureGrid
 from desc.profiles import SplineProfile
+
+from coilstellaration import (
+    desc_utils,
+    metrics_utils_v2,
+    types,
+)
 
 _MACHINE_PRECISION = float(np.finfo(float).eps)
 

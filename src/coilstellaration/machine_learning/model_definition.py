@@ -3,6 +3,9 @@ from typing import TYPE_CHECKING, Protocol
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
+from constellaration.geometry import surface_rz_fourier
+from flax import nnx
+
 from coilstellaration import (
     coilset_utils,
     flax_nnx_checkpoint_util,
@@ -12,8 +15,6 @@ from coilstellaration.machine_learning import (
     utils,
 )
 from coilstellaration.types import NpOrJaxArray
-from constellaration.geometry import surface_rz_fourier
-from flax import nnx
 
 AnyVariableShapeConfig = (
     types.PerCoilCoilPredictorConfig

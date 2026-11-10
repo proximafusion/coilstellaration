@@ -1,0 +1,8 @@
+# Mechanical reformatting commits; use with
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub's blame view picks this file up automatically).
+
+# Apply ruff import sorting and formatting
+b6333a415c3a5e9e4028d04d4a4f24b39c4c40be
+# Format leaderboard/ with ruff
+a6725b787bda6e3f4ceef4d9f4e8b6d0afc1eb05

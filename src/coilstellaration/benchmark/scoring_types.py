@@ -7,6 +7,7 @@ the package `README.md` for the rationale behind each design choice.
 from typing import Literal, Self
 
 import pydantic
+
 from coilstellaration.types import BaseModel
 
 ConstraintDirection = Literal["lower_bound", "upper_bound"]

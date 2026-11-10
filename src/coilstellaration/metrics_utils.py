@@ -3,7 +3,6 @@ import typing
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
-from coilstellaration import types
 from desc.coils import CoilSet as DescCoilSet
 from desc.coils import LinearGrid
 from desc.equilibrium import Equilibrium as DescEquilibrium
@@ -22,6 +21,8 @@ from desc.objectives import (
     QuadraticFlux,
     ToroidalFlux,
 )
+
+from coilstellaration import types
 
 METRICS_FIELD_ORDER: tuple[str, ...] = (
     "min_normalized_coil_to_coil_distance",

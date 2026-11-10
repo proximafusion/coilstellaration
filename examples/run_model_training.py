@@ -28,7 +28,7 @@ if __name__ == "__main__":
         steps=4000,
         warmup_steps=100,
         batch_size=64,
-        eval_batch_size=2266,  # full eval set
+        eval_batch_size=1024,
         eval_every=10,
         max_wall_time_s=60 * 60,
         model_kind="mlp",

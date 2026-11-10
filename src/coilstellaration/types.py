@@ -9,9 +9,10 @@ import jax
 import jaxtyping as jt
 import numpy as np
 import pydantic
-from coilstellaration import pydantic_numpy
 from constellaration.geometry import surface_rz_fourier
 from jaxtyping import Array, Float, Int, jaxtyped
+
+from coilstellaration import pydantic_numpy
 
 NpOrJaxArray = Array | np.ndarray
 ScalarFloat = Float[NpOrJaxArray, " "] | float
