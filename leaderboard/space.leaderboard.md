@@ -15,6 +15,7 @@ datasets:
 - proxima-fusion/coilstellaration-bench-requests
 - proxima-fusion/coilstellaration-bench-results
 tags:
+- arxiv:2611.12689
 - leaderboard
 - coilstellaration
 - proxima-fusion
@@ -23,7 +24,9 @@ tags:
 # Coilstellaration Bench
 
 Leaderboard for ONNX models that predict a stellarator coilset from a plasma
-boundary and a set of requirement metrics. Submissions are queued in
+boundary and a set of requirement metrics, accompanying the paper
+[CoilStellaration: A Dataset and Benchmark for Engineering-Aware Stellarator Coilset Generation](https://arxiv.org/abs/2611.12689).
+The ONNX contract, scoring and citation are in the Space's About tab. Submissions are queued in
 [`coilstellaration-bench-requests`](https://huggingface.co/datasets/proxima-fusion/coilstellaration-bench-requests),
 scored by the
 [evaluator Space](https://huggingface.co/spaces/proxima-fusion/coilstellaration-bench-evaluator),

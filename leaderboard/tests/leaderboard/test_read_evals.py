@@ -45,8 +45,6 @@ def _record(name, overall, with_strata=False, tracks=("fixed_shape", "variable_s
         "revision": "abc",
         "submitter": "alice",
         "submitted_time": "2026-06-11T00:00:00Z",
-        "stochastic": True,
-        "k_samples": 4,
         "status": "FINISHED",
         "overall_score": overall,
         "tracks": {
@@ -83,7 +81,6 @@ def test_result_to_row_all_stratum_uses_headline():
     row = result_to_row(_record("m1", 0.8, with_strata=True), "fixed_shape", "All")
     assert row[AutoEvalColumn.mean.name] == 0.8  # headline (all strata)
     assert row[AutoEvalColumn.feas09.name] == 0.3
-    assert row[AutoEvalColumn.stochastic.name] == "✓ (K=4)"
     assert "org/m1" in row[AutoEvalColumn.model.name]
     for col in COLS:
         assert col in row
@@ -127,7 +124,6 @@ def test_result_to_row_none_when_stratum_absent():
 
 def test_result_to_row_defaults_when_fields_absent():
     rec = _record("m1", 0.8)
-    del rec["stochastic"]
     row = result_to_row(rec, "fixed_shape", "All")
     assert row[AutoEvalColumn.commit.name] == ""
     assert row[AutoEvalColumn.onnx_file.name] == "model.onnx"

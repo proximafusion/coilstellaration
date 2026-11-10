@@ -81,9 +81,7 @@ def test_evaluate_model_summarizes_each_stratum_and_keeps_unscored_tracks(monkey
         lambda coilset, desc_equilibrium: datas["tight"].requirement_metrics,
     )
 
-    record, rows = evaluate.evaluate_model(
-        model=FakeModel(), stochastic=False, k_samples=1, tracks=["fixed_shape"]
-    )
+    record, rows = evaluate.evaluate_model(model=FakeModel(), tracks=["fixed_shape"])
 
     assert record["tracks"]["variable_shape"] == {}
     fixed = record["tracks"]["fixed_shape"]

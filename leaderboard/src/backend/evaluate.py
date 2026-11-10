@@ -375,17 +375,14 @@ def _is_finite(achieved: types.RequirementMetrics) -> bool:
 
 def evaluate_model(
     model: onnx_model.OnnxModel,
-    stochastic: bool,
-    k_samples: int,
     tracks: Sequence[Literal["fixed_shape", "variable_shape"]] = get_args(
         config.TRACKS
     ),
-    n_instances: int = config.N_INSTANCES,
 ) -> tuple[dict, list[dict]]:
+    """Score a model on every instance of the `eval` split of each track."""
     deadline = _read_deadline()
     logger.info(
-        "Evaluating model (n_instances=%s)%s",
-        n_instances,
+        "Evaluating model on the full eval split%s",
         f" [{_fmt_duration(deadline - time.time())} budget before timeout]"
         if deadline is not None
         else " [no timeout]",
@@ -407,7 +404,7 @@ def evaluate_model(
         )
         load_start = time.perf_counter()
         eval_datas = data_utils.load_benchmark_dataset(
-            track=track, stratum=stratum, split="eval", n=n_instances
+            track=track, stratum=stratum, split="eval", n=0
         )
         logger.info(
             "Loaded %d instances for track %s and stratum %s in %.1fs",
@@ -486,8 +483,6 @@ def evaluate_model(
         total_failed,
     )
     record = {
-        "stochastic": stochastic,
-        "k_samples": k_samples,
         "status": "FINISHED",
         "overall_score": overall,
         "tracks": track_results,

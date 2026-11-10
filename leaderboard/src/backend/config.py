@@ -14,9 +14,6 @@ TRACKS = Literal["fixed_shape", "variable_shape"]
 STRATA = Literal["loose", "medium", "tight"]
 SPLITS = Literal["train", "eval"]
 
-# Number of instances per track. 0 = full split (production). Override for dev via env.
-N_INSTANCES: int = int(os.environ.get("COILBENCH_N", "0"))
-
 # Wall-clock kill for a single evaluation (download + all tracks). 0 disables the
 # subprocess guard and runs the eval inline.
 EVAL_TIMEOUT: int = int(os.environ.get("COILBENCH_EVAL_TIMEOUT", str(4 * 60 * 60)))

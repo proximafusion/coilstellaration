@@ -17,7 +17,6 @@ Required secrets / variables on the worker Space:
     COILBENCH_OWNER   org owning the requests/results datasets (default proxima-fusion)
 Optional:
     COILBENCH_RUNNER_INTERVAL   seconds between polls (default 300)
-    COILBENCH_N                 instances per track (0 = full split)
 """
 
 import datetime as dt

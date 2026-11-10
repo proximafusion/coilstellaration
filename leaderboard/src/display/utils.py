@@ -49,9 +49,6 @@ auto_eval_column_dict.append(
 )
 # metadata
 auto_eval_column_dict.append(
-    ["stochastic", ColumnContent, ColumnContent("Stochastic (K)", "str", False)]
-)
-auto_eval_column_dict.append(
     ["submitted", ColumnContent, ColumnContent("Submitted", "str", True)]
 )
 auto_eval_column_dict.append(
@@ -73,7 +70,6 @@ class EvalQueueColumn:
     model = ColumnContent("model", "markdown", True)
     revision = ColumnContent("revision", "str", True)
     submitter = ColumnContent("submitter", "str", True)
-    stochastic = ColumnContent("stochastic", "str", True)
     status = ColumnContent("status", "str", True)
     # Claim time (UTC ISO) — populated for RUNNING/FINISHED so a stuck job is visible.
     started = ColumnContent("started", "str", True)

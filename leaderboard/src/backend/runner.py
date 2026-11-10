@@ -159,9 +159,6 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
         tracks = onnx_model.read_supported_tracks(model.session)
         record, rows = evaluate.evaluate_model(
             model=model,
-            stochastic=req.get("stochastic", False),
-            k_samples=req.get("k_samples", 1),
-            n_instances=req.get("n_instances", config.N_INSTANCES),
             tracks=tracks,
         )
         metadata = dict(
