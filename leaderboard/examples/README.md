@@ -44,5 +44,6 @@ declare the output coil dimensions dynamic too.
 
 ```python
 from src.backend.onnx_model import validate_onnx_contract
+
 print(validate_onnx_contract("examples/model.onnx"))  # [] means valid
 ```
