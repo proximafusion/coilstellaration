@@ -47,6 +47,22 @@
                 "Anthropic.claude-code"
             ],
             "settings": {
+                "terminal.integrated.profiles.linux": {
+                    "tmux": {
+                        "path": "tmux",
+                        "args": [
+                            "new-session",
+                            "-A",
+                            "-s",
+                            "vscode"
+                        ],
+                        "icon": "terminal-tmux"
+                    },
+                    "zsh": {
+                        "path": "/usr/bin/zsh"
+                    }
+                },
+                "terminal.integrated.defaultProfile.linux": "tmux",
                 "python-envs.terminal.autoActivationType": "shellStartup",
                 "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
                 "[python]": {

@@ -48,7 +48,18 @@ RUN set -eux; \
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
+
+# Editor and shell: vim everywhere, zsh as the login shell and inside tmux.
+# /etc/tmux.conf (not ~/.tmux.conf) because /home/vscode is a persisted volume
+# that would mask anything written there at build time.
 ENV EDITOR=vim
+ENV VISUAL=vim
+ENV GIT_EDITOR=vim
+RUN chsh -s /usr/bin/zsh vscode \
+    && printf '%s\n' \
+        'set -g default-shell /usr/bin/zsh' \
+        'set -g default-command /usr/bin/zsh' \
+        > /etc/tmux.conf
 
 # Install uv. Used to provide additional Python versions on demand:
 # .pre-commit-config.yaml pins `language_version: python3.10` for black,
