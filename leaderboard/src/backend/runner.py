@@ -11,10 +11,10 @@ import tempfile
 import time
 
 import pandas as pd
+from huggingface_hub import hf_hub_download, snapshot_download
 from src.backend import config, evaluate, jax_cache, onnx_model
 from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, RESULTS_REPO, TOKEN
 from src.submission.submit import ONNX_FILENAME
-from huggingface_hub import hf_hub_download, snapshot_download
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,9 @@ def _now() -> datetime.datetime:
 
 def _worker_id() -> str:
     """Identify which worker holds a lease (host:pid, or override via env)."""
-    return os.environ.get("COILBENCH_WORKER_ID") or f"{socket.gethostname()}:{os.getpid()}"
+    return (
+        os.environ.get("COILBENCH_WORKER_ID") or f"{socket.gethostname()}:{os.getpid()}"
+    )
 
 
 def _iter_requests(requests_dir: str):
@@ -72,7 +74,9 @@ def _result_rel_path(record: dict, ext: str) -> str:
     ONNX file so re-submissions and per-file variants don't collide."""
     org, model = record["model"].split("/", 1)
     commit = record.get("commit_hash") or record.get("revision", "")
-    onnx_slug = record.get("onnx_path", "model.onnx").replace("/", "-").removesuffix(".onnx")
+    onnx_slug = (
+        record.get("onnx_path", "model.onnx").replace("/", "-").removesuffix(".onnx")
+    )
     return f"{org}/{model}_{commit}_{onnx_slug}.{ext}"
 
 
@@ -130,7 +134,11 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
         logger.info("Downloading %s from %s at %s", onnx_path, req["model"], ref)
         dl_start = time.perf_counter()
         local_model_path = hf_hub_download(
-            repo_id=req["model"], filename=onnx_path, revision=ref, local_dir=tmp, token=TOKEN
+            repo_id=req["model"],
+            filename=onnx_path,
+            revision=ref,
+            local_dir=tmp,
+            token=TOKEN,
         )
         logger.info(
             "Downloaded %s (%.1f MB) in %.1fs",
@@ -163,7 +171,7 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
         return record, rows, model_bytes
 
 
-_EVAL_CMD = [sys.executable, "-u", "-m", "src.backend.evaluate_one"]
+_EVAL_CMD = [sys.executable, "-u", "-m", "leaderboard.src.backend.evaluate_one"]
 
 
 def _kill_group(proc: "subprocess.Popen") -> None:
@@ -175,7 +183,9 @@ def _kill_group(proc: "subprocess.Popen") -> None:
     proc.wait()
 
 
-def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> tuple[dict, bytes | None, bytes | None]:
+def _evaluate_with_timeout(
+    req: dict, timeout: float | None = None
+) -> tuple[dict, bytes | None, bytes | None]:
     """Run the eval in an isolated subprocess under a wall-clock kill.
 
     Returns `(record, parquet_bytes, model_bytes)` where `parquet_bytes` is the
@@ -224,7 +234,9 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> tuple[dic
 
         if proc.returncode != 0:
             if proc.returncode == -signal.SIGSEGV:
-                raise RuntimeError("Evaluation crashed (segmentation fault), likely a JAX/LLVM crash or OOM")
+                raise RuntimeError(
+                    "Evaluation crashed (segmentation fault), likely a JAX/LLVM crash or OOM"
+                )
             raise RuntimeError(f"Evaluation subprocess exited {proc.returncode}")
         with open(out_path) as f:
             record = json.load(f)
@@ -261,11 +273,21 @@ def _reap_stale(requests_dir: str) -> None:
             continue
         rel_path = path.split("eval-queue/")[1]
         if req.get("attempts", 0) >= config.MAX_ATTEMPTS:
-            logger.warning("Request %s exceeded %d attempts; marking FAILED", req["model"], config.MAX_ATTEMPTS)
+            logger.warning(
+                "Request %s exceeded %d attempts; marking FAILED",
+                req["model"],
+                config.MAX_ATTEMPTS,
+            )
             req["status"] = "FAILED"
-            req["error"] = f"Exceeded {config.MAX_ATTEMPTS} attempts; worker presumed dead"
+            req["error"] = (
+                f"Exceeded {config.MAX_ATTEMPTS} attempts; worker presumed dead"
+            )
         else:
-            logger.warning("Re-queuing stale RUNNING request %s (lease expired after %.0fs)", req["model"], age)
+            logger.warning(
+                "Re-queuing stale RUNNING request %s (lease expired after %.0fs)",
+                req["model"],
+                age,
+            )
             req["status"] = "PENDING"
         _push_request(req, rel_path)
 
@@ -273,20 +295,29 @@ def _reap_stale(requests_dir: str) -> None:
 def run_once() -> tuple[int, int]:
     """Process every PENDING request once; return `(finished, failed)` counts."""
     logger.info("Polling queue %s for PENDING requests", QUEUE_REPO)
-    snapshot_download(repo_id=QUEUE_REPO, local_dir=EVAL_REQUESTS_PATH, repo_type="dataset", token=TOKEN)
+    snapshot_download(
+        repo_id=QUEUE_REPO,
+        local_dir=EVAL_REQUESTS_PATH,
+        repo_type="dataset",
+        token=TOKEN,
+    )
     _reap_stale(EVAL_REQUESTS_PATH)
     finished = 0
     failed = 0
     for path, req in list(_iter_pending(EVAL_REQUESTS_PATH)):
         rel_path = path.split("eval-queue/")[1]
-        logger.info("Processing PENDING request %s (revision %s)", req["model"], req["revision"])
+        logger.info(
+            "Processing PENDING request %s (revision %s)", req["model"], req["revision"]
+        )
         req["attempts"] = req.get("attempts", 0) + 1
         req["status"] = "RUNNING"
         req["started_at"] = _now().isoformat()
         req["worker_id"] = _worker_id()
         _push_request(req, rel_path)
         try:
-            record, parquet_bytes, model_bytes = _evaluate_with_timeout(req, config.EVAL_TIMEOUT)
+            record, parquet_bytes, model_bytes = _evaluate_with_timeout(
+                req, config.EVAL_TIMEOUT
+            )
             _push_result(record)
             if parquet_bytes:
                 _push_result_parquet(record, parquet_bytes)
@@ -306,6 +337,9 @@ def run_once() -> tuple[int, int]:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    )
     logging.getLogger("src").setLevel(logging.DEBUG)
     run_once()

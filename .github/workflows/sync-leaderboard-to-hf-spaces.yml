@@ -8,8 +8,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'leaderboard/**'
-      - '!leaderboard/tests/**'
+      - "leaderboard/**"
+      - "!leaderboard/tests/**"
+      - "src/**"
+      - pyproject.yaml
+      - uv.lock
   workflow_dispatch:
 
 concurrency:
@@ -20,31 +23,30 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (with LFS objects for the current tree)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: "Set the HuggingFace Space front matter"
+        run: |
+          mv leaderboard/space.yaml README.md
+
+      - uses: huggingface/hub-sync@v0.3.0
+        name: "Updated proxima-fusion/coilstellaration-bench"
         with:
-          lfs: true
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: proxima-fusion/coilstellaration-bench
+          hf_token: ${{ secrets.HF_TOKEN }}
+          exclude: |
+            analysis/
+            examples/
+            scripts/
 
-      - name: Build snapshot commit of leaderboard/
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          commit=$(git commit-tree "HEAD:leaderboard" \
-            -m "Sync leaderboard/ from ${GITHUB_REPOSITORY}@${GITHUB_SHA}")
-          echo "SNAPSHOT=${commit}" >> "$GITHUB_ENV"
-
-      - name: Push to evaluator (worker) Space
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          git push --force \
-            "https://jhewers-pf:${HF_TOKEN}@huggingface.co/spaces/jhewers-pf/coilstellaration-bench-evaluator" \
-            "${SNAPSHOT}:refs/heads/main"
-
-      - name: Push to leaderboard Space
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          git push --force \
-            "https://jhewers-pf:${HF_TOKEN}@huggingface.co/spaces/jhewers-pf/coilstellaration-bench" \
-            "${SNAPSHOT}:refs/heads/main"
+      - uses: huggingface/hub-sync@v0.3.0
+        name: "Updated proxima-fusion/coilstellaration-bench-evaluator"
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: proxima-fusion/coilstellaration-bench-evaluator
+          hf_token: ${{ secrets.HF_TOKEN }}
+          exclude: |
+            analysis/
+            examples/
+            scripts/

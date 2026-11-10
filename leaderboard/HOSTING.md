@@ -40,7 +40,7 @@ with no file edits** — you only set Space variables:
    create a new Space pointing at this code). Leave `README.md` as-is
    (`app_file: app.py`).
 2. Add Space **secrets / variables**:
-   - `COILBENCH_ROLE` = `worker`  ← this flips the mirror into worker mode.
+   - `COILBENCH_ROLE` = `runner`  ← this flips the mirror into worker mode.
    - `HF_TOKEN` — write access to `<OWNER>/requests` + `<OWNER>/results`, read
      access to submitted model repos.
    - `COILBENCH_OWNER` — e.g. `jhewers-pf`.
@@ -54,7 +54,7 @@ with no file edits** — you only set Space variables:
    - `COILBENCH_MAX_ATTEMPTS` (optional) — how many times a request may be
      (re)claimed before it is failed permanently (default 3).
 
-(With `COILBENCH_ROLE=worker`, `app.py` launches `runner_app.py` instead of the
+(With `COILBENCH_ROLE=runner`, `app.py` launches `runner_app.py` instead of the
 leaderboard. You can also point a Space's `app_file` directly at `runner_app.py`
 if you prefer an explicit entrypoint, but the variable approach needs no edits.)
 
