@@ -14,6 +14,13 @@ def make_clickable_model(model_name):
     return model_hyperlink(link, model_name)
 
 
+def make_file_link(model_name, ref, onnx_path):
+    """A "Link" to `onnx_path` in the `model_name` repo at `ref` (a commit) on the
+    Hub."""
+    link = f"https://huggingface.co/{model_name}/blob/{ref}/{onnx_path}"
+    return model_hyperlink(link, "Link")
+
+
 def make_clickable_commit(model_name, commit_hash):
     if not commit_hash:
         return ""

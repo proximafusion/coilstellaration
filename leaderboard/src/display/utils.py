@@ -21,67 +21,64 @@ class ColumnContent:
 # metric columns are track-agnostic; the Track × Stratum selection decides which
 # track's numbers fill them.
 auto_eval_column_dict = []
+# "HF Model": each cell is a "Link" to the evaluated ONNX file at the evaluated
+# commit on the Hub. Always shown, as it identifies the row by default.
 auto_eval_column_dict.append(
     [
-        "model",
+        "link",
         ColumnContent,
-        ColumnContent("Model", "markdown", True, never_hidden=True),
+        ColumnContent("HF Model", "markdown", True, never_hidden=True),
     ]
 )
-# The bare `org/model` id. Never shown; the search box matches it instead of the
-# Model column's HTML link, whose markup would otherwise match every row.
+# The bare `org/model` id, as plain text. Hidden by default, but searchable.
 auto_eval_column_dict.append(
-    [
-        "model_name",
-        ColumnContent,
-        ColumnContent("model_name", "str", False, hidden=True),
-    ]
+    ["model", ColumnContent, ColumnContent("Model ID", "str", False)]
 )
 auto_eval_column_dict.append(
-    ["submitter", ColumnContent, ColumnContent("Submitter", "str", True)]
+    ["submitter", ColumnContent, ColumnContent("Submitter", "str", False)]
 )
 # per-track metrics
 auto_eval_column_dict.append(
     ["mean", ColumnContent, ColumnContent("mean", "number", True)]
 )
 auto_eval_column_dict.append(
-    ["feas09", ColumnContent, ColumnContent("feas@0.9", "number", False)]
+    ["feas09", ColumnContent, ColumnContent("feas@0.9", "number", True)]
 )
 auto_eval_column_dict.append(
     ["strict", ColumnContent, ColumnContent("strict", "number", True)]
 )
 # Standard error of `strict`, a proportion over n instances: sqrt(p(1-p)/n).
 auto_eval_column_dict.append(
-    ["strict_se", ColumnContent, ColumnContent("strict SE", "number", True)]
+    ["strict_se", ColumnContent, ColumnContent("strict SE", "number", False)]
 )
 auto_eval_column_dict.append(
-    ["median", ColumnContent, ColumnContent("median", "number", False)]
+    ["median", ColumnContent, ColumnContent("median", "number", True)]
 )
 auto_eval_column_dict.append(
-    ["p10", ColumnContent, ColumnContent("p10", "number", False)]
+    ["p10", ColumnContent, ColumnContent("p10", "number", True)]
 )
 # Number of instances scored in the selected track and stratum.
-auto_eval_column_dict.append(["n", ColumnContent, ColumnContent("n", "number", True)])
+auto_eval_column_dict.append(["n", ColumnContent, ColumnContent("n", "number", False)])
 # metadata
 # Values stored in the ONNX graph, read at submission. Blank for older results.
 auto_eval_column_dict.append(
-    ["n_parameters", ColumnContent, ColumnContent("Params", "number", True)]
+    ["n_parameters", ColumnContent, ColumnContent("Params", "number", False)]
 )
 auto_eval_column_dict.append(
-    ["submitted", ColumnContent, ColumnContent("Submitted", "date", True)]
+    ["submitted", ColumnContent, ColumnContent("Submitted", "date", False)]
 )
 # Benchmark version the result was produced with; blank for older results.
 auto_eval_column_dict.append(
-    ["bench_version", ColumnContent, ColumnContent("Version", "str", True)]
+    ["bench_version", ColumnContent, ColumnContent("Version", "str", False)]
 )
 auto_eval_column_dict.append(
     ["revision", ColumnContent, ColumnContent("Revision", "str", False)]
 )
 auto_eval_column_dict.append(
-    ["commit", ColumnContent, ColumnContent("Commit", "markdown", True)]
+    ["commit", ColumnContent, ColumnContent("Commit", "markdown", False)]
 )
 auto_eval_column_dict.append(
-    ["onnx_file", ColumnContent, ColumnContent("ONNX file", "str", True)]
+    ["onnx_file", ColumnContent, ColumnContent("ONNX file", "str", False)]
 )
 
 AutoEvalColumn = make_dataclass("AutoEvalColumn", auto_eval_column_dict, frozen=True)

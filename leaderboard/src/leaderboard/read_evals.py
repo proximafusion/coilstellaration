@@ -6,7 +6,7 @@ from pathlib import Path
 
 from leaderboard.src.display.formatting import (
     make_clickable_commit,
-    make_clickable_model,
+    make_file_link,
 )
 from leaderboard.src.display.utils import AutoEvalColumn
 
@@ -54,8 +54,12 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
         return None
 
     return {
-        AutoEvalColumn.model.name: make_clickable_model(record["model"]),
-        AutoEvalColumn.model_name.name: record["model"],
+        AutoEvalColumn.link.name: make_file_link(
+            record["model"],
+            record.get("commit_hash") or record.get("revision") or "main",
+            record.get("onnx_path", "model.onnx"),
+        ),
+        AutoEvalColumn.model.name: record["model"],
         AutoEvalColumn.submitter.name: record.get("submitter", ""),
         AutoEvalColumn.mean.name: _get(summary, "mean"),
         AutoEvalColumn.feas09.name: _get(summary, "feasibility_rate_0p9"),

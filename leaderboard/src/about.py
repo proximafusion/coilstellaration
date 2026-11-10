@@ -138,14 +138,16 @@ columns aggregate `S` over the selected track and stratum:
 | Column | Meaning |
 |---|---|
 | `strict` | Fraction of instances that meet every requirement (violation ≤ 1e-3). **Primary ranking key.** |
-| `strict SE` | Standard error of `strict`, `sqrt(strict × (1 − strict) / n)`. |
+| `strict SE` | Standard error of `strict`, `sqrt(strict × (1 − strict) / n)`. Hidden by default. |
 | `mean` | Mean of `S`. **Secondary ranking key.** |
-| `feas@0.9` | Fraction of instances with `S ≥ 0.9` (soft-feasible). Hidden by default. |
-| `median` | Median of `S`. Hidden by default. |
-| `p10` | 10th percentile of `S`, showing how the worst instances do. Hidden by default. |
-| `n` | Number of instances scored in the selected track and stratum. |
+| `feas@0.9` | Fraction of instances with `S ≥ 0.9` (soft-feasible). |
+| `median` | Median of `S`. |
+| `p10` | 10th percentile of `S`, showing how the worst instances do. |
+| `n` | Number of instances scored in the selected track and stratum. Hidden by default. |
 
-Each model is run once per instance. The full scoring definition
+**HF Model** links to the evaluated ONNX file at the evaluated commit. Use the
+**Columns** selector above the table to show the model ID, submitter, commit and
+other details. Each model is run once per instance. The full scoring definition
 is in the [paper]({PAPER_URL}) and the
 [code README]({CODE_URL}#scoring-soft-feasibility).
 """

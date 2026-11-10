@@ -26,11 +26,16 @@ class SelectColumns:
     """Which columns are shown, and which the user may not hide."""
 
     def __init__(
-        self, default_selection=None, cant_deselect=None, label="Select columns:"
+        self,
+        default_selection=None,
+        cant_deselect=None,
+        label="Select columns:",
+        info=None,
     ):
         self.default_selection = default_selection or []
         self.cant_deselect = cant_deselect or []
         self.label = label
+        self.info = info
 
 
 def search_rows(df: pd.DataFrame, query: str, columns) -> pd.DataFrame:
@@ -74,21 +79,30 @@ def style_frame(df: pd.DataFrame, highlight_columns, integer_columns=()):
 
 
 _HTML_TAG = re.compile(r"<[^>]+>")
+_LINK = re.compile(r'<a\b[^>]*\bhref="([^"]+)"[^>]*>\s*Link\s*</a>')
+
+
+def _plain(value):
+    """A cell as plain text: a "Link" anchor becomes its URL, other HTML its text."""
+    if not isinstance(value, str):
+        return value
+    if match := _LINK.fullmatch(value.strip()):
+        return match.group(1)
+    return _HTML_TAG.sub("", value)
 
 
 def write_csv(df: pd.DataFrame, name: str) -> str:
     """Write `df` to a new CSV file called `<name>.csv`; return its path.
 
-    HTML links are reduced to their text, so the Model column holds `org/model`.
+    "Link" cells become their URL, and other HTML links are reduced to their
+    text.
     Each call gets its own directory, so concurrent users don't overwrite each
     other's files.
     """
     plain = df.copy()
     for col in plain.columns:
         if plain[col].dtype == object:
-            plain[col] = plain[col].map(
-                lambda v: _HTML_TAG.sub("", v) if isinstance(v, str) else v
-            )
+            plain[col] = plain[col].map(_plain)
     path = Path(tempfile.mkdtemp(prefix="leaderboard-csv-")) / f"{name}.csv"
     plain.to_csv(path, index=False)
     return str(path)
@@ -210,13 +224,18 @@ def Leaderboard(
             if len(strata) > 1
             else None
         )
-    with gr.Accordion("Columns", open=False):
-        column_picker = gr.CheckboxGroup(
-            choices=selectable,
-            value=select_columns.default_selection,
-            label=select_columns.label,
-            show_label=False,
-        )
+    # Columns that can't be hidden aren't offered: they are always shown.
+    column_picker = gr.Dropdown(
+        choices=[c for c in selectable if c not in select_columns.cant_deselect],
+        value=[
+            c
+            for c in select_columns.default_selection
+            if c not in select_columns.cant_deselect
+        ],
+        multiselect=True,
+        label=select_columns.label,
+        info=select_columns.info,
+    )
     filter_boxes = [
         gr.CheckboxGroup(
             choices=sorted(value[flt.column].astype(str).unique())

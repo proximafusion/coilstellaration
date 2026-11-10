@@ -18,17 +18,18 @@ def _frame():
 
 def test_search_matches_plain_model_name_not_link_markup():
     df = _frame()
-    columns = ["model_name", "Submitter"]
-    # The Model column's link contains "huggingface" and "href" in every row.
+    columns = ["Model ID", "Submitter"]
+    # The HF Model column's links contain "huggingface" and "href" in every row;
+    # search matches the plain Model ID and Submitter columns instead.
     assert search_rows(df, "huggingface", columns).empty
     assert search_rows(df, "href", columns).empty
-    assert list(search_rows(df, "ALPHA", columns)["model_name"]) == ["org/alpha"]
-    assert list(search_rows(df, "bob", columns)["model_name"]) == ["lab/beta"]
+    assert list(search_rows(df, "ALPHA", columns)["Model ID"]) == ["org/alpha"]
+    assert list(search_rows(df, "bob", columns)["Model ID"]) == ["lab/beta"]
 
 
 def test_empty_query_keeps_every_row():
     df = _frame()
-    assert len(search_rows(df, "", ["model_name"])) == 2
+    assert len(search_rows(df, "", ["Model ID"])) == 2
 
 
 def test_style_frame_marks_column_maxima_and_rounds():
@@ -60,12 +61,17 @@ def test_style_frame_formats_counts_as_integers_and_other_numbers_to_3dp():
     assert "nan" not in html
 
 
-def test_write_csv_strips_links_to_their_text():
+def test_write_csv_turns_links_into_urls():
     from leaderboard.src.display.leaderboard import write_csv
 
-    df = _frame()[["Model", "Submitter", "mean"]]
+    df = _frame()[["HF Model", "Model ID", "Submitter", "mean"]]
     path = write_csv(df, "board-fixed_shape-All")
     assert path.endswith("board-fixed_shape-All.csv")
     out = pd.read_csv(path)
-    assert list(out["Model"]) == ["org/alpha", "lab/beta"]
+    # A "Link" cell becomes the URL it points to.
+    assert list(out["HF Model"]) == [
+        "https://huggingface.co/org/alpha/blob/main/model.onnx",
+        "https://huggingface.co/lab/beta/blob/main/model.onnx",
+    ]
+    assert list(out["Model ID"]) == ["org/alpha", "lab/beta"]
     assert list(out["mean"]) == [0.5, 0.5]

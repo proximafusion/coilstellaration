@@ -146,3 +146,17 @@ def test_result_to_row_without_n_has_no_standard_error():
     row = result_to_row(rec, "fixed_shape", "All")
     assert math.isnan(row[AutoEvalColumn.strict_se.name])
     assert math.isnan(row[AutoEvalColumn.n.name])
+
+
+def test_result_to_row_links_to_the_onnx_file_at_the_commit():
+    rec = {
+        "model": "org/m",
+        "commit_hash": "abc123",
+        "onnx_path": "models/best.onnx",
+        "tracks": {"fixed_shape": {"mean": 0.5}},
+    }
+    row = result_to_row(rec, "fixed_shape", "All")
+    link = row[AutoEvalColumn.link.name]
+    assert 'href="https://huggingface.co/org/m/blob/abc123/models/best.onnx"' in link
+    assert ">Link</a>" in link
+    assert row[AutoEvalColumn.model.name] == "org/m"
