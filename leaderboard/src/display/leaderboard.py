@@ -197,7 +197,7 @@ def Leaderboard(
         search_box = (
             gr.Textbox(
                 label="Search",
-                placeholder="Model or submitter",
+                placeholder="Model or user",
                 scale=2,
             )
             if search_columns

@@ -21,65 +21,45 @@ class ColumnContent:
 # metric columns are track-agnostic; the Track × Stratum selection decides which
 # track's numbers fill them.
 auto_eval_column_dict = []
-# "HF Model": each cell is a "Link" to the evaluated ONNX file at the evaluated
-# commit on the Hub. Always shown, as it identifies the row by default.
-auto_eval_column_dict.append(
-    [
-        "link",
-        ColumnContent,
-        ColumnContent("HF Model", "markdown", True, never_hidden=True),
-    ]
-)
-# The bare `org/model` id, as plain text. Hidden by default, but searchable.
-auto_eval_column_dict.append(
-    ["model", ColumnContent, ColumnContent("Model ID", "str", False)]
-)
-auto_eval_column_dict.append(
-    ["submitter", ColumnContent, ColumnContent("Submitter", "str", False)]
-)
-# per-track metrics
-auto_eval_column_dict.append(
-    ["mean", ColumnContent, ColumnContent("mean", "number", True)]
-)
-auto_eval_column_dict.append(
-    ["feas09", ColumnContent, ColumnContent("feas@0.9", "number", True)]
-)
-auto_eval_column_dict.append(
-    ["strict", ColumnContent, ColumnContent("strict", "number", True)]
-)
+
+
+def _column(attr, name, type_, shown, hidden=False):
+    auto_eval_column_dict.append(
+        [attr, ColumnContent, ColumnContent(name, type_, shown, hidden=hidden)]
+    )
+
+
+# Shown by default, as on the ConStellaration benchmark: when it was submitted,
+# who submitted it, the scores and a link to the full results. Column names are
+# lower case.
+_column("submitted", "submission time", "date", True)
+# The submitter's Hugging Face username, linked to their profile.
+_column("user", "user", "markdown", True)
+_column("strict", "strict", "number", True)
+_column("mean", "mean", "number", True)
+# "Link" to the per-instance scores parquet in the results dataset.
+_column("full_results", "full results", "markdown", True)
+
+# Offered in the Columns selector.
+_column("model", "model id", "str", False)
+_column("feas09", "feas@0.9", "number", False)
 # Standard error of `strict`, a proportion over n instances: sqrt(p(1-p)/n).
-auto_eval_column_dict.append(
-    ["strict_se", ColumnContent, ColumnContent("strict SE", "number", False)]
-)
-auto_eval_column_dict.append(
-    ["median", ColumnContent, ColumnContent("median", "number", True)]
-)
-auto_eval_column_dict.append(
-    ["p10", ColumnContent, ColumnContent("p10", "number", True)]
-)
+_column("strict_se", "strict SE", "number", False)
+_column("median", "median", "number", False)
+_column("p10", "p10", "number", False)
 # Number of instances scored in the selected track and stratum.
-auto_eval_column_dict.append(["n", ColumnContent, ColumnContent("n", "number", False)])
-# metadata
+_column("n", "n", "number", False)
 # Values stored in the ONNX graph, read at submission. Blank for older results.
-auto_eval_column_dict.append(
-    ["n_parameters", ColumnContent, ColumnContent("Params", "number", False)]
-)
-auto_eval_column_dict.append(
-    ["submitted", ColumnContent, ColumnContent("Submitted", "date", False)]
-)
+_column("n_parameters", "params", "number", False)
 # Benchmark version the result was produced with; blank for older results.
-auto_eval_column_dict.append(
-    ["bench_version", ColumnContent, ColumnContent("Version", "str", False)]
-)
-auto_eval_column_dict.append(
-    ["revision", ColumnContent, ColumnContent("Revision", "str", False)]
-)
-auto_eval_column_dict.append(
-    ["commit", ColumnContent, ColumnContent("Commit", "markdown", False)]
-)
-auto_eval_column_dict.append(
-    ["onnx_file", ColumnContent, ColumnContent("ONNX file", "str", False)]
-)
+_column("bench_version", "version", "str", False)
+_column("revision", "revision", "str", False)
+_column("commit", "commit", "markdown", False)
+_column("onnx_file", "onnx file", "str", False)
+
+# Never shown: the plain username, which the search matches instead of the user
+# column's HTML link (whose markup would otherwise match every row).
+_column("user_name", "user_name", "str", False, hidden=True)
 
 AutoEvalColumn = make_dataclass("AutoEvalColumn", auto_eval_column_dict, frozen=True)
 

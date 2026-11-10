@@ -140,14 +140,15 @@ columns aggregate `S` over the selected track and stratum:
 | `strict` | Fraction of instances that meet every requirement (violation ≤ 1e-3). **Primary ranking key.** |
 | `strict SE` | Standard error of `strict`, `sqrt(strict × (1 − strict) / n)`. Hidden by default. |
 | `mean` | Mean of `S`. **Secondary ranking key.** |
-| `feas@0.9` | Fraction of instances with `S ≥ 0.9` (soft-feasible). |
-| `median` | Median of `S`. |
-| `p10` | 10th percentile of `S`, showing how the worst instances do. |
+| `feas@0.9` | Fraction of instances with `S ≥ 0.9` (soft-feasible). Hidden by default. |
+| `median` | Median of `S`. Hidden by default. |
+| `p10` | 10th percentile of `S`, showing how the worst instances do. Hidden by default. |
 | `n` | Number of instances scored in the selected track and stratum. Hidden by default. |
 
-**HF Model** links to the evaluated ONNX file at the evaluated commit. Use the
-**Columns** selector above the table to show the model ID, submitter, commit and
-other details. Each model is run once per instance. The full scoring definition
+**full results** links to the per-instance scores of a submission, and **user**
+to the submitter's Hugging Face profile. Use the **Columns** selector above the
+table to show the model id, the other metrics and more details. Each model is run
+once per instance. The full scoring definition
 is in the [paper]({PAPER_URL}) and the
 [code README]({CODE_URL}#scoring-soft-feasibility).
 """
@@ -155,7 +156,7 @@ is in the [paper]({PAPER_URL}) and the
 # Newest first. Add an entry whenever `BENCH_VERSION` is bumped.
 CHANGELOG_TEXT = f"""
 ## Changelog
-The **Version** column shows the benchmark version a result was produced with.
+The **version** column (hidden by default) shows the benchmark version a result was produced with.
 Results with different versions are not directly comparable. Older results
 without a version are blank.
 
@@ -170,7 +171,7 @@ EVALUATION_QUEUE_TEXT = """
    contract in the **About** tab, including the `supported_tracks` metadata.
 2. Optionally, check the repo locally first:
    `uv run python -m leaderboard.scripts.check_submission <org/model>`.
-3. Fill in the form and confirm that the model was not exposed to the eval split
+3. Fill in the form, with your Hugging Face username, and confirm that the model was not exposed to the eval split
    during training, tuning or model selection.
 4. We check that the repo is public, and that the file is at most 50 MiB and has
    the required tensor names and metadata. The physics evaluation then runs on the

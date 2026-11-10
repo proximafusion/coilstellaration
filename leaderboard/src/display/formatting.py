@@ -14,10 +14,18 @@ def make_clickable_model(model_name):
     return model_hyperlink(link, model_name)
 
 
-def make_file_link(model_name, ref, onnx_path):
-    """A "Link" to `onnx_path` in the `model_name` repo at `ref` (a commit) on the
-    Hub."""
-    link = f"https://huggingface.co/{model_name}/blob/{ref}/{onnx_path}"
+def make_user_link(username):
+    """The username, linked to its Hugging Face profile."""
+    if not username:
+        return ""
+    return model_hyperlink(f"https://huggingface.co/{username}", username)
+
+
+def make_results_link(results_repo, path):
+    """A "Link" to `path` in the `results_repo` dataset; blank without a path."""
+    if not path:
+        return ""
+    link = f"https://huggingface.co/datasets/{results_repo}/blob/main/{path}"
     return model_hyperlink(link, "Link")
 
 

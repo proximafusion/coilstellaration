@@ -110,11 +110,11 @@ def init_leaderboard(frames):
             ],
             cant_deselect=[c.name for c in fields(AutoEvalColumn) if c.never_hidden],
             label="Columns",
-            info="Add or remove columns. HF Model is always shown.",
+            info="Add or remove columns.",
         ),
         search_columns=[
             AutoEvalColumn.model.name,
-            AutoEvalColumn.submitter.name,
+            AutoEvalColumn.user_name.name,
         ],
         hide_columns=[c.name for c in fields(AutoEvalColumn) if c.hidden],
         highlight_columns=METRIC_COLS,
@@ -178,9 +178,9 @@ with app_leaderboard:
                         info="Path of the ONNX file within the repo.",
                     )
                     submitter_textbox = gr.Textbox(
-                        label="Submitter",
-                        info="Your name or contact. Shown on the leaderboard next "
-                        "to your model.",
+                        label="Hugging Face username",
+                        info="Shown on the leaderboard as the user, linked to "
+                        "your Hugging Face profile.",
                     )
                     no_eval_training_checkbox = gr.Checkbox(
                         label=NO_EVAL_TRAINING_DECLARATION,

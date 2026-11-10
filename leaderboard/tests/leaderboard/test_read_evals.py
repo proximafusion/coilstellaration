@@ -148,15 +148,25 @@ def test_result_to_row_without_n_has_no_standard_error():
     assert math.isnan(row[AutoEvalColumn.n.name])
 
 
-def test_result_to_row_links_to_the_onnx_file_at_the_commit():
-    rec = {
-        "model": "org/m",
-        "commit_hash": "abc123",
-        "onnx_path": "models/best.onnx",
-        "tracks": {"fixed_shape": {"mean": 0.5}},
-    }
+def test_result_to_row_links_user_profile_and_full_results(tmp_path):
+    from leaderboard.src.envs import RESULTS_REPO
+
+    (tmp_path / "org").mkdir()
+    (tmp_path / "org" / "m_abc_model.json").write_text(
+        json.dumps(
+            {
+                "model": "org/m",
+                "submitter": "alice",
+                "status": "FINISHED",
+                "tracks": {"fixed_shape": {"mean": 0.5}},
+            }
+        )
+    )
+    [rec] = get_raw_eval_results(str(tmp_path))
     row = result_to_row(rec, "fixed_shape", "All")
-    link = row[AutoEvalColumn.link.name]
-    assert 'href="https://huggingface.co/org/m/blob/abc123/models/best.onnx"' in link
-    assert ">Link</a>" in link
+
+    assert 'href="https://huggingface.co/alice"' in row[AutoEvalColumn.user.name]
+    assert row[AutoEvalColumn.user_name.name] == "alice"
+    url = f"https://huggingface.co/datasets/{RESULTS_REPO}/blob/main/org/m_abc_model.parquet"
+    assert f'href="{url}"' in row[AutoEvalColumn.full_results.name]
     assert row[AutoEvalColumn.model.name] == "org/m"

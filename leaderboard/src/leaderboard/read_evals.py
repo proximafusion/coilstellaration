@@ -6,9 +6,11 @@ from pathlib import Path
 
 from leaderboard.src.display.formatting import (
     make_clickable_commit,
-    make_file_link,
+    make_results_link,
+    make_user_link,
 )
 from leaderboard.src.display.utils import AutoEvalColumn
+from leaderboard.src.envs import RESULTS_REPO
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +56,12 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
         return None
 
     return {
-        AutoEvalColumn.link.name: make_file_link(
-            record["model"],
-            record.get("commit_hash") or record.get("revision") or "main",
-            record.get("onnx_path", "model.onnx"),
-        ),
         AutoEvalColumn.model.name: record["model"],
-        AutoEvalColumn.submitter.name: record.get("submitter", ""),
+        AutoEvalColumn.user.name: make_user_link(record.get("submitter", "")),
+        AutoEvalColumn.user_name.name: record.get("submitter", ""),
+        AutoEvalColumn.full_results.name: make_results_link(
+            RESULTS_REPO, record.get("raw_scores_file", "")
+        ),
         AutoEvalColumn.mean.name: _get(summary, "mean"),
         AutoEvalColumn.feas09.name: _get(summary, "feasibility_rate_0p9"),
         AutoEvalColumn.strict.name: _get(summary, "strict_feasibility"),
@@ -82,16 +83,25 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
 
 
 def get_raw_eval_results(results_path: str) -> list[dict]:
-    """Walk the results dir; return the raw record dict for each FINISHED result."""
+    """Walk the results dir; return the raw record dict for each FINISHED result.
+
+    Each record gets `raw_scores_file`, the repo path of its per-instance scores.
+    """
     logger.debug("Reading eval results from %s", results_path)
     records: list[dict] = []
     for root, _, files in os.walk(results_path):
         for fname in files:
             if not fname.endswith(".json"):
                 continue
-            record = json.loads((Path(root) / fname).read_text())
+            path = Path(root) / fname
+            record = json.loads(path.read_text())
             if record.get("status") != "FINISHED":
                 continue
+            # The runner writes the per-instance scores next to the summary, as
+            # the same path with a .parquet suffix.
+            record["raw_scores_file"] = (
+                path.relative_to(results_path).with_suffix(".parquet").as_posix()
+            )
             records.append(record)
     logger.debug("Loaded %d FINISHED result record(s)", len(records))
     return records

@@ -9,6 +9,7 @@ def _frame():
         {
             "model": model,
             "submitter": submitter,
+            "raw_scores_file": f"{model}_abc_model.parquet",
             "tracks": {"fixed_shape": {"mean": 0.5, "strict_feasibility": 0.1}},
         }
         for model, submitter in [("org/alpha", "alice"), ("lab/beta", "bob")]
@@ -16,20 +17,20 @@ def _frame():
     return pd.DataFrame([result_to_row(r, "fixed_shape", "All") for r in records])
 
 
-def test_search_matches_plain_model_name_not_link_markup():
+def test_search_matches_plain_names_not_link_markup():
     df = _frame()
-    columns = ["Model ID", "Submitter"]
-    # The HF Model column's links contain "huggingface" and "href" in every row;
-    # search matches the plain Model ID and Submitter columns instead.
+    columns = ["model id", "user_name"]
+    # The user and full results links contain "huggingface" and "href" in every
+    # row; search matches the plain model id and username instead.
     assert search_rows(df, "huggingface", columns).empty
     assert search_rows(df, "href", columns).empty
-    assert list(search_rows(df, "ALPHA", columns)["Model ID"]) == ["org/alpha"]
-    assert list(search_rows(df, "bob", columns)["Model ID"]) == ["lab/beta"]
+    assert list(search_rows(df, "ALPHA", columns)["model id"]) == ["org/alpha"]
+    assert list(search_rows(df, "bob", columns)["model id"]) == ["lab/beta"]
 
 
 def test_empty_query_keeps_every_row():
     df = _frame()
-    assert len(search_rows(df, "", ["Model ID"])) == 2
+    assert len(search_rows(df, "", ["model id"])) == 2
 
 
 def test_style_frame_marks_column_maxima_and_rounds():
@@ -63,15 +64,18 @@ def test_style_frame_formats_counts_as_integers_and_other_numbers_to_3dp():
 
 def test_write_csv_turns_links_into_urls():
     from leaderboard.src.display.leaderboard import write_csv
+    from leaderboard.src.envs import RESULTS_REPO
 
-    df = _frame()[["HF Model", "Model ID", "Submitter", "mean"]]
+    df = _frame()[["user", "full results", "model id", "mean"]]
     path = write_csv(df, "board-fixed_shape-All")
     assert path.endswith("board-fixed_shape-All.csv")
     out = pd.read_csv(path)
-    # A "Link" cell becomes the URL it points to.
-    assert list(out["HF Model"]) == [
-        "https://huggingface.co/org/alpha/blob/main/model.onnx",
-        "https://huggingface.co/lab/beta/blob/main/model.onnx",
+    # A "Link" cell becomes the URL it points to; other links become their text.
+    base = f"https://huggingface.co/datasets/{RESULTS_REPO}/blob/main"
+    assert list(out["full results"]) == [
+        f"{base}/org/alpha_abc_model.parquet",
+        f"{base}/lab/beta_abc_model.parquet",
     ]
-    assert list(out["Model ID"]) == ["org/alpha", "lab/beta"]
+    assert list(out["user"]) == ["alice", "bob"]
+    assert list(out["model id"]) == ["org/alpha", "lab/beta"]
     assert list(out["mean"]) == [0.5, 0.5]

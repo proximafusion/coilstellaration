@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,6 +43,10 @@ def _limit_message(size: int) -> str:
     )
 
 
+# A Hugging Face user or organisation name. The leaderboard links it to the
+# profile at huggingface.co/<name>.
+HF_USERNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
 # The declaration a submitter must make, shown next to the form's checkbox.
 NO_EVAL_TRAINING_DECLARATION = (
     "I declare that this model was not exposed to the eval split of "
@@ -57,7 +62,12 @@ def form_errors(
     if not model or "/" not in model:
         errors["model"] = "Please enter a model id of the form `org/model`."
     if not submitter:
-        errors["submitter"] = "Please enter a submitter name or contact."
+        errors["submitter"] = "Please enter your Hugging Face username."
+    elif not HF_USERNAME.fullmatch(submitter.strip()):
+        errors["submitter"] = (
+            "That isn't a Hugging Face username: use letters, digits, `-`, `_` "
+            "and `.` only."
+        )
     onnx_path = (onnx_path or ONNX_FILENAME).strip()
     if not onnx_path.lower().endswith(".onnx"):
         errors["onnx_path"] = "The model file path must end in `.onnx`."
@@ -99,6 +109,7 @@ def add_new_eval(
     if errors:
         raise gr.Error(" ".join(errors.values()))
     revision = revision or "main"
+    submitter = submitter.strip()
     onnx_path = (onnx_path or ONNX_FILENAME).strip().lstrip("/")
 
     logger.info(
