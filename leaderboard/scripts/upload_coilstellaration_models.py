@@ -21,30 +21,12 @@ Run:  HF_TOKEN=hf_... uv run python scripts/upload_coilstellaration_models.py
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
 
-# The model baseline shipped alongside the trained exports; not a coil predictor.
 _SKIP = set()
-
-_MODEL_CARD = """\
----
-license: apache-2.0
-tags:
-- coilstellaration
-- onnx
-- stellarator
----
-
-# Coilstellaration ONNX coil predictors
-
-Trained coil-predictor checkpoints from the `coilstellaration` package, exported
-to contract-conforming ONNX by `scripts/export_coilstellaration_onnx.py`. Each
-file is one architecture (`mlp`, `res_mlp`, and their ensembles). Inputs:
-`boundary_r_cos`, `boundary_z_sin`, `requirement_metrics`; outputs: `coil_x_n`,
-`coil_y_n`, `coil_z_n`, `currents`.
-"""
 
 
 def _parse_args() -> argparse.Namespace:
@@ -88,30 +70,22 @@ def main() -> int:
     # at import time, so it must be set before importing anything under `src`.
     os.environ.setdefault("COILBENCH_OWNER", owner)
 
-    # Make `src` importable when run from a checkout.
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-    from src.envs import API, QUEUE_REPO, TOKEN  # noqa: E402
-    from src.submission.submit import add_new_eval  # noqa: E402
+    from src.envs import API, QUEUE_REPO, TOKEN  # pyright: ignore[reportMissingImports]
+    from src.submission.submit import add_new_eval  # pyright: ignore[reportMissingImports]
 
     # 1) Ensure the model repo exists, then push the ONNX files + a model card.
     API.create_repo(repo_id=models_repo, repo_type="model", exist_ok=True, token=TOKEN)
-    for f in onnx_files:
-        print(f"Uploading {f.name} -> {models_repo}")
-        API.upload_file(
-            path_or_fileobj=str(f),
-            path_in_repo=f.name,
+    _folders = list(set([f.parent for f in onnx_files]))
+    _filenames = list(set([f.name for f in onnx_files]))
+    for folder in _folders:
+        print(f"Uploading {folder}/*.onnx -> {models_repo}")
+        API.upload_folder(
             repo_id=models_repo,
             repo_type="model",
-            commit_message=f"Add {f.name}",
+            folder_path=folder,
+            allow_patterns=_filenames,
+            commit_message=f"Adding {folder}",
         )
-    API.upload_file(
-        path_or_fileobj=_MODEL_CARD.encode(),
-        path_in_repo="README.md",
-        repo_id=models_repo,
-        repo_type="model",
-        commit_message="Add model card",
-    )
 
     # 2) Queue one eval request per file (validates the ONNX contract + dedups).
     print(f"\nQueueing eval requests in {QUEUE_REPO}")
@@ -140,4 +114,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    logging.basicConfig()
     raise SystemExit(main())

@@ -10,9 +10,7 @@ def test_valid_model_passes(tmp_path):
 
 
 def test_variable_model_reports_both_tracks(tmp_path):
-    path = build_dummy_onnx(
-        tmp_path / "model.onnx", in_shapes={"boundary_r_cos": ["m", "n"]}
-    )
+    path = build_dummy_onnx(tmp_path / "model.onnx", supported_tracks="fixed_shape,variable_shape")
     ok, msg, tracks = validate_local_onnx(path)
     assert ok, msg
     assert tracks == ["fixed_shape", "variable_shape"]
@@ -23,4 +21,12 @@ def test_missing_tensor_fails(tmp_path):
     ok, msg, tracks = validate_local_onnx(path)
     assert not ok
     assert "currents" in msg
+    assert tracks == []
+
+
+def test_invalid_track_metadata_fails(tmp_path):
+    path = build_dummy_onnx(tmp_path / "model.onnx", supported_tracks="fixed_shape, variable")
+    ok, msg, tracks = validate_local_onnx(path)
+    assert not ok
+    assert "supported_tracks" in msg
     assert tracks == []

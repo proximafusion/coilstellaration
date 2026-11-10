@@ -35,16 +35,16 @@ def _get(summary: dict | None, key: str) -> float:
 
 
 def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
-    """Map one result record (spec §6) to a leaderboard row for one track+stratum
-    view, or `None` when the record has no data for that view.
+    """Map one result record (spec §6) to a leaderboard row for one track+stratum view,
+    or `None` when the record has no data for that view.
 
     The metric columns are that track's numbers: for `stratum == "All"` the
     all-strata headline, for a specific stratum that stratum's breakdown.
-    Returns `None` when the track wasn't scored (empty summary) or the stratum
-    is absent from the record (predates the per-stratum breakdown), so the
-    frame-builder can drop the row from that view.
+    Returns `None` when the track wasn't scored (empty or missing summary) or
+    the stratum is absent from the record (predates the per-stratum breakdown),
+    so the frame-builder can drop the row from that view.
     """
-    summary = _track_summary(record["tracks"][track], stratum)
+    summary = _track_summary(record["tracks"].get(track, {}), stratum)
     if not summary:
         return None
 

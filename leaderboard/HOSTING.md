@@ -47,9 +47,10 @@ with no file edits** — you only set Space variables:
    - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
    - `COILBENCH_N` (optional) — instances per track; `0` = full split.
    - `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single
-     eval is killed (default 1800; `0` disables the subprocess guard).
+     eval is killed (default 7200; `0` disables the subprocess guard). A full
+     both-track evaluation takes ~1.2 h on cpu-basic (2 vCPU).
    - `COILBENCH_LEASE_TTL` (optional) — seconds before a stuck `RUNNING` request
-     is presumed orphaned and recovered (default 3600; keep above the timeout).
+     is presumed orphaned and recovered (default 10800; keep above the timeout).
    - `COILBENCH_MAX_ATTEMPTS` (optional) — how many times a request may be
      (re)claimed before it is failed permanently (default 3).
 

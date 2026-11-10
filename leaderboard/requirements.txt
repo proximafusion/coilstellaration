@@ -10,4 +10,3 @@ onnxruntime
 pandas
 python-dateutil
 tqdm
-coilstellaration @ git+https://github.com/proximafusion/coilstellaration.git@03d1dc2

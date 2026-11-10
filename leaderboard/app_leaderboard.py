@@ -1,10 +1,9 @@
+import datetime
 import os
 
 import gradio as gr
-from src.display.leaderboard import Leaderboard, ColumnFilter, SelectColumns
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
-from huggingface_hub import snapshot_download
 from src.about import (
     CITATION_BUTTON_LABEL,
     CITATION_BUTTON_TEXT,
@@ -14,6 +13,7 @@ from src.about import (
     TITLE,
 )
 from src.display.css_html_js import custom_css
+from src.display.leaderboard import ColumnFilter, Leaderboard, SelectColumns
 from src.display.utils import (
     COLS,
     EVAL_COLS,
@@ -25,9 +25,13 @@ from src.display.utils import (
     fields,
 )
 from src.envs import API, EVAL_RESULTS_PATH, REPO_ID, RESULTS_REPO, TOKEN
-from src.populate import get_evaluation_queue_df, get_leaderboard_frames
+from src.populate import (
+    get_evaluation_queue_df,
+    get_leaderboard_frames,
+)
 from src.submission import requests_dataset
 from src.submission.submit import add_new_eval
+from huggingface_hub import snapshot_download
 
 
 def restart_space():
@@ -37,6 +41,7 @@ def restart_space():
 # Submission-form radio labels. Each radio toggles its companion slider on/off.
 DETERMINISTIC, STOCHASTIC = "Deterministic", "Stochastic"
 FULL_SET, LIMIT_N = "Full set", "Limit to N"
+INTERVAL = int(os.environ.get("COILBENCH_LEADERBOARD_INTERVAL", "300"))
 
 
 def submit_eval(model, revision, onnx_path, submitter, model_type, k_samples, instance_mode, n_instances):
@@ -49,11 +54,17 @@ def submit_eval(model, revision, onnx_path, submitter, model_type, k_samples, in
     n = int(n_instances) if instance_mode == LIMIT_N else -1
     return add_new_eval(model, revision, submitter, stochastic, int(k_samples), n, onnx_path)
 
+
 ### Space initialisation
 try:
     print(EVAL_RESULTS_PATH)
     snapshot_download(
-        repo_id=RESULTS_REPO, local_dir=EVAL_RESULTS_PATH, repo_type="dataset", tqdm_class=None, etag_timeout=30, token=TOKEN
+        repo_id=RESULTS_REPO,
+        local_dir=EVAL_RESULTS_PATH,
+        repo_type="dataset",
+        tqdm_class=None,
+        etag_timeout=30,
+        token=TOKEN,
     )
 except Exception:
     restart_space()
@@ -67,11 +78,10 @@ except Exception:
     restart_space()
     request_records = []
 
-(
-    finished_eval_queue_df,
-    running_eval_queue_df,
-    pending_eval_queue_df,
-) = get_evaluation_queue_df(request_records, EVAL_COLS)
+(finished_eval_queue_df, running_eval_queue_df, pending_eval_queue_df, failed_eval_queue_df) = get_evaluation_queue_df(
+    request_records, EVAL_COLS
+)
+
 
 def init_leaderboard(frames):
     # A fresh leaderboard with no submissions yet should render an empty table,
@@ -107,15 +117,15 @@ def init_leaderboard(frames):
     )
 
 
-demo = gr.Blocks()
-with demo:
+app_leaderboard = gr.Blocks()
+with app_leaderboard:
     gr.HTML(f"<style>{custom_css}</style>")
     gr.HTML(TITLE)
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
         with gr.TabItem("🏅 Coilstellaration Benchmark", elem_id="benchmark-tab-table", id=0):
-            leaderboard = init_leaderboard(LEADERBOARD_FRAMES)
+            init_leaderboard(LEADERBOARD_FRAMES)
 
         with gr.TabItem("📝 About", elem_id="about-tab", id=2):
             gr.Markdown(LLM_BENCHMARKS_TEXT, elem_classes="markdown-text")
@@ -160,6 +170,17 @@ with demo:
                                 datatype=EVAL_TYPES,
                                 row_count=5,
                             )
+                    with gr.Accordion(
+                        f"❌ Failed Evaluations ({len(failed_eval_queue_df)})",
+                        open=False,
+                    ):
+                        with gr.Row():
+                            failed_eval_table = gr.components.Dataframe(
+                                value=failed_eval_queue_df,
+                                headers=EVAL_COLS,
+                                datatype=EVAL_TYPES,
+                                row_count=5,
+                            )
             with gr.Row():
                 gr.Markdown("# ✉️✨ Submit your model here!", elem_classes="markdown-text")
 
@@ -176,8 +197,12 @@ with demo:
                         label="Model type",
                     )
                     k_samples_slider = gr.Slider(
-                        minimum=1, maximum=20, step=1, value=1,
-                        label="K samples", interactive=False,
+                        minimum=1,
+                        maximum=20,
+                        step=1,
+                        value=1,
+                        label="K samples",
+                        interactive=False,
                     )
                     instance_radio = gr.Radio(
                         choices=[FULL_SET, LIMIT_N],
@@ -185,8 +210,12 @@ with demo:
                         label="Instances per track (larger than the split scores all)",
                     )
                     n_instances_slider = gr.Slider(
-                        minimum=1, maximum=1000, step=1, value=10,
-                        label="N instances per track", interactive=False,
+                        minimum=1,
+                        maximum=1000,
+                        step=1,
+                        value=10,
+                        label="N instances per track",
+                        interactive=False,
                     )
 
                     stochastic_radio.change(
@@ -226,12 +255,16 @@ with demo:
                 elem_id="citation-button",
             )
 
-if os.environ.get("SPACE_ID"):
+if os.environ.get("SPACE_ID") is not None:
     scheduler = BackgroundScheduler()
-    scheduler.add_job(restart_space, "interval", seconds=1800)
+    scheduler.add_job(
+        restart_space,
+        "interval",
+        seconds=INTERVAL,
+        next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=INTERVAL),
+    )
     scheduler.start()
 
-demo.queue(default_concurrency_limit=40)
 
 if __name__ == "__main__":
-    demo.launch()
+    app_leaderboard.launch()

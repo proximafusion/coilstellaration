@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 def request_path(model: str, commit_hash: str, onnx_path: str) -> str:
     """Canonical path of a request file within the requests dataset repo.
 
-    The filename encodes the dedup identity, so existence of this path *is*
-    the duplicate check.
+    The filename encodes the dedup identity, so existence of this path *is* the
+    duplicate check.
     """
     user_name, model_path = model.split("/", 1)
     onnx_slug = onnx_path.replace("/", "-").removesuffix(".onnx")
@@ -34,8 +34,8 @@ def submission_exists(model: str, commit_hash: str, onnx_path: str) -> bool:
 def iter_requests() -> Iterator[dict]:
     """Yield each request record, downloading and parsing per file.
 
-    A malformed or partially uploaded file is logged and skipped rather than
-    aborting the whole queue view.
+    A malformed or partially uploaded file is logged and skipped rather than aborting
+    the whole queue view.
     """
     for path in list_request_files():
         try:

@@ -1,25 +1,40 @@
 import json
 
 from src.display.utils import AutoEvalColumn, COLS, EVAL_COLS, STRATUM_VIEWS, TRACKS
-from src.populate import get_evaluation_queue_df, get_leaderboard_df, get_leaderboard_frames
+from src.populate import (
+    get_evaluation_queue_df,
+    get_leaderboard_df,
+    get_leaderboard_frames,
+)
 
 
-def _write(tmp_path, name, mean, with_strata=True, tracks=("fixed_shape", "variable_shape"),
-           strict=0.1):
+def _write(tmp_path, name, mean, with_strata=True, tracks=("fixed_shape", "variable_shape"), strict=0.1):
     def track(m):
-        t = {"mean": m, "median": 0.5, "p10": 0.2,
-             "feasibility_rate_0p9": 0.3, "strict_feasibility": strict, "n": 2}
+        t = {"mean": m, "median": 0.5, "p10": 0.2, "feasibility_rate_0p9": 0.3, "strict_feasibility": strict, "n": 2}
         if with_strata:
-            t["strata"] = {"tight": {"mean": m / 10, "median": 0.05, "p10": 0.02,
-                                     "feasibility_rate_0p9": 0.0, "strict_feasibility": strict / 10, "n": 1}}
+            t["strata"] = {
+                "tight": {
+                    "mean": m / 10,
+                    "median": 0.05,
+                    "p10": 0.02,
+                    "feasibility_rate_0p9": 0.0,
+                    "strict_feasibility": strict / 10,
+                    "n": 1,
+                }
+            }
         return t
+
     # A track that wasn't scored is recorded as an empty dict.
     rec = {
-        "model": f"org/{name}", "revision": "abc", "submitter": "alice",
-        "submitted_time": "2026-06-11T00:00:00Z", "stochastic": False, "k_samples": 1,
-        "status": "FINISHED", "overall_score": mean,
-        "tracks": {t: (track(mean) if t in tracks else {})
-                   for t in ("fixed_shape", "variable_shape")},
+        "model": f"org/{name}",
+        "revision": "abc",
+        "submitter": "alice",
+        "submitted_time": "2026-06-11T00:00:00Z",
+        "stochastic": False,
+        "k_samples": 1,
+        "status": "FINISHED",
+        "overall_score": mean,
+        "tracks": {t: (track(mean) if t in tracks else {}) for t in ("fixed_shape", "variable_shape")},
     }
     sub = tmp_path / "org"
     sub.mkdir(parents=True, exist_ok=True)
@@ -71,8 +86,7 @@ def test_rows_sorted_by_strict_then_mean(tmp_path):
     _write(tmp_path, "lo_strict_lo_mean", 0.5, strict=0.2)
     frames = get_leaderboard_frames(str(tmp_path), COLS)
     models = frames[("fixed_shape", "All")][AutoEvalColumn.model.name].tolist()
-    order = [m for name in ["hi_strict", "lo_strict_hi_mean", "lo_strict_lo_mean"]
-             for m in models if name in m]
+    order = [m for name in ["hi_strict", "lo_strict_hi_mean", "lo_strict_lo_mean"] for m in models if name in m]
     assert order == models
 
 
@@ -86,11 +100,17 @@ def test_empty_results_frames_carry_columns(tmp_path):
 
 def test_running_queue_surfaces_started_at():
     # A stuck RUNNING job should expose its claim time so it is visible in the UI.
-    _finished, running, _pending = get_evaluation_queue_df(
-        [{
-            "model": "org/m", "revision": "main", "submitter": "a", "stochastic": False,
-            "status": "RUNNING", "started_at": "2026-06-12T00:00:00+00:00",
-        }],
+    _finished, running, _pending, _failed = get_evaluation_queue_df(
+        [
+            {
+                "model": "org/m",
+                "revision": "main",
+                "submitter": "a",
+                "stochastic": False,
+                "status": "RUNNING",
+                "started_at": "2026-06-12T00:00:00+00:00",
+            }
+        ],
         EVAL_COLS,
     )
     assert "2026-06-12T00:00:00+00:00" in running["started"].tolist()
@@ -102,22 +122,21 @@ def test_queue_buckets_by_status():
         {"model": "org/r", "status": "RUNNING"},
         {"model": "org/f", "status": "FINISHED"},
     ]
-    finished, running, pending = get_evaluation_queue_df(records, EVAL_COLS)
+    finished, running, pending, _failed = get_evaluation_queue_df(records, EVAL_COLS)
     assert len(pending) == 1 and len(running) == 1 and len(finished) == 1
 
 
 def test_queue_tolerates_missing_status():
     # A stray/partial record without a status must not crash the queue render.
-    finished, running, pending = get_evaluation_queue_df([{"model": "org/x"}], EVAL_COLS)
-    assert len(finished) == 0 and len(running) == 0 and len(pending) == 0
+    finished, running, pending, failed = get_evaluation_queue_df([{"model": "org/x"}], EVAL_COLS)
+    assert len(finished) == 0 and len(running) == 0 and len(pending) == 0 and len(failed) == 0
 
 
 def test_queue_shows_supported_tracks():
-    finished, _running, pending = get_evaluation_queue_df(
+    finished, _running, pending, _failed = get_evaluation_queue_df(
         [
             {"model": "org/f", "status": "PENDING", "tracks": ["fixed_shape"]},
-            {"model": "org/b", "status": "PENDING",
-             "tracks": ["fixed_shape", "variable_shape"]},
+            {"model": "org/b", "status": "PENDING", "tracks": ["fixed_shape", "variable_shape"]},
         ],
         EVAL_COLS,
     )
@@ -125,7 +144,8 @@ def test_queue_shows_supported_tracks():
 
 
 def test_queue_defaults_tracks_to_both_when_absent():
-    _finished, _running, pending = get_evaluation_queue_df(
-        [{"model": "org/legacy", "status": "PENDING"}], EVAL_COLS,
+    _finished, _running, pending, _failed = get_evaluation_queue_df(
+        [{"model": "org/legacy", "status": "PENDING"}],
+        EVAL_COLS,
     )
     assert pending["tracks"].iloc[0] == "both"

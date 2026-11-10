@@ -33,7 +33,7 @@ custom_css = """
     background: none;
     border: none;
 }
- 
+
 #search-bar {
     padding: 0px;
 }
@@ -77,7 +77,7 @@ custom_css = """
 #filter_type label > .wrap{
     width: 103px;
 }
-#filter_type label > .wrap .wrap-inner{  
+#filter_type label > .wrap .wrap-inner{
     padding: 2px;
 }
 #filter_type label > .wrap .wrap-inner input{

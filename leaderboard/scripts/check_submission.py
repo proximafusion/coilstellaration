@@ -32,8 +32,10 @@ def check(repo: str, revision: str) -> bool:
     try:
         api.repo_info(repo_id=repo, revision=revision, repo_type="model", token=token)
     except Exception as exc:  # noqa: BLE001
-        print(f"FAIL: repo not accessible ({type(exc).__name__}). "
-              f"If it is private, set HF_TOKEN or run `huggingface-cli login`.\n  {exc}")
+        print(
+            f"FAIL: repo not accessible ({type(exc).__name__}). "
+            f"If it is private, set HF_TOKEN or run `huggingface-cli login`.\n  {exc}"
+        )
         return False
     print(f"ok: repo accessible: {repo}@{revision}")
 
@@ -41,8 +43,11 @@ def check(repo: str, revision: str) -> bool:
         # 2) model.onnx is present and downloadable.
         try:
             local = hf_hub_download(
-                repo_id=repo, filename=ONNX_FILENAME, revision=revision,
-                local_dir=tmp, token=token,
+                repo_id=repo,
+                filename=ONNX_FILENAME,
+                revision=revision,
+                local_dir=tmp,
+                token=token,
             )
         except Exception as exc:  # noqa: BLE001
             print(f"FAIL: could not download `{ONNX_FILENAME}`: {exc}")
@@ -62,6 +67,8 @@ def check(repo: str, revision: str) -> bool:
             "boundary_r_cos": np.zeros((5, 9), np.float32),
             "boundary_z_sin": np.zeros((5, 9), np.float32),
             "requirement_metrics": np.zeros((4,), np.float32),
+            "n_field_periods": np.asarray(3, np.int64),
+            "n_coils_per_half_period": np.asarray(5, np.int64),
         }
         if "boundary_r_sin" in model.input_names:
             feed["boundary_r_sin"] = np.zeros((5, 9), np.float32)

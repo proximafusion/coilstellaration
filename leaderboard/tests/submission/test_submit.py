@@ -9,10 +9,12 @@ class _Info:
     sha = "deadbeefcafebabe1234567890abcdef12345678"
 
 
-def _wire(monkeypatch, tmp_path, captured, existing=(), size=1024, in_shapes=None):
+def _wire(monkeypatch, tmp_path, captured, existing=(), size=1024, supported_tracks="fixed_shape"):
     """Stub all Hub I/O; `existing` seeds the requests-dataset file list.
-    `size` is the file size get_paths_info reports; `in_shapes` overrides the
-    dummy ONNX input shapes so track detection can be exercised."""
+
+    `size` is the file size get_paths_info reports; `supported_tracks` is the
+    dummy ONNX's track metadata.
+    """
     monkeypatch.setattr(submit.API, "repo_info", lambda **kw: _Info())
     monkeypatch.setattr(requests_dataset, "list_request_files", lambda: list(existing))
 
@@ -29,7 +31,7 @@ def _wire(monkeypatch, tmp_path, captured, existing=(), size=1024, in_shapes=Non
 
     def fake_download(repo_id, filename, revision, local_dir, token):
         captured["download"] = {"filename": filename, "revision": revision}
-        return build_dummy_onnx(tmp_path / "dl.onnx", in_shapes=in_shapes)
+        return build_dummy_onnx(tmp_path / "dl.onnx", supported_tracks=supported_tracks)
 
     monkeypatch.setattr(submit, "hf_hub_download", fake_download)
 
@@ -117,7 +119,7 @@ def test_submission_rejects_oversized_model(tmp_path, monkeypatch):
 
 def test_submission_records_fixed_only_tracks(tmp_path, monkeypatch):
     captured = {}
-    _wire(monkeypatch, tmp_path, captured)  # default dummy: all-static dims
+    _wire(monkeypatch, tmp_path, captured)  # default dummy declares fixed_shape
 
     out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1)
 
@@ -127,7 +129,7 @@ def test_submission_records_fixed_only_tracks(tmp_path, monkeypatch):
 
 def test_submission_records_both_tracks(tmp_path, monkeypatch):
     captured = {}
-    _wire(monkeypatch, tmp_path, captured, in_shapes={"boundary_r_cos": ["m", "n"]})
+    _wire(monkeypatch, tmp_path, captured, supported_tracks="fixed_shape,variable_shape")
 
     out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1)
 

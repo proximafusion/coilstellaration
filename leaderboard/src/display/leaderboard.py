@@ -94,26 +94,17 @@ def Leaderboard(
     # The track/stratum switches sit above the table; a plain State stands in
     # for an axis with a single value so `view`'s signature stays uniform.
     track_radio = (
-        gr.Radio(choices=[track_labels[t] for t in tracks],
-                 value=track_labels[default_track], label=track_label)
+        gr.Radio(choices=[track_labels[t] for t in tracks], value=track_labels[default_track], label=track_label)
         if len(tracks) > 1
         else None
     )
-    stratum_radio = (
-        gr.Radio(choices=strata, value=default_stratum, label=stratum_label)
-        if len(strata) > 1
-        else None
-    )
+    stratum_radio = gr.Radio(choices=strata, value=default_stratum, label=stratum_label) if len(strata) > 1 else None
     column_picker = gr.CheckboxGroup(
         choices=selectable,
         value=select_columns.default_selection,
         label=select_columns.label,
     )
-    search_box = (
-        gr.Textbox(label="Search", placeholder="Search…")
-        if search_columns
-        else None
-    )
+    search_box = gr.Textbox(label="Search", placeholder="Search…") if search_columns else None
     filter_boxes = [
         gr.CheckboxGroup(
             choices=sorted(value[flt.column].astype(str).unique()) if not value.empty else [],
@@ -124,8 +115,7 @@ def Leaderboard(
 
     default_frame = frames[(default_track, default_stratum)]
     default_keep = [
-        c for c in all_columns
-        if c in select_columns.default_selection or c in select_columns.cant_deselect
+        c for c in all_columns if c in select_columns.default_selection or c in select_columns.cant_deselect
     ]
     table = gr.Dataframe(
         value=default_frame[default_keep],

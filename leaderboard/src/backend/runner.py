@@ -1,4 +1,5 @@
 import datetime
+import io
 import json
 import logging
 import os
@@ -9,13 +10,11 @@ import sys
 import tempfile
 import time
 
-from huggingface_hub import hf_hub_download, snapshot_download
-
-from src.backend import config, jax_cache
-from src.backend import eval as beval
-from src.backend.onnx_model import OnnxModel
+import pandas as pd
+from src.backend import config, evaluate, jax_cache, onnx_model
 from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, RESULTS_REPO, TOKEN
 from src.submission.submit import ONNX_FILENAME
+from huggingface_hub import hf_hub_download, snapshot_download
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +68,8 @@ def _push_request(req: dict, rel_path: str):
 
 
 def _result_rel_path(record: dict, ext: str) -> str:
-    """Results-repo path for a record's artifact, disambiguated by model, commit
-    and ONNX file so re-submissions and per-file variants don't collide."""
+    """Results-repo path for a record's artifact, disambiguated by model, commit and
+    ONNX file so re-submissions and per-file variants don't collide."""
     org, model = record["model"].split("/", 1)
     commit = record.get("commit_hash") or record.get("revision", "")
     onnx_slug = record.get("onnx_path", "model.onnx").replace("/", "-").removesuffix(".onnx")
@@ -106,36 +105,65 @@ def _push_result_parquet(record: dict, parquet_bytes: bytes):
     )
 
 
-def _run_eval(req: dict) -> dict:
-    """Download the submitted ONNX at its pinned ref and score it. May be slow."""
+def _push_result_model(record: dict, model_bytes: bytes):
+    """Upload the ONNX model alongside the JSON summary."""
+    rel_path = _result_rel_path(record, "onnx")
+    logger.debug("Pushing model ONNX for %s to %s", record["model"], rel_path)
+    API.upload_file(
+        path_or_fileobj=model_bytes,
+        path_in_repo=rel_path,
+        repo_id=RESULTS_REPO,
+        repo_type="dataset",
+        commit_message=f"Add ONNX for {record['model']}",
+    )
+
+
+def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
+    """Download the submitted ONNX at its pinned ref and score it.
+
+    May be slow.
+    """
     jax_cache.enable()
     with tempfile.TemporaryDirectory() as tmp:
         onnx_path = req.get("onnx_path", ONNX_FILENAME)
         ref = req.get("commit_hash") or req["revision"]
         logger.info("Downloading %s from %s at %s", onnx_path, req["model"], ref)
         dl_start = time.perf_counter()
-        local = hf_hub_download(repo_id=req["model"], filename=onnx_path, revision=ref, local_dir=tmp, token=TOKEN)
+        local_model_path = hf_hub_download(
+            repo_id=req["model"], filename=onnx_path, revision=ref, local_dir=tmp, token=TOKEN
+        )
         logger.info(
             "Downloaded %s (%.1f MB) in %.1fs",
-            onnx_path, os.path.getsize(local) / 1e6, time.perf_counter() - dl_start,
+            onnx_path,
+            os.path.getsize(local_model_path) / 1e6,
+            time.perf_counter() - dl_start,
         )
-        model = OnnxModel(local)
-        return beval.evaluate_model(
+        model = onnx_model.OnnxModel(local_model_path)
+        # The model's own metadata decides the tracks: a queued request's `tracks`
+        # may predate a re-exported model and must not override what it declares.
+        tracks = onnx_model.read_supported_tracks(model.session)
+        record, rows = evaluate.evaluate_model(
             model=model,
-            model_name=req["model"],
-            revision=req["revision"],
-            submitter=req.get("submitter", ""),
             stochastic=req.get("stochastic", False),
             k_samples=req.get("k_samples", 1),
-            submitted_time=req.get("submitted_time", ""),
             n_instances=req.get("n_instances", config.N_INSTANCES),
+            tracks=tracks,
+        )
+        metadata = dict(
+            model=req["model"],
+            revision=req["revision"],
+            submitter=req.get("submitter", ""),
             commit_hash=req.get("commit_hash", ""),
             onnx_path=onnx_path,
-            tracks=req.get("tracks"),
+            submitted_time=req.get("submitted_time", ""),
         )
+        record |= metadata
+        with open(local_model_path, "rb") as f:
+            model_bytes = f.read()
+        return record, rows, model_bytes
 
 
-_EVAL_CMD = [sys.executable, "-u", "-m", "src.backend.eval_one"]
+_EVAL_CMD = [sys.executable, "-u", "-m", "src.backend.evaluate_one"]
 
 
 def _kill_group(proc: "subprocess.Popen") -> None:
@@ -147,11 +175,12 @@ def _kill_group(proc: "subprocess.Popen") -> None:
     proc.wait()
 
 
-def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> tuple[dict, bytes | None]:
+def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> tuple[dict, bytes | None, bytes | None]:
     """Run the eval in an isolated subprocess under a wall-clock kill.
 
-    Returns `(record, parquet_bytes)` where `parquet_bytes` is the raw
-    per-instance scores parquet (or `None` when the eval produced no rows).
+    Returns `(record, parquet_bytes, model_bytes)` where `parquet_bytes` is the
+    raw per-instance scores parquet (or `None` when the eval produced no rows) and
+    `model_bytes` is the evaluated ONNX (or `None` if the child did not write it).
 
     The child is its own session leader (``start_new_session=True``), so a timeout
     SIGKILLs the entire process group -- the eval plus any JAX/DESC helpers it
@@ -164,8 +193,15 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> tuple[dic
     if timeout is None:
         timeout = config.EVAL_TIMEOUT
     if not timeout or timeout <= 0:
-        record, rows = _run_eval(req)
-        return record, (beval.rows_to_parquet_bytes(rows) if rows else None)
+        record, rows, model_bytes = _run_eval(req)
+        parquet_bytes = None
+        if rows:
+            df = pd.DataFrame.from_records(rows)
+            df["results_json"] = None
+            buf = io.BytesIO()
+            df.to_parquet(buf, index=False)
+            parquet_bytes = buf.getvalue()
+        return record, parquet_bytes, model_bytes
 
     with tempfile.TemporaryDirectory() as tmp:
         req_path = os.path.join(tmp, "request.json")
@@ -173,7 +209,7 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> tuple[dic
         with open(req_path, "w") as f:
             json.dump(req, f, indent=2)
 
-        child_env = {**os.environ, beval.DEADLINE_ENV: str(time.time() + timeout)}
+        child_env = {**os.environ, evaluate.DEADLINE_ENV: str(time.time() + timeout)}
         proc = subprocess.Popen(
             [*_EVAL_CMD, req_path, out_path],
             stdin=subprocess.DEVNULL,
@@ -199,14 +235,19 @@ def _evaluate_with_timeout(req: dict, timeout: float | None = None) -> tuple[dic
         if os.path.exists(parquet_path):
             with open(parquet_path, "rb") as f:
                 parquet_bytes = f.read()
-        return record, parquet_bytes
+        model_path = os.path.splitext(out_path)[0] + ".onnx"
+        model_bytes = None
+        if os.path.exists(model_path):
+            with open(model_path, "rb") as f:
+                model_bytes = f.read()
+        return record, parquet_bytes, model_bytes
 
 
 def _reap_stale(requests_dir: str) -> None:
     """Recover RUNNING requests whose lease expired (worker presumed dead).
 
-    Under the attempt cap they go back to PENDING for another worker; at the cap
-    they fail permanently so a job that keeps killing its worker can't loop forever.
+    Under the attempt cap they go back to PENDING for another worker; at the cap they
+    fail permanently so a job that keeps killing its worker can't loop forever.
     """
     now = _now()
     for path, req in _iter_requests(requests_dir):
@@ -229,10 +270,13 @@ def _reap_stale(requests_dir: str) -> None:
         _push_request(req, rel_path)
 
 
-def run_once():
+def run_once() -> tuple[int, int]:
+    """Process every PENDING request once; return `(finished, failed)` counts."""
     logger.info("Polling queue %s for PENDING requests", QUEUE_REPO)
     snapshot_download(repo_id=QUEUE_REPO, local_dir=EVAL_REQUESTS_PATH, repo_type="dataset", token=TOKEN)
     _reap_stale(EVAL_REQUESTS_PATH)
+    finished = 0
+    failed = 0
     for path, req in list(_iter_pending(EVAL_REQUESTS_PATH)):
         rel_path = path.split("eval-queue/")[1]
         logger.info("Processing PENDING request %s (revision %s)", req["model"], req["revision"])
@@ -242,18 +286,23 @@ def run_once():
         req["worker_id"] = _worker_id()
         _push_request(req, rel_path)
         try:
-            record, parquet_bytes = _evaluate_with_timeout(req, config.EVAL_TIMEOUT)
+            record, parquet_bytes, model_bytes = _evaluate_with_timeout(req, config.EVAL_TIMEOUT)
             _push_result(record)
             if parquet_bytes:
                 _push_result_parquet(record, parquet_bytes)
+            if model_bytes:
+                _push_result_model(record, model_bytes)
             req["status"] = "FINISHED"
             req.pop("error", None)
+            finished += 1
             logger.info("Request %s FINISHED", req["model"])
         except Exception as exc:  # noqa: BLE001
             logger.exception("Request %s FAILED: %s", req["model"], exc)
             req["status"] = "FAILED"
             req["error"] = str(exc)
+            failed += 1
         _push_request(req, rel_path)
+    return finished, failed
 
 
 if __name__ == "__main__":
