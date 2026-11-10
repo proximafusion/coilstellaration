@@ -5,7 +5,7 @@ import os
 import sys
 
 import pandas as pd
-from src.backend import runner
+from leaderboard.src.backend import runner
 
 logger = logging.getLogger(__name__)
 

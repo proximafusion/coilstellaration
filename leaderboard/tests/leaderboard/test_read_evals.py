@@ -1,7 +1,7 @@
 import json
 
-from src.display.utils import AutoEvalColumn, COLS
-from src.leaderboard.read_evals import get_raw_eval_results, result_to_row
+from leaderboard.src.display.utils import AutoEvalColumn, COLS
+from leaderboard.src.leaderboard.read_evals import get_raw_eval_results, result_to_row
 
 
 def _record(name, overall, with_strata=False, tracks=("fixed_shape", "variable_shape")):

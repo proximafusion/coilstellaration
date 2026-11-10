@@ -11,7 +11,7 @@ from typing import Any, Literal, Sequence, get_args
 
 import numpy as np
 import pandas as pd
-from src.backend import config, marshal, onnx_model
+from leaderboard.src.backend import config, marshal, onnx_model
 from coilstellaration import (
     coilset_utils,
     data_utils,

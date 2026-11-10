@@ -1,4 +1,4 @@
-from src.display.formatting import make_clickable_commit
+from leaderboard.src.display.formatting import make_clickable_commit
 
 
 def test_clickable_commit_shows_short_sha_and_links_to_commit():

@@ -1,7 +1,7 @@
 import json
 
-from src.backend import config
-from src.submission import requests_dataset, submit
+from leaderboard.src.backend import config
+from leaderboard.src.submission import requests_dataset, submit
 from tests.backend.conftest import build_dummy_onnx
 
 

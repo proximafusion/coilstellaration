@@ -13,7 +13,7 @@ expose, and (b) declares dynamic boundary axes so it runs on every benchmark
 instance regardless of the boundary's spectral resolution. A real submission
 should condition the coilset on the boundary and requirement metrics.
 
-Run:  python scripts/make_example_onnx.py
+Run:  uv run python -m leaderboard.scripts.make_example_onnx
 Output: examples/model.onnx
 """
 

@@ -3,7 +3,7 @@
 import jax
 import pytest
 
-from src.backend import config, jax_cache
+from leaderboard.src.backend import config, jax_cache
 
 
 @pytest.fixture(autouse=True)

@@ -1,7 +1,7 @@
 import json
 
-from src.display.utils import AutoEvalColumn, COLS, EVAL_COLS, STRATUM_VIEWS, TRACKS
-from src.populate import (
+from leaderboard.src.display.utils import AutoEvalColumn, COLS, EVAL_COLS, STRATUM_VIEWS, TRACKS
+from leaderboard.src.populate import (
     get_evaluation_queue_df,
     get_leaderboard_df,
     get_leaderboard_frames,

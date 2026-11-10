@@ -5,11 +5,11 @@ import tempfile
 from datetime import datetime, timezone
 from typing import get_args
 
-from src.backend import config
-from src.display.formatting import styled_error, styled_message
-from src.envs import API, QUEUE_REPO, TOKEN
-from src.submission import requests_dataset
-from src.submission.check_validity import validate_local_onnx
+from leaderboard.src.backend import config
+from leaderboard.src.display.formatting import styled_error, styled_message
+from leaderboard.src.envs import API, QUEUE_REPO, TOKEN
+from leaderboard.src.submission import requests_dataset
+from leaderboard.src.submission.check_validity import validate_local_onnx
 from huggingface_hub import hf_hub_download
 
 logger = logging.getLogger(__name__)

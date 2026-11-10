@@ -11,7 +11,7 @@ import numpy as np
 from constellaration.geometry import surface_rz_fourier
 from coilstellaration import types
 
-from src.backend import config
+from leaderboard.src.backend import config
 
 logger = logging.getLogger(__name__)
 

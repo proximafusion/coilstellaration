@@ -12,9 +12,9 @@ import time
 
 import pandas as pd
 from huggingface_hub import hf_hub_download, snapshot_download
-from src.backend import config, evaluate, jax_cache, onnx_model
-from src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, RESULTS_REPO, TOKEN
-from src.submission.submit import ONNX_FILENAME
+from leaderboard.src.backend import config, evaluate, jax_cache, onnx_model
+from leaderboard.src.envs import API, EVAL_REQUESTS_PATH, QUEUE_REPO, RESULTS_REPO, TOKEN
+from leaderboard.src.submission.submit import ONNX_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +172,10 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
 
 
 _EVAL_CMD = [sys.executable, "-u", "-m", "leaderboard.src.backend.evaluate_one"]
+# `-m leaderboard...` needs the repo root importable, whatever the worker's cwd.
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 
 def _kill_group(proc: "subprocess.Popen") -> None:
@@ -219,7 +223,13 @@ def _evaluate_with_timeout(
         with open(req_path, "w") as f:
             json.dump(req, f, indent=2)
 
-        child_env = {**os.environ, evaluate.DEADLINE_ENV: str(time.time() + timeout)}
+        child_env = {
+            **os.environ,
+            evaluate.DEADLINE_ENV: str(time.time() + timeout),
+            "PYTHONPATH": os.pathsep.join(
+                p for p in (_REPO_ROOT, os.environ.get("PYTHONPATH")) if p
+            ),
+        }
         proc = subprocess.Popen(
             [*_EVAL_CMD, req_path, out_path],
             stdin=subprocess.DEVNULL,
@@ -341,5 +351,5 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
-    logging.getLogger("src").setLevel(logging.DEBUG)
+    logging.getLogger("leaderboard.src").setLevel(logging.DEBUG)
     run_once()

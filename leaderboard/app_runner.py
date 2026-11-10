@@ -26,8 +26,8 @@ import traceback
 
 import gradio as gr
 from apscheduler.schedulers.background import BackgroundScheduler
-from src.backend import runner
-from src.envs import OWNER, QUEUE_REPO, RESULTS_REPO
+from leaderboard.src.backend import runner
+from leaderboard.src.envs import OWNER, QUEUE_REPO, RESULTS_REPO
 
 INTERVAL = int(os.environ.get("COILBENCH_RUNNER_INTERVAL", "300"))
 

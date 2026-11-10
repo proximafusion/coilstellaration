@@ -4,7 +4,7 @@ import pytest
 from constellaration.geometry import surface_rz_fourier
 from coilstellaration import types
 
-from src.backend import marshal
+from leaderboard.src.backend import marshal
 
 
 def _symmetric_boundary():

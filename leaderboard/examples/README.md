@@ -4,7 +4,7 @@
 Regenerate it with:
 
 ```bash
-python scripts/make_example_onnx.py
+uv run python -m leaderboard.scripts.make_example_onnx
 ```
 
 It is a *baseline*, not a good predictor: it ignores its inputs and emits a

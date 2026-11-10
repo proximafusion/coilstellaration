@@ -7,8 +7,8 @@ pass, against any repo you can authenticate to. Useful for verifying a model
 Auth: uses HF_TOKEN if set, otherwise your cached `huggingface-cli login` token.
 
 Usage:
-    python scripts/check_submission.py jhewers-pf/coilstellaration-bench-example-circle-a
-    python scripts/check_submission.py <repo> --revision main
+    uv run python -m leaderboard.scripts.check_submission jhewers-pf/coilstellaration-bench-example-circle-a
+    uv run python -m leaderboard.scripts.check_submission <repo> --revision main
 """
 
 import argparse
@@ -19,7 +19,7 @@ import tempfile
 import numpy as np
 from huggingface_hub import HfApi, hf_hub_download
 
-from src.backend.onnx_model import OnnxModel, validate_onnx_contract
+from leaderboard.src.backend.onnx_model import OnnxModel, validate_onnx_contract
 
 ONNX_FILENAME = "model.onnx"
 

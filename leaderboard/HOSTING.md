@@ -74,7 +74,7 @@ and `attempts` on the request; `started_at` is surfaced in the queue UI.
 ### Notes
 
 - **Keep the worker awake.** A Space that sleeps stops polling. Use persistent
-  hardware (or your own always-on machine running `python -m src.backend.runner`
+  hardware (or your own always-on machine running `uv run python -m leaderboard.src.backend.runner`
   on a cron) for continuous operation.
 - **Run exactly one worker** against a given queue to avoid double-evaluating.
   `runner.run_once` flips a request to `RUNNING` before evaluating, so a second
@@ -84,11 +84,11 @@ and `attempts` on the request; `started_at` is surfaced in the queue UI.
 
 ## Run the worker without a Space
 
-Any machine with the repo and deps:
+Any machine with the repo and deps (`uv sync`), from the repo root:
 
 ```bash
 export HF_TOKEN=<write-token>
-COILBENCH_OWNER=<OWNER> python -m src.backend.runner   # single pass
+COILBENCH_OWNER=<OWNER> uv run python -m leaderboard.src.backend.runner   # single pass
 ```
 
 Wrap it in a cron job or a loop for continuous draining.

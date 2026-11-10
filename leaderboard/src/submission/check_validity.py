@@ -38,7 +38,7 @@ def validate_local_onnx(local_path: str) -> tuple[bool, str, list[Literal["fixed
     Returns (ok, message, supported_tracks). No inference is run. `supported_tracks`
     is empty when the contract check fails.
     """
-    from src.backend.onnx_model import inspect_onnx
+    from leaderboard.src.backend.onnx_model import inspect_onnx
 
     logger.debug("Validating local ONNX file %s", local_path)
     errors, tracks = inspect_onnx(local_path)

@@ -2,9 +2,9 @@ import logging
 from collections.abc import Sequence
 
 import pandas as pd
-from src.display.formatting import make_clickable_model
-from src.display.utils import SORT_COLS, STRATUM_VIEWS, TRACKS, EvalQueueColumn
-from src.leaderboard.read_evals import get_raw_eval_results, result_to_row
+from leaderboard.src.display.formatting import make_clickable_model
+from leaderboard.src.display.utils import SORT_COLS, STRATUM_VIEWS, TRACKS, EvalQueueColumn
+from leaderboard.src.leaderboard.read_evals import get_raw_eval_results, result_to_row
 
 logger = logging.getLogger(__name__)
 

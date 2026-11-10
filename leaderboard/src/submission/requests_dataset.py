@@ -4,7 +4,7 @@ from collections.abc import Iterator
 
 from huggingface_hub import hf_hub_download
 
-from src.envs import API, QUEUE_REPO, TOKEN
+from leaderboard.src.envs import API, QUEUE_REPO, TOKEN
 
 logger = logging.getLogger(__name__)
 

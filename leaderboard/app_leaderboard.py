@@ -4,7 +4,7 @@ import os
 import gradio as gr
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
-from src.about import (
+from leaderboard.src.about import (
     CITATION_BUTTON_LABEL,
     CITATION_BUTTON_TEXT,
     EVALUATION_QUEUE_TEXT,
@@ -12,9 +12,9 @@ from src.about import (
     LLM_BENCHMARKS_TEXT,
     TITLE,
 )
-from src.display.css_html_js import custom_css
-from src.display.leaderboard import ColumnFilter, Leaderboard, SelectColumns
-from src.display.utils import (
+from leaderboard.src.display.css_html_js import custom_css
+from leaderboard.src.display.leaderboard import ColumnFilter, Leaderboard, SelectColumns
+from leaderboard.src.display.utils import (
     COLS,
     EVAL_COLS,
     EVAL_TYPES,
@@ -24,13 +24,13 @@ from src.display.utils import (
     AutoEvalColumn,
     fields,
 )
-from src.envs import API, EVAL_RESULTS_PATH, REPO_ID, RESULTS_REPO, TOKEN
-from src.populate import (
+from leaderboard.src.envs import API, EVAL_RESULTS_PATH, REPO_ID, RESULTS_REPO, TOKEN
+from leaderboard.src.populate import (
     get_evaluation_queue_df,
     get_leaderboard_frames,
 )
-from src.submission import requests_dataset
-from src.submission.submit import add_new_eval
+from leaderboard.src.submission import requests_dataset
+from leaderboard.src.submission.submit import add_new_eval
 from huggingface_hub import snapshot_download
 
 

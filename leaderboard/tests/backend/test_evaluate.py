@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from src.backend import evaluate
+from leaderboard.src.backend import evaluate
 from coilstellaration import types
 from constellaration.geometry import surface_rz_fourier
 

@@ -3,8 +3,8 @@ import logging
 import math
 import os
 
-from src.display.formatting import make_clickable_commit, make_clickable_model
-from src.display.utils import AutoEvalColumn
+from leaderboard.src.display.formatting import make_clickable_commit, make_clickable_model
+from leaderboard.src.display.utils import AutoEvalColumn
 
 logger = logging.getLogger(__name__)
 

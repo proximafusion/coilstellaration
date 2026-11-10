@@ -1,6 +1,6 @@
 import json
 
-from src.submission import requests_dataset
+from leaderboard.src.submission import requests_dataset
 
 
 def test_request_path_encodes_identity():

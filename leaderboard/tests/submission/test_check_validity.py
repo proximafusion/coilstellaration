@@ -1,4 +1,4 @@
-from src.submission.check_validity import validate_local_onnx
+from leaderboard.src.submission.check_validity import validate_local_onnx
 from tests.backend.conftest import build_dummy_onnx
 
 

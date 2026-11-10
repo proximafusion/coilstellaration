@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.backend import config, onnx_model
+from leaderboard.src.backend import config, onnx_model
 from tests.backend.conftest import build_dummy_onnx
 
 

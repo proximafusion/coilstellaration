@@ -12,7 +12,7 @@ recompiles -- the produced numerics are never affected.
 import logging
 import os
 
-from src.backend import config
+from leaderboard.src.backend import config
 
 logger = logging.getLogger(__name__)
 

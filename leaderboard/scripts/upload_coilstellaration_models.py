@@ -14,7 +14,7 @@ git-ignored (see `.gitignore`); this script gets them onto the Hub instead:
 
 Auth: needs a write `HF_TOKEN` for the target org.
 
-Run:  HF_TOKEN=hf_... uv run python scripts/upload_coilstellaration_models.py
+Run:  HF_TOKEN=hf_... uv run python -m leaderboard.scripts.upload_coilstellaration_models
       (add --dry-run to validate/list without touching the Hub)
 """
 
@@ -70,8 +70,8 @@ def main() -> int:
     # at import time, so it must be set before importing anything under `src`.
     os.environ.setdefault("COILBENCH_OWNER", owner)
 
-    from src.envs import API, QUEUE_REPO, TOKEN  # pyright: ignore[reportMissingImports]
-    from src.submission.submit import add_new_eval  # pyright: ignore[reportMissingImports]
+    from leaderboard.src.envs import API, QUEUE_REPO, TOKEN  # pyright: ignore[reportMissingImports]
+    from leaderboard.src.submission.submit import add_new_eval  # pyright: ignore[reportMissingImports]
 
     # 1) Ensure the model repo exists, then push the ONNX files + a model card.
     API.create_repo(repo_id=models_repo, repo_type="model", exist_ok=True, token=TOKEN)

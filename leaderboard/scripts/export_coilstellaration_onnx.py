@@ -38,7 +38,7 @@ import jax2onnx
 import numpy as np
 import onnx
 import onnxruntime as ort
-from src.backend import config as bench_config
+from leaderboard.src.backend import config as bench_config
 from coilstellaration import coilset_utils, paths, types
 from coilstellaration.machine_learning import model_definition
 from constellaration.geometry import surface_rz_fourier

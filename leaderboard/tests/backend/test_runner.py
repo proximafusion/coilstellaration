@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from src.backend import evaluate_one, runner
+from leaderboard.src.backend import evaluate_one, runner
 from tests.backend.conftest import build_dummy_onnx
 
 UTC = datetime.timezone.utc
@@ -124,7 +124,7 @@ def test_push_result_parquet_uses_sibling_path_and_uploads_bytes(monkeypatch):
 
 
 # --- per-eval timeout (item 1) ---
-# The eval runs in a plain freshly-exec'd subprocess (`python -m src.backend.evaluate_one
+# The eval runs in a plain freshly-exec'd subprocess (`python -m leaderboard.src.backend.evaluate_one
 # <request_path> <result_path>`), so multiprocessing's spawn/forkserver main-module
 # bootstrap machinery is never touched. The subprocess is its own session leader, so a
 # timeout kills the whole process group (the eval plus any JAX/DESC helpers it spawned).
