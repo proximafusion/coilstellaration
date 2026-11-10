@@ -15,11 +15,6 @@ from typing import Callable, NamedTuple, cast
 import jax
 import jax.numpy as jnp
 import numpy as np
-from coilstellaration import (
-    metrics_utils,
-    min_distance_utils,
-    types,
-)
 from desc.coils import CoilSet as DescCoilSet
 from desc.coils import _Coil as DescCoil
 from desc.compute.utils import _compute as compute_fun
@@ -41,6 +36,12 @@ from desc.objectives import (
     ToroidalFlux,
 )
 from desc.utils import copy_rpz_periods, rpz2xyz
+
+from coilstellaration import (
+    metrics_utils,
+    min_distance_utils,
+    types,
+)
 
 logger = logging.getLogger(__name__)
 

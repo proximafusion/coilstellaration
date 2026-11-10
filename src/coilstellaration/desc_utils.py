@@ -3,11 +3,12 @@ import tempfile
 
 import desc.vmec
 import numpy as np
-from coilstellaration import types
 from constellaration.geometry import surface_rz_fourier, surface_utils_desc
 from constellaration.mhd import vmec_utils
 from desc.equilibrium import Equilibrium
 from desc.profiles import SplineProfile
+
+from coilstellaration import types
 
 
 def desc_equilibrium_from_vmecpp_wout(

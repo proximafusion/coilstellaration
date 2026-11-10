@@ -19,6 +19,7 @@ from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
+
 from coilstellaration import types
 from coilstellaration.benchmark import (
     scoring_types,

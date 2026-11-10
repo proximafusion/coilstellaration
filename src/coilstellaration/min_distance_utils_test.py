@@ -2,9 +2,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Int
-from coilstellaration import min_distance_utils
 from desc.utils import safenorm
+from jaxtyping import Int
+
+from coilstellaration import min_distance_utils
 
 jax.config.update("jax_enable_x64", True)
 

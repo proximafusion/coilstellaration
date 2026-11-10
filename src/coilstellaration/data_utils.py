@@ -15,12 +15,13 @@ import orjson
 import pandas as pd
 import pydantic
 import shortuuid
+from constellaration.geometry import surface_rz_fourier
+from constellaration.mhd import vmec_utils
+
 from coilstellaration import (
     data_utils,
     types,
 )
-from constellaration.geometry import surface_rz_fourier
-from constellaration.mhd import vmec_utils
 
 logger = logging.getLogger(__name__)
 

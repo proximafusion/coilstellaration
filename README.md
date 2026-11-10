@@ -339,9 +339,7 @@ for eval_data in predictions:
     with warnings.catch_warnings(action="ignore"):
         achieved_metrics = metrics_utils_v2.evaluate_coilset_metrics(
             eq=desc_utils.desc_equilibrium_to_desc_object(eval_data.desc_equilibrium),
-            coilset=coilset_utils.coilstellaration_to_desc(
-                eval_data.predicted_coilset
-            ),
+            coilset=coilset_utils.coilstellaration_to_desc(eval_data.predicted_coilset),
         )
     achieved_metrics_per_instance.append(
         data_utils.metrics_to_requirement_metrics(achieved_metrics)

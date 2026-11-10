@@ -4,8 +4,9 @@ import numpy as np
 import orjson
 import pandas as pd
 import pytest
-from coilstellaration import data_utils, types
 from desc import coils, grid
+
+from coilstellaration import data_utils, types
 
 _FIXED_COLUMN = "baseline_labels/used_for_ml_baseline"
 _QUALITY_COLUMN = "baseline_labels/meets_relative_error_thresholds"

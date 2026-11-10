@@ -1,15 +1,16 @@
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from desc.coils import initialize_modular_coils
+from desc.equilibrium import Equilibrium
+from desc.examples import get
+from desc.grid import LinearGrid
+
 from coilstellaration import (
     metrics_utils,
     metrics_utils_v2,
     types,
 )
-from desc.coils import initialize_modular_coils
-from desc.equilibrium import Equilibrium
-from desc.examples import get
-from desc.grid import LinearGrid
 
 
 @pytest.fixture(params=["precise_QA", "W7-X"], scope="module")

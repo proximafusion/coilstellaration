@@ -2,9 +2,10 @@ from unittest import mock
 
 import numpy as np
 import pytest
-from coilstellaration import coilset_utils, types
 from desc.coils import CoilSet as DescCoilSet
 from desc.equilibrium import Equilibrium as DescEquilibrium
+
+from coilstellaration import coilset_utils, types
 
 
 def _make_coilset(n_unique_coils: int, fourier_order: int) -> types.Coilset:

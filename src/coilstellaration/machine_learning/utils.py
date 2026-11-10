@@ -3,9 +3,10 @@ import pathlib
 
 import jax.numpy as jnp
 import jaxtyping as jt
+from constellaration.geometry import surface_rz_fourier
+
 from coilstellaration import paths, types
 from coilstellaration.types import NpOrJaxArray
-from constellaration.geometry import surface_rz_fourier
 
 logger = logging.getLogger(__name__)
 

@@ -1,9 +1,10 @@
 import jax.numpy as jnp
 import jaxtyping as jt
 import numpy as np
-from coilstellaration import metrics_utils, types
 from desc.coils import CoilSet, FourierXYZCoil
 from desc.equilibrium import Equilibrium
+
+from coilstellaration import metrics_utils, types
 
 runtime_check_array_sizes = types.runtime_check_array_sizes
 

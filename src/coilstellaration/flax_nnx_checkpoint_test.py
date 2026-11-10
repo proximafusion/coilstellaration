@@ -9,11 +9,12 @@ import jax.numpy as jnp
 import numpy as np
 import pydantic
 import pytest
+from flax import nnx
+
 from coilstellaration import (
     flax_nnx_checkpoint_util,
     types,
 )
-from flax import nnx
 
 
 class _SimpleMlpConfig(pydantic.BaseModel):

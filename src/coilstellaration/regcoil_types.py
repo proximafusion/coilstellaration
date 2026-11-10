@@ -5,8 +5,9 @@ from typing import Annotated, Literal, Self
 import jaxtyping as jt
 import numpy as np
 import pydantic
-from coilstellaration import types
 from scipy import constants
+
+from coilstellaration import types
 
 RegcoilTargetOption = Literal[
     "normalized_coil_to_coil_distance",

@@ -6,6 +6,7 @@ from unittest import mock
 import pandas as pd
 import pydantic
 import pytest
+
 from coilstellaration import types
 from coilstellaration.benchmark import (
     scoring,

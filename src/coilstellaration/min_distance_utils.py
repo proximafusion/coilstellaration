@@ -17,9 +17,10 @@ from typing import NamedTuple, cast
 import jax
 import jax.numpy as jnp
 import numpy as np
-from coilstellaration import types
 from desc.utils import safenorm
 from jaxtyping import Bool, Float, Int
+
+from coilstellaration import types
 
 # Relative slack on the lower bounds. It covers the rounding error of the
 # bounding-sphere arithmetic (a few ulp of the coordinate scale); without it a

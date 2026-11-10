@@ -1,5 +1,7 @@
 import logging
 
+from constellaration.geometry import surface_utils_desc
+
 from coilstellaration import (
     coilset_utils,
     data_utils,
@@ -12,7 +14,6 @@ from coilstellaration import (
 from coilstellaration.machine_learning import (
     model_definition,
 )
-from constellaration.geometry import surface_utils_desc
 
 logging.basicConfig(level=logging.INFO, force=True)
 logging.getLogger("geometry.surface.surface_types").setLevel(logging.ERROR)

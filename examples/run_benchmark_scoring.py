@@ -22,6 +22,7 @@ import click
 import datasets
 import matplotlib.pyplot as plt
 import pandas as pd
+
 from coilstellaration import (
     coilset_utils,
     data_generation_tasks,
