@@ -14,7 +14,7 @@ from leaderboard.src.about import (
     INTRODUCTION_TEXT,
     TITLE,
 )
-from leaderboard.src.display.css_html_js import custom_css
+from leaderboard.src.display.css_html_js import custom_css, theme
 from leaderboard.src.display.leaderboard import Leaderboard, SelectColumns
 from leaderboard.src.display.utils import (
     COLS,
@@ -110,9 +110,11 @@ def init_leaderboard(frames):
     )
 
 
+# Passed to `app_leaderboard.launch()` (here and in app.py).
+LAUNCH_KWARGS = {"css": custom_css, "theme": theme}
+
 app_leaderboard = gr.Blocks()
 with app_leaderboard:
-    gr.HTML(f"<style>{custom_css}</style>")
     gr.HTML(TITLE)
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
@@ -225,4 +227,4 @@ if os.environ.get("SPACE_ID") is not None:
 
 
 if __name__ == "__main__":
-    app_leaderboard.launch()
+    app_leaderboard.launch(**LAUNCH_KWARGS)

@@ -77,4 +77,6 @@ with gr.Blocks() as app_runner:
     refresh.click(_status_md, outputs=status)
 
 if __name__ == "__main__":
-    app_runner.launch()
+    from leaderboard.src.display.css_html_js import theme
+
+    app_runner.launch(theme=theme)
