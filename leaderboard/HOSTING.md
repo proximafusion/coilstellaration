@@ -18,18 +18,18 @@ from `uv.lock` (this package plus the `leaderboard` dependency group). Edit
 
 The Spaces communicate only through two datasets, `<OWNER>/<REPO>-requests` (the
 submission queue) and `<OWNER>/<REPO>-results` (scored results). `<OWNER>` is
-`COILBENCH_OWNER` (default `jhewers-pf`) and `<REPO>` is `COILBENCH_REPO`
+`COILBENCH_OWNER` (default `proxima-fusion`) and `<REPO>` is `COILBENCH_REPO`
 (default `coilstellaration-bench`), so by default:
 
-- `jhewers-pf/coilstellaration-bench-requests`
-- `jhewers-pf/coilstellaration-bench-results`
+- `proxima-fusion/coilstellaration-bench-requests`
+- `proxima-fusion/coilstellaration-bench-results`
 
 Create them once and make sure your token can write to them:
 
 ```bash
-hf auth login
-hf repos create jhewers-pf/coilstellaration-bench-requests --type dataset --exist-ok
-hf repos create jhewers-pf/coilstellaration-bench-results  --type dataset --exist-ok
+huggingface-cli login
+huggingface-cli repo create coilstellaration-bench-requests --type dataset --organization proxima-fusion
+huggingface-cli repo create coilstellaration-bench-results  --type dataset --organization proxima-fusion
 ```
 
 The workflow needs a GitHub secret `HF_TOKEN` with write access to both Spaces.
@@ -49,7 +49,7 @@ branches on the `COILBENCH_ROLE` variable. Add these Space **secrets / variables
   launches `app_runner.py` instead of the leaderboard.
 - `HF_TOKEN` — write access to the requests and results datasets, read access
   to submitted model repos.
-- `COILBENCH_OWNER` — only if not `jhewers-pf`.
+- `COILBENCH_OWNER` — only if not `proxima-fusion`.
 - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
 - `COILBENCH_N` (optional) — instances per track; `0` = full split.
 - `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single

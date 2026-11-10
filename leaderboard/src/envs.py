@@ -11,7 +11,7 @@ if not TOKEN:
     logger.warning(
         "HF_TOKEN is not set; authenticated Hugging Face Hub calls will fail."
     )
-OWNER = os.environ.get("COILBENCH_OWNER", "jhewers-pf")
+OWNER = os.environ.get("COILBENCH_OWNER", "proxima-fusion")
 REPO_NAME = os.environ.get("COILBENCH_REPO", "coilstellaration-bench")
 
 REPO_ID = f"{OWNER}/{REPO_NAME}"
