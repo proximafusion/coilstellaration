@@ -8,19 +8,6 @@ custom_css = """
     font-size: 18px !important;
 }
 
-#citation-button span {
-    font-size: 16px !important;
-}
-
-#citation-button textarea {
-    font-size: 16px !important;
-}
-
-#citation-button > label > button {
-    margin: 6px;
-    transform: scale(1.3);
-}
-
 #leaderboard-table {
     margin-top: 15px
 }

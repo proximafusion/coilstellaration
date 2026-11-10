@@ -7,11 +7,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from huggingface_hub import snapshot_download
 
 from leaderboard.src.about import (
-    CITATION_BUTTON_LABEL,
-    CITATION_BUTTON_TEXT,
+    ABOUT_TEXT,
+    CITATION_INTRO_TEXT,
+    CITATION_TEXT,
     EVALUATION_QUEUE_TEXT,
     INTRODUCTION_TEXT,
-    LLM_BENCHMARKS_TEXT,
     TITLE,
 )
 from leaderboard.src.display.css_html_js import custom_css
@@ -150,7 +150,14 @@ with app_leaderboard:
             init_leaderboard(LEADERBOARD_FRAMES)
 
         with gr.TabItem("📝 About", elem_id="about-tab", id=2):
-            gr.Markdown(LLM_BENCHMARKS_TEXT, elem_classes="markdown-text")
+            gr.Markdown(ABOUT_TEXT, elem_classes="markdown-text")
+            gr.Markdown(CITATION_INTRO_TEXT, elem_classes="markdown-text")
+            gr.Code(
+                value=CITATION_TEXT,
+                language=None,
+                label="BibTeX",
+                interactive=False,
+            )
 
         with gr.TabItem("🚀 Submit here! ", elem_id="submit-tab", id=3):
             with gr.Column():
@@ -274,14 +281,6 @@ with app_leaderboard:
                 submission_result,
             )
 
-    with gr.Row():
-        with gr.Accordion("📙 Citation", open=False):
-            citation_button = gr.Textbox(
-                value=CITATION_BUTTON_TEXT,
-                label=CITATION_BUTTON_LABEL,
-                lines=20,
-                elem_id="citation-button",
-            )
 
 if os.environ.get("SPACE_ID") is not None:
     scheduler = BackgroundScheduler()

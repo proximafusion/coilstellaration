@@ -149,7 +149,7 @@ The eval set is a fixed list of `(boundary, target)` rows published in `proxima-
 Two independent tracks, selected by the `track=` argument to `load_benchmark_dataset` (`src/coilstellaration/data_utils.py`):
 
 - **`fixed_shape`** — every train and eval row uses NFP 3 and 5 coils per half period, across many plasma boundaries. This is the easier of the two and a natural starting point. Filtered by the `benchmark/fixed_shape_track` boolean column on the dataset.
-- **`variable_shape`** — the number of field periods and coils per half period vary across rows; the model must generalize over boundary geometry, coil count and target metrics. Filtered by the `benchmark/variable_shape_track` boolean column.
+- **`variable_shape`** — the number of field periods (2–5) and coils per half period (4–8) vary across rows; the model must generalize over boundary geometry, coil count and target metrics. Filtered by the `benchmark/variable_shape_track` boolean column.
 
 A model trained for one track is not expected to transfer to the other, and the two are scored independently on the leaderboard.
 
@@ -172,9 +172,11 @@ For training data, `data_utils.load_ml_baseline_dataframe(track=..., split=...)`
 
 Each row in the dataset belongs to exactly one stratum, recorded in the `benchmark/stratification` column (the constant `StratificationColumn` in `src/coilstellaration/data_utils.py`). Strata are **tertiles of the column `desc_metrics/normalized_field_error/mean`** (the constant `FIELD_ERROR_MEAN_COLUMN` in the same file) — the mean normalized field error achieved by the data-generation pipeline that produced that row's coilset. In other words, strata partition the dataset by how cleanly the upstream pipeline could solve the problem:
 
-- **`tight`** — bottom tertile. Lowest achievable field error in the source pipeline, i.e. the most demanding requirements. **This is the headline stratum reported on the leaderboard, and what the rest of this section walks through.**
+- **`tight`** — bottom tertile. Lowest achievable field error in the source pipeline, i.e. the most demanding requirements. The rest of this section uses it as the running example.
 - **`medium`** — middle tertile.
 - **`loose`** — top tertile. Highest field error, i.e. the most permissive requirements; easiest.
+
+The leaderboard's headline view is **`All`**, the pool of all three strata (as in the paper); it also shows each stratum on its own.
 
 Switch strata by passing `stratum="loose"` or `"medium"` to `load_benchmark_dataset`. The default in `data_utils.load_benchmark_dataset` is `"tight"`.
 
@@ -386,10 +388,11 @@ summary_df = scoring.summarize_scores(
 
 Official scores come from the coilstellaration benchmark Space on Hugging Face, which scores submitted models itself. Submit a public Hugging Face model repo containing a `model.onnx` that follows the ONNX contract in the Space's About tab:
 
-- **Inputs** (unscaled): the boundary's `boundary_r_cos` and `boundary_z_sin`, `[n_pol, n_tor]`, plus `boundary_r_sin` and `boundary_z_cos` for non-stellarator-symmetric instances; and `requirement_metrics`, `[4]`, in `RequirementMetrics` field order.
-- **Outputs**: `coil_x_n`, `coil_y_n`, `coil_z_n`, `[n_unique_coils, n_modes]`, and `currents`, `[n_unique_coils]`. Use dynamic axes for shapes that vary per instance. The number of field periods and stellarator symmetry come from the instance.
+- **Inputs** (unscaled): the boundary's `boundary_r_cos` and `boundary_z_sin`, float32 `[n_pol, n_tor]`, plus `boundary_r_sin` and `boundary_z_cos` for non-stellarator-symmetric instances; `requirement_metrics`, float32 `[4]`, in `RequirementMetrics` field order; and `n_field_periods` and `n_coils_per_half_period`, int64 scalars.
+- **Outputs**: `coil_x_n`, `coil_y_n`, `coil_z_n`, `[n_unique_coils, n_modes]` in DESC layout (`n_modes = 2N+1`), and `currents`, `[n_unique_coils]`, where `n_unique_coils` must equal `n_coils_per_half_period`. Use dynamic axes for shapes that vary per instance. The number of field periods and stellarator symmetry come from the instance.
+- **Metadata**: the ONNX `metadata_props` key `supported_tracks`, set to exactly `fixed_shape` or `fixed_shape,variable_shape`. The file must be at most 50 MiB.
 
-The Space evaluates each model on every track it supports, over all three strata, with the default `ScoringSettings` listed below. Its leaderboard shows one track at a time, either over all strata pooled or for a single stratum, and ranks by `strict_feasibility`, then `mean`.
+The Space evaluates each model on every track it supports, over all three strata, with the default `ScoringSettings` listed below. Its leaderboard shows one track at a time, either over all strata pooled (`All`, the headline) or for a single stratum, and ranks by `strict_feasibility`, then `mean`.
 
 The Space's source lives in [`leaderboard/`](leaderboard/). Its dependencies are the `leaderboard` dependency group in `pyproject.toml` (installed by `uv sync`), its tests run with the rest (`uv run pytest`), and `.github/workflows/sync-leaderboard-to-hf-spaces.yml` deploys it. See [`leaderboard/HOSTING.md`](leaderboard/HOSTING.md).
 
