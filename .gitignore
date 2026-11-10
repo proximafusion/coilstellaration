@@ -147,3 +147,10 @@ docs/superpowers/
 
 # Weights & Biases
 wandb/
+
+### Agents ###
+# Claude Code
+.claude/*.local.json
+.claude/**/*.log
+.claude/worktrees/
+CLAUDE.local.md
