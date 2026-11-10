@@ -8,7 +8,7 @@ Auth: uses HF_TOKEN if set, otherwise your cached `huggingface-cli login` token.
 
 Usage:
     uv run python -m leaderboard.scripts.check_submission \
-        jhewers-pf/coilstellaration-bench-example-circle-a
+        proxima-fusion/coilstellaration-bench-example-circle-a
     uv run python -m leaderboard.scripts.check_submission <repo> --revision main
 """
 
