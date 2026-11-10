@@ -8,6 +8,11 @@ sdk_version: 6.17.3
 python_version: "3.12"
 app_file: leaderboard/app.py
 pinned: false
+# Documents the hardware the worker needs (set it in the Space settings); the
+# free cpu-basic tier sleeps after 48 h without visitors and stops polling.
+suggested_hardware: cpu-upgrade
+# A status page for operators; no reason to embed it elsewhere.
+disable_embedding: true
 license: mit
 short_description: Scores queued Coilstellaration Bench submissions
 datasets:
