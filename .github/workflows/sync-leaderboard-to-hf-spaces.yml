@@ -1,6 +1,6 @@
 name: Sync leaderboard to Hugging Face Spaces
 
-# Both Spaces get the whole repo (minus the excludes) and run leaderboard/app.py;
+# Both Spaces get an allowlist of files (see `include`) and run leaderboard/app.py;
 # COILBENCH_ROLE (a Space variable) picks leaderboard vs runner. Hugging Face only
 # reads Space config from the root README's front matter, and installs from a root
 # requirements.txt / packages.txt, so those are generated here rather than kept
@@ -54,10 +54,17 @@ jobs:
           huggingface_repo_id: proxima-fusion/coilstellaration-bench-evaluator
           hf_token: ${{ secrets.HF_TOKEN }}
           hf_version: "2.4.0"
+          # Only what the Space runs: the generated README, requirements.txt and
+          # packages.txt, the coilstellaration package and the leaderboard app.
+          include: |
+            README.md
+            requirements.txt
+            packages.txt
+            LICENSE
+            src/*
+            leaderboard/*
           exclude: |
-            analysis/
-            examples/
-            scripts/
+            leaderboard/tests/*
 
       # hub-sync returns once the upload is done; fail the job if the Space then
       # doesn't build and start.
@@ -97,10 +104,17 @@ jobs:
           huggingface_repo_id: proxima-fusion/coilstellaration-bench
           hf_token: ${{ secrets.HF_TOKEN }}
           hf_version: "2.4.0"
+          # Only what the Space runs: the generated README, requirements.txt and
+          # packages.txt, the coilstellaration package and the leaderboard app.
+          include: |
+            README.md
+            requirements.txt
+            packages.txt
+            LICENSE
+            src/*
+            leaderboard/*
           exclude: |
-            analysis/
-            examples/
-            scripts/
+            leaderboard/tests/*
 
       # hub-sync returns once the upload is done; fail the job if the Space then
       # doesn't build and start.
