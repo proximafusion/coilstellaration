@@ -96,3 +96,27 @@ def test_missing_count_input_is_contract_error(tmp_path, missing):
     path = build_dummy_onnx(tmp_path / "bad.onnx", input_names=names)
     errors = onnx_model.validate_onnx_contract(path)
     assert any(missing in e for e in errors)
+
+
+def test_count_parameters_sums_initializers_and_constants(tmp_path):
+    import onnx
+    from onnx import TensorProto, helper
+
+    weight = helper.make_tensor("w", TensorProto.FLOAT, [3, 4], [0.0] * 12)
+    bias = helper.make_node(
+        "Constant",
+        [],
+        ["b"],
+        value=helper.make_tensor("b_v", TensorProto.FLOAT, [4], [0.0] * 4),
+    )
+    graph = helper.make_graph(
+        [bias, helper.make_node("Add", ["w", "b"], ["y"])],
+        "g",
+        [],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 4])],
+        initializer=[weight],
+    )
+    path = tmp_path / "params.onnx"
+    onnx.save(helper.make_model(graph), path)
+
+    assert onnx_model.count_parameters(str(path)) == 12 + 4

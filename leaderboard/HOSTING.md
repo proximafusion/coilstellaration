@@ -47,15 +47,17 @@ branches on the `COILBENCH_ROLE` variable. Add these Space **secrets / variables
 
 - `COILBENCH_ROLE` = `runner`  ← this flips the Space into worker mode, which
   launches `app_runner.py` instead of the leaderboard.
-- `HF_TOKEN` — write access to the requests and results datasets, read access
-  to submitted model repos.
+- `HF_TOKEN` — write access to the requests and results datasets. Submitted
+  model repos must be public and are read without it, and the subprocess that
+  runs a submitted model does not get it.
 - `COILBENCH_OWNER` — only if not `proxima-fusion`.
 - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
 - `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single
-  eval is killed (default 7200; `0` disables the subprocess guard). A full
+  eval is killed (default 14400, i.e. 4 h; `0` disables the subprocess guard). A full
   both-track evaluation takes ~1.2 h on cpu-basic (2 vCPU).
 - `COILBENCH_LEASE_TTL` (optional) — seconds before a stuck `RUNNING` request
-  is presumed orphaned and recovered (default 10800; keep above the timeout).
+  is presumed orphaned and recovered (default 21600, i.e. 6 h; keep above the
+  timeout).
 - `COILBENCH_MAX_ATTEMPTS` (optional) — how many times a request may be
   (re)claimed before it is failed permanently (default 3).
 

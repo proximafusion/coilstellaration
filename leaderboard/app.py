@@ -22,13 +22,13 @@ coilbench_role = os.environ.get("COILBENCH_ROLE", "leaderboard").lower()
 
 match coilbench_role:
     case "leaderboard":
-        from leaderboard.app_leaderboard import app_leaderboard
+        from leaderboard.app_leaderboard import LAUNCH_KWARGS, app_leaderboard
 
-        app_leaderboard.launch()
+        app_leaderboard.launch(**LAUNCH_KWARGS)
     case "runner":
-        from leaderboard.app_runner import app_runner
+        from leaderboard.app_runner import LAUNCH_KWARGS, app_runner
 
-        app_runner.launch()
+        app_runner.launch(**LAUNCH_KWARGS)
     case _:
         raise SystemExit(
             f"Unknown COILBENCH_ROLE={coilbench_role!r}; "

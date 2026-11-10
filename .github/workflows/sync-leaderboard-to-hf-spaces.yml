@@ -1,6 +1,6 @@
 name: Sync leaderboard to Hugging Face Spaces
 
-# Both Spaces get the whole repo (minus the excludes) and run leaderboard/app.py;
+# Both Spaces get an allowlist of files (see `include`) and run leaderboard/app.py;
 # COILBENCH_ROLE (a Space variable) picks leaderboard vs runner. Hugging Face only
 # reads Space config from the root README's front matter, and installs from a root
 # requirements.txt / packages.txt, so those are generated here rather than kept
@@ -16,7 +16,14 @@ on:
       - pyproject.toml
       - uv.lock
       - .github/workflows/sync-leaderboard-to-hf-spaces.yml
+      - .github/scripts/wait_for_space.py
   workflow_dispatch:
+
+# A newer push supersedes a sync that is still running, instead of both uploading
+# at once.
+concurrency:
+  group: sync-leaderboard-to-hf-spaces
+  cancel-in-progress: true
 
 jobs:
   sync-evaluator:
@@ -47,10 +54,27 @@ jobs:
           huggingface_repo_id: proxima-fusion/coilstellaration-bench-evaluator
           hf_token: ${{ secrets.HF_TOKEN }}
           hf_version: "2.4.0"
+          # Only what the Space runs: the generated README, requirements.txt and
+          # packages.txt, the coilstellaration package and the leaderboard app.
+          include: |
+            README.md
+            requirements.txt
+            packages.txt
+            LICENSE
+            src/*
+            leaderboard/*
           exclude: |
-            analysis/
-            examples/
-            scripts/
+            leaderboard/tests/*
+
+      # hub-sync returns once the upload is done; fail the job if the Space then
+      # doesn't build and start.
+      - name: "Wait for proxima-fusion/coilstellaration-bench-evaluator to build and start"
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          uv run --no-project --with "huggingface_hub>=1.14,<2" \
+            python .github/scripts/wait_for_space.py \
+            proxima-fusion/coilstellaration-bench-evaluator 60
 
   sync-leaderboard:
     runs-on: ubuntu-latest
@@ -80,7 +104,24 @@ jobs:
           huggingface_repo_id: proxima-fusion/coilstellaration-bench
           hf_token: ${{ secrets.HF_TOKEN }}
           hf_version: "2.4.0"
+          # Only what the Space runs: the generated README, requirements.txt and
+          # packages.txt, the coilstellaration package and the leaderboard app.
+          include: |
+            README.md
+            requirements.txt
+            packages.txt
+            LICENSE
+            src/*
+            leaderboard/*
           exclude: |
-            analysis/
-            examples/
-            scripts/
+            leaderboard/tests/*
+
+      # hub-sync returns once the upload is done; fail the job if the Space then
+      # doesn't build and start.
+      - name: "Wait for proxima-fusion/coilstellaration-bench to build and start"
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          uv run --no-project --with "huggingface_hub>=1.14,<2" \
+            python .github/scripts/wait_for_space.py \
+            proxima-fusion/coilstellaration-bench 60

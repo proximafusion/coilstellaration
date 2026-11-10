@@ -77,6 +77,8 @@ leaderboard = [
   "APScheduler",
   "gradio[oauth]==6.17.3",
   "gradio_client==2.5.0",
+  # Reads a submitted model's parameter count. Same bound as in `dev`.
+  "onnx<1.23",
   "onnxruntime",
   "pandas",
   "python-dateutil",

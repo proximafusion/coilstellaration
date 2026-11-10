@@ -484,6 +484,8 @@ def evaluate_model(
     )
     record = {
         "status": "FINISHED",
+        "bench_version": config.BENCH_VERSION,
+        "dataset_revision": data_utils.COILSTELLARATION_REPO_REVISION,
         "overall_score": overall,
         "tracks": track_results,
     }

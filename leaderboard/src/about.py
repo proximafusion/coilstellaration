@@ -1,10 +1,14 @@
 # Markdown tables and BibTeX entries cannot be wrapped without changing how they render.
 # ruff: noqa: E501
 
-# Your leaderboard name
-TITLE = (
-    '<h1 align="center" id="space-title">Coilstellaration Benchmark Leaderboard</h1>'
-)
+from coilstellaration.data_utils import COILSTELLARATION_REPO_REVISION
+from leaderboard.src.backend.config import BENCH_VERSION
+
+# The page title, two-tone: the lead in steel-blue, the rest in navy. Sentence case.
+TITLE_LEAD = "Coilstellaration"
+TITLE_CONT = "benchmark"
+
+FOOTER_TEXT = "© Proxima Fusion"
 
 PAPER_URL = "https://arxiv.org/abs/2611.12689"
 CONSTELLARATION_PAPER_URL = "https://arxiv.org/abs/2506.19583"
@@ -25,26 +29,25 @@ EVALUATOR_URL = (
 )
 
 INTRODUCTION_TEXT = f"""
-Benchmark for ML models that predict a stellarator **coilset** from a plasma boundary
-and a set of engineering requirements. Pick a **track** and a **stratum** below;
-rows are ranked by strict feasibility, then mean. See the **About** tab for the
-task, the ONNX contract, scoring, links and how to cite.
-[Paper (arXiv:2611.12689)]({PAPER_URL})
+A benchmark for ML models that predict a stellarator coilset from a plasma boundary
+and a set of engineering requirements. Rows are ranked by strict feasibility, then
+mean. The **About** tab covers the task, the ONNX contract, scoring and how to cite
+the [paper (arXiv:2611.12689)]({PAPER_URL}).
 """
 
 ABOUT_TEXT = f"""
 ## Links
-- 📄 **Paper:** [CoilStellaration: A Dataset and Benchmark for Engineering-Aware
+- **Paper:** [CoilStellaration: A Dataset and Benchmark for Engineering-Aware
   Stellarator Coilset Generation (arXiv:2611.12689)]({PAPER_URL})
-- 📄 **Upstream paper:** [ConStellaration: A dataset of QI-like stellarator plasma
+- **Upstream paper:** [ConStellaration: A dataset of QI-like stellarator plasma
   boundaries and optimization benchmarks (arXiv:2506.19583)]({CONSTELLARATION_PAPER_URL})
-- 💻 **Code:** [proximafusion/coilstellaration]({CODE_URL}) (this Space's source
+- **Code:** [proximafusion/coilstellaration]({CODE_URL}) (this Space's source
   lives in [`leaderboard/`]({LEADERBOARD_CODE_URL}))
-- 🗂️ **Datasets:** [proxima-fusion/coilstellaration]({DATASET_URL}) (coilsets,
+- **Datasets:** [proxima-fusion/coilstellaration]({DATASET_URL}) (coilsets,
   requirements, train/eval splits) and
   [proxima-fusion/constellaration]({CONSTELLARATION_DATASET_URL}) (plasma boundaries
   and equilibria)
-- ⚙️ **Evaluation:** submissions are queued in [`coilstellaration-bench-requests`]({REQUESTS_URL}),
+- **Evaluation:** submissions are queued in [`coilstellaration-bench-requests`]({REQUESTS_URL}),
   scored by the [evaluator Space]({EVALUATOR_URL}) and published to
   [`coilstellaration-bench-results`]({RESULTS_URL})
 
@@ -96,7 +99,7 @@ encoding.
 | `boundary_z_sin` | float32 | `[n_pol, n_tor]` | Dynamic. |
 | `boundary_r_sin` | float32 | `[n_pol, n_tor]` | *Optional.* Fed only for non-stellarator-symmetric instances. |
 | `boundary_z_cos` | float32 | `[n_pol, n_tor]` | *Optional.* Fed only for non-stellarator-symmetric instances. |
-| `requirement_metrics` | float32 | `[4]` | In order: min normalized coil–coil distance, min normalized coil–plasma distance, max normalized coil curvature, max normalized field error. |
+| `requirement_metrics` | float32 | `[4]` | In order: min normalized coil-coil distance, min normalized coil-plasma distance, max normalized coil curvature, max normalized field error. |
 | `n_field_periods` | int64 | `[]` (scalar) | Number of field periods of the instance. |
 | `n_coils_per_half_period` | int64 | `[]` (scalar) | Number of unique coils the output must have. |
 
@@ -135,26 +138,44 @@ columns aggregate `S` over the selected track and stratum:
 | Column | Meaning |
 |---|---|
 | `strict` | Fraction of instances that meet every requirement (violation ≤ 1e-3). **Primary ranking key.** |
+| `strict SE` | Standard error of `strict`, `sqrt(strict × (1 − strict) / n)`. Hidden by default. |
 | `mean` | Mean of `S`. **Secondary ranking key.** |
 | `feas@0.9` | Fraction of instances with `S ≥ 0.9` (soft-feasible). Hidden by default. |
 | `median` | Median of `S`. Hidden by default. |
 | `p10` | 10th percentile of `S`, showing how the worst instances do. Hidden by default. |
+| `n` | Number of instances scored in the selected track and stratum. Hidden by default. |
 
-Each model is run once per instance. The full scoring definition
+**full results** links to the per-instance scores of a submission, and **user**
+to the submitter's Hugging Face profile. Use the **Columns** selector above the
+table to show the model id, the other metrics and more details. Each model is run
+once per instance. The full scoring definition
 is in the [paper]({PAPER_URL}) and the
 [code README]({CODE_URL}#scoring-soft-feasibility).
 """
 
+# Newest first. Add an entry whenever `BENCH_VERSION` is bumped.
+CHANGELOG_TEXT = f"""
+## Changelog
+The **version** column (hidden by default) shows the benchmark version a result was produced with.
+Results with different versions are not directly comparable. Older results
+without a version are blank.
+
+- **{BENCH_VERSION}**: First versioned release. Every model is scored once per
+  instance on the full eval split of both declared tracks, over all strata, on
+  dataset revision `{COILSTELLARATION_REPO_REVISION[:7]}`.
+"""
+
 EVALUATION_QUEUE_TEXT = """
-## Submitting a model
-1. Push a public HF model repo containing a `model.onnx` that follows the ONNX
+## How submission works
+1. Push a public Hugging Face model repo with an ONNX file that follows the
    contract in the **About** tab, including the `supported_tracks` metadata.
 2. Optionally, check the repo locally first:
    `uv run python -m leaderboard.scripts.check_submission <org/model>`.
-3. Enter the repo id (`org/model`), revision and your name/contact.
-4. On submit, we check that the repo is public and that `model.onnx` has the
-   required tensor names and metadata and is at most 50 MiB. The physics evaluation
-   runs on the backend; watch its progress in the queue below.
+3. Fill in the form, with your Hugging Face username, and confirm that the model was not exposed to the eval split
+   during training, tuning or model selection.
+4. We check that the repo is public, and that the file is at most 50 MiB and has
+   the required tensor names and metadata. The physics evaluation then runs on the
+   evaluator. Its progress shows in the queue below.
 """
 
 CITATION_TEXT = r"""@inproceedings{ewers2026coilstellaration,
@@ -169,13 +190,14 @@ CITATION_TEXT = r"""@inproceedings{ewers2026coilstellaration,
 }
 
 @inproceedings{cadena2025constellaration,
-  title         = {{ConStellaration}: A dataset of {QI}-like stellarator plasma boundaries and optimization benchmarks},
-  author        = {Cadena, Santiago A. and Merlo, Andrea and Laude, Emanuel and Bauer, Alexander and Agrawal, Atul and Pascu, Maria and Savtchouk, Marija and Bonauer, Lukas and Guiraud, Enrico and Hudson, Stuart R. and Kaiser, Markus},
-  booktitle     = {The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
-  year          = {2025},
-  eprint        = {2506.19583},
-  archivePrefix = {arXiv},
-  url           = {https://openreview.net/forum?id=NQSbGKlCpx}
+      title={ConStellaration: A dataset of QI-like stellarator plasma boundaries and optimization benchmarks},
+      author={Santiago A. Cadena and Andrea Merlo and Emanuel Laude and Alexander Bauer and Atul Agrawal and Maria Pascu and Marija Savtchouk and Enrico Guiraud and Lukas Bonauer and Stuart Hudson and Markus Kaiser},
+      booktitle     = {The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
+      year={2025},
+      eprint={2506.19583},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2506.19583},
 }"""
 
 CITATION_INTRO_TEXT = """

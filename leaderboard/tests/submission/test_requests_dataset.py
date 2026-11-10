@@ -33,21 +33,21 @@ def test_submission_exists_matches_built_path(monkeypatch):
     assert not requests_dataset.submission_exists("org/m", "def456", "model.onnx")
 
 
-def test_iter_requests_skips_malformed(monkeypatch, tmp_path):
-    good = tmp_path / "good.json"
-    good.write_text(json.dumps({"model": "org/m", "status": "PENDING"}))
-    bad = tmp_path / "bad.json"
-    bad.write_text("{not json")
+def test_iter_requests_reads_one_snapshot_and_skips_malformed(monkeypatch, tmp_path):
+    (tmp_path / "org").mkdir()
+    (tmp_path / "org" / "good.json").write_text(
+        json.dumps({"model": "org/m", "status": "PENDING"})
+    )
+    (tmp_path / "org" / "bad.json").write_text("{not json")
+    calls = []
 
-    monkeypatch.setattr(
-        requests_dataset,
-        "list_request_files",
-        lambda: ["org/good.json", "org/bad.json"],
-    )
-    downloads = {"org/good.json": str(good), "org/bad.json": str(bad)}
-    monkeypatch.setattr(
-        requests_dataset, "hf_hub_download", lambda **kw: downloads[kw["filename"]]
-    )
+    def fake_snapshot(**kw):
+        calls.append(kw)
+        return str(tmp_path)
+
+    monkeypatch.setattr(requests_dataset, "snapshot_download", fake_snapshot)
 
     records = list(requests_dataset.iter_requests())
     assert records == [{"model": "org/m", "status": "PENDING"}]
+    assert len(calls) == 1
+    assert calls[0]["allow_patterns"] == "*.json"

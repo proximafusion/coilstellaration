@@ -2,7 +2,8 @@
 
 Runs the same steps the leaderboard does at submit time, plus a dummy forward
 pass, against any repo you can authenticate to. Useful for verifying a model
-(including a private repo) before submitting.
+before submitting, even while its repo is still private. The leaderboard itself
+only accepts public repos.
 
 Auth: uses HF_TOKEN if set, otherwise your cached `huggingface-cli login` token.
 

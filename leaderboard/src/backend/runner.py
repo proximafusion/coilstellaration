@@ -12,7 +12,8 @@ import time
 from pathlib import Path
 
 import pandas as pd
-from huggingface_hub import hf_hub_download, snapshot_download
+from huggingface_hub import CommitOperationAdd, hf_hub_download, snapshot_download
+from huggingface_hub.errors import HfHubHTTPError
 
 from leaderboard.src.backend import config, evaluate, jax_cache, onnx_model
 from leaderboard.src.envs import (
@@ -22,7 +23,7 @@ from leaderboard.src.envs import (
     RESULTS_REPO,
     TOKEN,
 )
-from leaderboard.src.submission.submit import ONNX_FILENAME
+from leaderboard.src.submission.submit import ONNX_FILENAME, file_sha256
 
 logger = logging.getLogger(__name__)
 
@@ -61,19 +62,76 @@ def _iter_pending(requests_dir: str):
             yield path, req
 
 
-def _push_request(req: dict, rel_path: str):
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump(req, f, indent=2)
-        tmp = f.name
+# How many times a conditional queue update re-reads the queue after losing a
+# race with another commit before giving up.
+_CONDITIONAL_PUSH_ATTEMPTS = 3
+
+
+def _push_request(req: dict, rel_path: str, expect: dict | None = None) -> bool:
+    """Write a request file to the queue; return whether it was written.
+
+    Without `expect` the write is unconditional (for the worker that holds the
+    request). With `expect`, the write only happens if the file on the Hub still has
+    those field values, e.g. `{"status": "PENDING"}` when claiming. The commit is
+    made with `parent_commit` set to the queue head that was read, so if anything
+    else commits in between, the Hub rejects it and the check is redone. Two
+    workers therefore can't both claim the same request.
+    """
+    data = json.dumps(req, indent=2).encode()
+    message = f"Update status {req['model']} -> {req['status']}"
     logger.debug("Pushing request %s status -> %s", req["model"], req["status"])
-    API.upload_file(
-        path_or_fileobj=tmp,
-        path_in_repo=rel_path,
-        repo_id=QUEUE_REPO,
-        repo_type="dataset",
-        commit_message=f"Update status {req['model']} -> {req['status']}",
+    if expect is None:
+        API.upload_file(
+            path_or_fileobj=data,
+            path_in_repo=rel_path,
+            repo_id=QUEUE_REPO,
+            repo_type="dataset",
+            commit_message=message,
+        )
+        return True
+
+    for _ in range(_CONDITIONAL_PUSH_ATTEMPTS):
+        head = API.repo_info(repo_id=QUEUE_REPO, repo_type="dataset").sha
+        current = json.loads(
+            Path(
+                hf_hub_download(
+                    repo_id=QUEUE_REPO,
+                    filename=rel_path,
+                    repo_type="dataset",
+                    revision=head,
+                    token=TOKEN,
+                )
+            ).read_text()
+        )
+        if any(current.get(k) != v for k, v in expect.items()):
+            logger.info(
+                "Request %s changed on the Hub (status %s); not updating it",
+                rel_path,
+                current.get("status"),
+            )
+            return False
+        try:
+            API.create_commit(
+                repo_id=QUEUE_REPO,
+                repo_type="dataset",
+                operations=[
+                    CommitOperationAdd(path_in_repo=rel_path, path_or_fileobj=data)
+                ],
+                commit_message=message,
+                parent_commit=head,
+            )
+            return True
+        except HfHubHTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            if status not in (409, 412):
+                raise
+            logger.info("Queue moved while updating %s; re-checking", rel_path)
+    logger.warning(
+        "Gave up updating %s after %d conflicting commits",
+        rel_path,
+        _CONDITIONAL_PUSH_ATTEMPTS,
     )
-    Path(tmp).unlink()
+    return False
 
 
 def _result_rel_path(record: dict, ext: str) -> str:
@@ -87,46 +145,80 @@ def _result_rel_path(record: dict, ext: str) -> str:
     return f"{org}/{model}_{commit}_{onnx_slug}.{ext}"
 
 
-def _push_result(record: dict):
-    rel_path = _result_rel_path(record, "json")
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump(record, f, indent=2)
-        tmp = f.name
-    logger.debug("Pushing result for %s to %s", record["model"], rel_path)
-    API.upload_file(
-        path_or_fileobj=tmp,
-        path_in_repo=rel_path,
+def _push_results(
+    record: dict, parquet_bytes: bytes | None = None, model_bytes: bytes | None = None
+):
+    """Upload a result's JSON summary, raw-scores parquet and ONNX in one commit.
+
+    One commit means the leaderboard never sees a summary whose sibling files
+    failed to upload. The parquet and ONNX are skipped when not given.
+    """
+    operations = [
+        CommitOperationAdd(
+            path_in_repo=_result_rel_path(record, "json"),
+            path_or_fileobj=json.dumps(record, indent=2).encode(),
+        )
+    ]
+    if parquet_bytes:
+        operations.append(
+            CommitOperationAdd(
+                path_in_repo=_result_rel_path(record, "parquet"),
+                path_or_fileobj=parquet_bytes,
+            )
+        )
+    if model_bytes:
+        operations.append(
+            CommitOperationAdd(
+                path_in_repo=_result_rel_path(record, "onnx"),
+                path_or_fileobj=model_bytes,
+            )
+        )
+    logger.debug(
+        "Pushing results for %s: %s",
+        record["model"],
+        [op.path_in_repo for op in operations],
+    )
+    API.create_commit(
         repo_id=RESULTS_REPO,
         repo_type="dataset",
+        operations=operations,
         commit_message=f"Add results for {record['model']}",
     )
-    Path(tmp).unlink()
 
 
-def _push_result_parquet(record: dict, parquet_bytes: bytes):
-    """Upload the raw per-instance scores parquet alongside the JSON summary."""
-    rel_path = _result_rel_path(record, "parquet")
-    logger.debug("Pushing raw scores parquet for %s to %s", record["model"], rel_path)
-    API.upload_file(
-        path_or_fileobj=parquet_bytes,
-        path_in_repo=rel_path,
-        repo_id=RESULTS_REPO,
-        repo_type="dataset",
-        commit_message=f"Add raw scores for {record['model']}",
+def _check_remote_onnx(
+    model: str, commit_hash: str | None, onnx_path: str, expected_sha256: str | None
+) -> None:
+    """Validate the submitted file on the Hub before downloading it.
+
+    The request must be pinned to a commit SHA (never a branch, which can move after
+    validation). At that commit the file must exist and be within the size limit,
+    and when the Hub stores it in LFS its SHA-256 must match the one recorded at
+    submission. Raises `ValueError` otherwise.
+    """
+    if not commit_hash:
+        raise ValueError("Request has no commit_hash; refusing to evaluate a branch")
+    infos = API.get_paths_info(
+        repo_id=model,
+        paths=[onnx_path],
+        revision=commit_hash,
+        repo_type="model",
+        token=False,
     )
-
-
-def _push_result_model(record: dict, model_bytes: bytes):
-    """Upload the ONNX model alongside the JSON summary."""
-    rel_path = _result_rel_path(record, "onnx")
-    logger.debug("Pushing model ONNX for %s to %s", record["model"], rel_path)
-    API.upload_file(
-        path_or_fileobj=model_bytes,
-        path_in_repo=rel_path,
-        repo_id=RESULTS_REPO,
-        repo_type="dataset",
-        commit_message=f"Add ONNX for {record['model']}",
-    )
+    info = next((i for i in infos if getattr(i, "path", None) == onnx_path), None)
+    if info is None:
+        raise ValueError(f"{onnx_path} not found in {model} at {commit_hash}")
+    size = getattr(info, "size", None)
+    if size is not None and size > config.MAX_ONNX_BYTES:
+        raise ValueError(
+            f"{onnx_path} is {size} bytes, over the {config.MAX_ONNX_BYTES}-byte limit"
+        )
+    lfs = getattr(info, "lfs", None)
+    if expected_sha256 and lfs is not None and lfs.sha256 != expected_sha256:
+        raise ValueError(
+            f"{onnx_path} at {commit_hash} does not match the SHA-256 recorded at "
+            "submission"
+        )
 
 
 def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
@@ -137,7 +229,9 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
     jax_cache.enable()
     with tempfile.TemporaryDirectory() as tmp:
         onnx_path = req.get("onnx_path", ONNX_FILENAME)
-        ref = req.get("commit_hash") or req["revision"]
+        ref = req.get("commit_hash")
+        expected_sha256 = req.get("onnx_sha256")
+        _check_remote_onnx(req["model"], ref, onnx_path, expected_sha256)
         logger.info("Downloading %s from %s at %s", onnx_path, req["model"], ref)
         dl_start = time.perf_counter()
         local_model_path = hf_hub_download(
@@ -145,7 +239,8 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
             filename=onnx_path,
             revision=ref,
             local_dir=tmp,
-            token=TOKEN,
+            # Submissions are public repos; never send the worker's write token.
+            token=False,
         )
         logger.info(
             "Downloaded %s (%.1f MB) in %.1fs",
@@ -153,6 +248,11 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
             Path(local_model_path).stat().st_size / 1e6,
             time.perf_counter() - dl_start,
         )
+        if expected_sha256 and file_sha256(local_model_path) != expected_sha256:
+            raise ValueError(
+                f"{onnx_path} at {ref} does not match the SHA-256 recorded at "
+                "submission"
+            )
         model = onnx_model.OnnxModel(local_model_path)
         # The model's own metadata decides the tracks: a queued request's `tracks`
         # may predate a re-exported model and must not override what it declares.
@@ -168,6 +268,8 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
             commit_hash=req.get("commit_hash", ""),
             onnx_path=onnx_path,
             submitted_time=req.get("submitted_time", ""),
+            n_parameters=req.get("n_parameters"),
+            no_eval_training=req.get("no_eval_training"),
         )
         record |= metadata
         model_bytes = Path(local_model_path).read_bytes()
@@ -177,6 +279,17 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
 _EVAL_CMD = [sys.executable, "-u", "-m", "leaderboard.src.backend.evaluate_one"]
 # `-m leaderboard...` needs the repo root importable, whatever the worker's cwd.
 _REPO_ROOT = str(Path(__file__).resolve().parents[3])
+
+
+# Environment variables huggingface_hub reads a token from. The eval child runs
+# the submitted (untrusted) model and needs only public repos, so it gets none of
+# them and can't use or leak the worker's write token.
+_HUB_TOKEN_ENV_VARS = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HF_API_TOKEN")
+
+
+def _without_hub_tokens(env) -> dict[str, str]:
+    """A copy of `env` without any Hugging Face Hub token."""
+    return {k: v for k, v in env.items() if k not in _HUB_TOKEN_ENV_VARS}
 
 
 def _kill_group(proc: "subprocess.Popen") -> None:
@@ -212,7 +325,6 @@ def _evaluate_with_timeout(
         parquet_bytes = None
         if rows:
             df = pd.DataFrame.from_records(rows)
-            df["results_json"] = None
             buf = io.BytesIO()
             df.to_parquet(buf, index=False)
             parquet_bytes = buf.getvalue()
@@ -224,7 +336,7 @@ def _evaluate_with_timeout(
         req_path.write_text(json.dumps(req, indent=2))
 
         child_env = {
-            **os.environ,
+            **_without_hub_tokens(os.environ),
             evaluate.DEADLINE_ENV: str(time.time() + timeout),
             "PYTHONPATH": os.pathsep.join(
                 p for p in (_REPO_ROOT, os.environ.get("PYTHONPATH")) if p
@@ -293,7 +405,10 @@ def _reap_stale(requests_dir: str) -> None:
                 age,
             )
             req["status"] = "PENDING"
-        _push_request(req, rel_path)
+        # Only if no other worker has reaped or re-claimed it in the meantime.
+        _push_request(
+            req, rel_path, expect={"status": "RUNNING", "started_at": started}
+        )
 
 
 def run_once() -> tuple[int, int]:
@@ -317,16 +432,14 @@ def run_once() -> tuple[int, int]:
         req["status"] = "RUNNING"
         req["started_at"] = _now().isoformat()
         req["worker_id"] = _worker_id()
-        _push_request(req, rel_path)
+        if not _push_request(req, rel_path, expect={"status": "PENDING"}):
+            logger.info("Request %s was claimed elsewhere; skipping", req["model"])
+            continue
         try:
             record, parquet_bytes, model_bytes = _evaluate_with_timeout(
                 req, config.EVAL_TIMEOUT
             )
-            _push_result(record)
-            if parquet_bytes:
-                _push_result_parquet(record, parquet_bytes)
-            if model_bytes:
-                _push_result_model(record, model_bytes)
+            _push_results(record, parquet_bytes, model_bytes)
             req["status"] = "FINISHED"
             req.pop("error", None)
             finished += 1

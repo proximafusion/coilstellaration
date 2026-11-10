@@ -3,7 +3,7 @@ import logging
 from collections.abc import Iterator
 from pathlib import Path
 
-from huggingface_hub import hf_hub_download
+from huggingface_hub import snapshot_download
 
 from leaderboard.src.envs import API, QUEUE_REPO, TOKEN
 
@@ -33,16 +33,23 @@ def submission_exists(model: str, commit_hash: str, onnx_path: str) -> bool:
 
 
 def iter_requests() -> Iterator[dict]:
-    """Yield each request record, downloading and parsing per file.
+    """Yield each request record from one snapshot of the requests dataset.
 
-    A malformed or partially uploaded file is logged and skipped rather than aborting
-    the whole queue view.
+    The request JSON files are fetched in a single `snapshot_download` (only the
+    changed ones are transferred), not one request per file. A malformed or
+    partially uploaded file is logged and skipped rather than aborting the whole
+    queue view.
     """
-    for path in list_request_files():
+    root = Path(
+        snapshot_download(
+            repo_id=QUEUE_REPO,
+            repo_type="dataset",
+            allow_patterns="*.json",
+            token=TOKEN,
+        )
+    )
+    for path in sorted(root.rglob("*.json")):
         try:
-            local = hf_hub_download(
-                repo_id=QUEUE_REPO, filename=path, repo_type="dataset", token=TOKEN
-            )
-            yield json.loads(Path(local).read_text())
+            yield json.loads(path.read_text())
         except Exception as exc:  # noqa: BLE001
             logger.warning("Skipping unreadable request %s: %s", path, exc)

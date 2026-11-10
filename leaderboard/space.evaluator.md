@@ -8,6 +8,8 @@ sdk_version: 6.17.3
 python_version: "3.12"
 app_file: leaderboard/app.py
 pinned: false
+suggested_hardware: cpu-upgrade
+disable_embedding: true
 license: mit
 short_description: Scores queued Coilstellaration Bench submissions
 datasets:

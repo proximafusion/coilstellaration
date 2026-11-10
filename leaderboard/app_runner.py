@@ -5,15 +5,12 @@ status page and a background scheduler that polls the `requests` queue every
 `COILBENCH_RUNNER_INTERVAL` seconds, evaluating any PENDING submissions through
 the coilstellaration physics pipeline and pushing results.
 
-The recommended way to deploy is to mirror this repo unchanged and set the Space
-variable COILBENCH_ROLE=worker — `app.py` then imports and launches this module
-(see app.py). Alternatively, point the Space's README `app_file` here directly:
-    sdk: gradio
-    app_file: runner_app.py
+Deploy it by mirroring this repo unchanged (the Space's `app_file` is
+`leaderboard/app.py`) and setting the Space variable COILBENCH_ROLE=runner;
+`leaderboard/app.py` then imports and launches this module.
 
 Required secrets / variables on the worker Space:
-    HF_TOKEN          write access to the requests and results datasets,
-                      read access to submitted model repos
+    HF_TOKEN          write access to the requests and results datasets
     COILBENCH_OWNER   org owning the requests/results datasets (default proxima-fusion)
 Optional:
     COILBENCH_RUNNER_INTERVAL   seconds between polls (default 300)
@@ -27,6 +24,7 @@ import gradio as gr
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from leaderboard.src.backend import runner
+from leaderboard.src.display.css_html_js import custom_css, header_html, theme
 from leaderboard.src.envs import OWNER, QUEUE_REPO, RESULTS_REPO
 
 INTERVAL = int(os.environ.get("COILBENCH_RUNNER_INTERVAL", "300"))
@@ -54,7 +52,6 @@ def poll_once() -> None:
 
 def _status_md() -> str:
     return (
-        f"# Coilstellaration backend worker\n\n"
         f"Polling `{QUEUE_REPO}` every **{INTERVAL}s**, "
         f"pushing to `{RESULTS_REPO}`.\n\n"
         f"- Owner: `{OWNER}`\n"
@@ -74,10 +71,21 @@ scheduler.add_job(
 )
 scheduler.start()
 
-with gr.Blocks() as app_runner:
-    status = gr.Markdown(_status_md())
-    refresh = gr.Button("Refresh status")
+# Passed to `app_runner.launch()` (here and in app.py).
+LAUNCH_KWARGS = {"css": custom_css, "theme": theme}
+
+# How often an open status page refreshes itself, in seconds.
+STATUS_REFRESH = 30
+
+with gr.Blocks(title="Coilstellaration evaluator | Proxima Fusion") as app_runner:
+    gr.HTML(header_html("Coilstellaration", "evaluator"))
+    status = gr.Markdown(_status_md(), elem_classes="markdown-text")
+    refresh = gr.Button("Refresh status", variant="secondary", size="sm")
     refresh.click(_status_md, outputs=status)
+    # The Markdown value above is computed once, when the app starts. Recompute it
+    # for each page load and keep open pages current.
+    app_runner.load(_status_md, outputs=status)
+    gr.Timer(STATUS_REFRESH).tick(_status_md, outputs=status, show_progress="hidden")
 
 if __name__ == "__main__":
-    app_runner.launch()
+    app_runner.launch(**LAUNCH_KWARGS)

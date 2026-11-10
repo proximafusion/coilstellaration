@@ -6,9 +6,11 @@ from pathlib import Path
 
 from leaderboard.src.display.formatting import (
     make_clickable_commit,
-    make_clickable_model,
+    make_results_link,
+    make_user_link,
 )
 from leaderboard.src.display.utils import AutoEvalColumn
+from leaderboard.src.envs import RESULTS_REPO
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,13 @@ def _get(summary: dict | None, key: str) -> float:
     return summary.get(key, math.nan)
 
 
+def _proportion_se(p: float, n) -> float:
+    """Standard error of a proportion `p` over `n` instances; NaN without `n`."""
+    if not n or math.isnan(p):
+        return math.nan
+    return math.sqrt(p * (1 - p) / n)
+
+
 def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
     """Map one result record (spec §6) to a leaderboard row for one track+stratum view,
     or `None` when the record has no data for that view.
@@ -47,14 +56,24 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
         return None
 
     return {
-        AutoEvalColumn.model.name: make_clickable_model(record["model"]),
-        AutoEvalColumn.submitter.name: record.get("submitter", ""),
+        AutoEvalColumn.model.name: record["model"],
+        AutoEvalColumn.user.name: make_user_link(record.get("submitter", "")),
+        AutoEvalColumn.user_name.name: record.get("submitter", ""),
+        AutoEvalColumn.full_results.name: make_results_link(
+            RESULTS_REPO, record.get("raw_scores_file", "")
+        ),
         AutoEvalColumn.mean.name: _get(summary, "mean"),
         AutoEvalColumn.feas09.name: _get(summary, "feasibility_rate_0p9"),
         AutoEvalColumn.strict.name: _get(summary, "strict_feasibility"),
+        AutoEvalColumn.strict_se.name: _proportion_se(
+            _get(summary, "strict_feasibility"), summary.get("n")
+        ),
         AutoEvalColumn.median.name: _get(summary, "median"),
         AutoEvalColumn.p10.name: _get(summary, "p10"),
+        AutoEvalColumn.n.name: summary.get("n", math.nan),
+        AutoEvalColumn.n_parameters.name: record.get("n_parameters") or math.nan,
         AutoEvalColumn.submitted.name: record.get("submitted_time", ""),
+        AutoEvalColumn.bench_version.name: record.get("bench_version", ""),
         AutoEvalColumn.revision.name: record.get("revision", ""),
         AutoEvalColumn.commit.name: make_clickable_commit(
             record["model"], record.get("commit_hash", "")
@@ -64,16 +83,25 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
 
 
 def get_raw_eval_results(results_path: str) -> list[dict]:
-    """Walk the results dir; return the raw record dict for each FINISHED result."""
+    """Walk the results dir; return the raw record dict for each FINISHED result.
+
+    Each record gets `raw_scores_file`, the repo path of its per-instance scores.
+    """
     logger.debug("Reading eval results from %s", results_path)
     records: list[dict] = []
     for root, _, files in os.walk(results_path):
         for fname in files:
             if not fname.endswith(".json"):
                 continue
-            record = json.loads((Path(root) / fname).read_text())
+            path = Path(root) / fname
+            record = json.loads(path.read_text())
             if record.get("status") != "FINISHED":
                 continue
+            # The runner writes the per-instance scores next to the summary, as
+            # the same path with a .parquet suffix.
+            record["raw_scores_file"] = (
+                path.relative_to(results_path).with_suffix(".parquet").as_posix()
+            )
             records.append(record)
     logger.debug("Loaded %d FINISHED result record(s)", len(records))
     return records
