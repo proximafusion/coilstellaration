@@ -75,7 +75,7 @@ dev = [
 cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["src"]
 
 [tool.hatch.build]
 packages = ["src/coilstellaration"]
