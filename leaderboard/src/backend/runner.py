@@ -12,7 +12,8 @@ import time
 from pathlib import Path
 
 import pandas as pd
-from huggingface_hub import hf_hub_download, snapshot_download
+from huggingface_hub import CommitOperationAdd, hf_hub_download, snapshot_download
+from huggingface_hub.errors import HfHubHTTPError
 
 from leaderboard.src.backend import config, evaluate, jax_cache, onnx_model
 from leaderboard.src.envs import (
@@ -61,19 +62,76 @@ def _iter_pending(requests_dir: str):
             yield path, req
 
 
-def _push_request(req: dict, rel_path: str):
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump(req, f, indent=2)
-        tmp = f.name
+# How many times a conditional queue update re-reads the queue after losing a
+# race with another commit before giving up.
+_CONDITIONAL_PUSH_ATTEMPTS = 3
+
+
+def _push_request(req: dict, rel_path: str, expect: dict | None = None) -> bool:
+    """Write a request file to the queue; return whether it was written.
+
+    Without `expect` the write is unconditional (for the worker that holds the
+    request). With `expect`, the write only happens if the file on the Hub still has
+    those field values, e.g. `{"status": "PENDING"}` when claiming. The commit is
+    made with `parent_commit` set to the queue head that was read, so if anything
+    else commits in between, the Hub rejects it and the check is redone. Two
+    workers therefore can't both claim the same request.
+    """
+    data = json.dumps(req, indent=2).encode()
+    message = f"Update status {req['model']} -> {req['status']}"
     logger.debug("Pushing request %s status -> %s", req["model"], req["status"])
-    API.upload_file(
-        path_or_fileobj=tmp,
-        path_in_repo=rel_path,
-        repo_id=QUEUE_REPO,
-        repo_type="dataset",
-        commit_message=f"Update status {req['model']} -> {req['status']}",
+    if expect is None:
+        API.upload_file(
+            path_or_fileobj=data,
+            path_in_repo=rel_path,
+            repo_id=QUEUE_REPO,
+            repo_type="dataset",
+            commit_message=message,
+        )
+        return True
+
+    for _ in range(_CONDITIONAL_PUSH_ATTEMPTS):
+        head = API.repo_info(repo_id=QUEUE_REPO, repo_type="dataset").sha
+        current = json.loads(
+            Path(
+                hf_hub_download(
+                    repo_id=QUEUE_REPO,
+                    filename=rel_path,
+                    repo_type="dataset",
+                    revision=head,
+                    token=TOKEN,
+                )
+            ).read_text()
+        )
+        if any(current.get(k) != v for k, v in expect.items()):
+            logger.info(
+                "Request %s changed on the Hub (status %s); not updating it",
+                rel_path,
+                current.get("status"),
+            )
+            return False
+        try:
+            API.create_commit(
+                repo_id=QUEUE_REPO,
+                repo_type="dataset",
+                operations=[
+                    CommitOperationAdd(path_in_repo=rel_path, path_or_fileobj=data)
+                ],
+                commit_message=message,
+                parent_commit=head,
+            )
+            return True
+        except HfHubHTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            if status not in (409, 412):
+                raise
+            logger.info("Queue moved while updating %s; re-checking", rel_path)
+    logger.warning(
+        "Gave up updating %s after %d conflicting commits",
+        rel_path,
+        _CONDITIONAL_PUSH_ATTEMPTS,
     )
-    Path(tmp).unlink()
+    return False
 
 
 def _result_rel_path(record: dict, ext: str) -> str:
@@ -347,7 +405,10 @@ def _reap_stale(requests_dir: str) -> None:
                 age,
             )
             req["status"] = "PENDING"
-        _push_request(req, rel_path)
+        # Only if no other worker has reaped or re-claimed it in the meantime.
+        _push_request(
+            req, rel_path, expect={"status": "RUNNING", "started_at": started}
+        )
 
 
 def run_once() -> tuple[int, int]:
@@ -371,7 +432,9 @@ def run_once() -> tuple[int, int]:
         req["status"] = "RUNNING"
         req["started_at"] = _now().isoformat()
         req["worker_id"] = _worker_id()
-        _push_request(req, rel_path)
+        if not _push_request(req, rel_path, expect={"status": "PENDING"}):
+            logger.info("Request %s was claimed elsewhere; skipping", req["model"])
+            continue
         try:
             record, parquet_bytes, model_bytes = _evaluate_with_timeout(
                 req, config.EVAL_TIMEOUT

@@ -470,7 +470,9 @@ def test_run_once_claims_with_attempt_and_timestamp(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_worker_id", lambda: "host:123")
     pushed = []
     monkeypatch.setattr(
-        runner, "_push_request", lambda req, rel: pushed.append(dict(req))
+        runner,
+        "_push_request",
+        lambda req, rel, expect=None: pushed.append(dict(req)) or True,
     )
     monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     monkeypatch.setattr(runner, "_push_result_parquet", lambda rec, blob: None)
@@ -508,7 +510,7 @@ def test_run_once_pushes_parquet_when_present(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
-    monkeypatch.setattr(runner, "_push_request", lambda req, rel: None)
+    monkeypatch.setattr(runner, "_push_request", lambda req, rel, expect=None: True)
     monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     pushed_parquet = []
     monkeypatch.setattr(
@@ -543,7 +545,7 @@ def test_run_once_skips_parquet_when_absent(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
-    monkeypatch.setattr(runner, "_push_request", lambda req, rel: None)
+    monkeypatch.setattr(runner, "_push_request", lambda req, rel, expect=None: True)
     monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     pushed_parquet = []
     monkeypatch.setattr(
@@ -582,7 +584,9 @@ def test_run_once_marks_failed_on_eval_error_and_continues(tmp_path, monkeypatch
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
     pushed = []
     monkeypatch.setattr(
-        runner, "_push_request", lambda req, rel: pushed.append(dict(req))
+        runner,
+        "_push_request",
+        lambda req, rel, expect=None: pushed.append(dict(req)) or True,
     )
 
     def boom(req, timeout=None):
@@ -630,7 +634,9 @@ def test_reap_stale_requeues_running_under_attempt_cap(tmp_path, monkeypatch):
     )
     pushed = []
     monkeypatch.setattr(
-        runner, "_push_request", lambda req, rel: pushed.append(dict(req))
+        runner,
+        "_push_request",
+        lambda req, rel, expect=None: pushed.append(dict(req)) or True,
     )
 
     runner._reap_stale(str(queue))
@@ -650,7 +656,9 @@ def test_reap_stale_fails_poison_pill_at_attempt_cap(tmp_path, monkeypatch):
     )
     pushed = []
     monkeypatch.setattr(
-        runner, "_push_request", lambda req, rel: pushed.append(dict(req))
+        runner,
+        "_push_request",
+        lambda req, rel, expect=None: pushed.append(dict(req)) or True,
     )
 
     runner._reap_stale(str(queue))
@@ -671,7 +679,9 @@ def test_reap_stale_ignores_fresh_running(tmp_path, monkeypatch):
     )
     pushed = []
     monkeypatch.setattr(
-        runner, "_push_request", lambda req, rel: pushed.append(dict(req))
+        runner,
+        "_push_request",
+        lambda req, rel, expect=None: pushed.append(dict(req)) or True,
     )
 
     runner._reap_stale(str(queue))
@@ -712,7 +722,9 @@ def test_run_once_processes_valid_requests_despite_poison_file(tmp_path, monkeyp
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
     pushed = []
     monkeypatch.setattr(
-        runner, "_push_request", lambda req, rel: pushed.append(dict(req))
+        runner,
+        "_push_request",
+        lambda req, rel, expect=None: pushed.append(dict(req)) or True,
     )
     monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     monkeypatch.setattr(runner, "_push_result_parquet", lambda rec, blob: None)
@@ -729,3 +741,116 @@ def test_run_once_processes_valid_requests_despite_poison_file(tmp_path, monkeyp
     runner.run_once()
 
     assert pushed[-1]["status"] == "FINISHED"  # valid request still processed
+
+
+# --- _push_request: conditional (claim/reap) updates ---
+
+
+class _HubConflict(runner.HfHubHTTPError):
+    def __init__(self, status):
+        response = type("Response", (), {"status_code": status, "headers": {}})()
+        Exception.__init__(self, f"HTTP {status}")
+        self.response = response
+
+
+def _stub_queue(monkeypatch, tmp_path, remote_states, commit_errors=()):
+    """Stub the queue repo: each `repo_info` call moves to the next head, whose
+    copy of the request is the next entry of `remote_states`."""
+    heads = iter(range(len(remote_states)))
+    current = {}
+    commits = []
+    errors = list(commit_errors)
+
+    def fake_repo_info(**kw):
+        current["i"] = next(heads)
+        return type("Info", (), {"sha": f"head{current['i']}"})()
+
+    def fake_download(repo_id, filename, repo_type, revision, token):
+        assert revision == f"head{current['i']}"
+        path = tmp_path / f"remote{current['i']}.json"
+        path.write_text(json.dumps(remote_states[current["i"]]))
+        return str(path)
+
+    def fake_commit(**kw):
+        if errors:
+            raise errors.pop(0)
+        commits.append(kw)
+
+    monkeypatch.setattr(runner.API, "repo_info", fake_repo_info)
+    monkeypatch.setattr(runner, "hf_hub_download", fake_download)
+    monkeypatch.setattr(runner.API, "create_commit", fake_commit)
+    return commits
+
+
+def test_conditional_push_commits_on_top_of_the_head_it_checked(tmp_path, monkeypatch):
+    commits = _stub_queue(monkeypatch, tmp_path, [{"status": "PENDING"}])
+    req = {"model": "org/m", "status": "RUNNING"}
+
+    assert runner._push_request(req, "org/m.json", expect={"status": "PENDING"})
+    assert len(commits) == 1
+    assert commits[0]["parent_commit"] == "head0"
+
+
+def test_conditional_push_refuses_when_request_already_claimed(tmp_path, monkeypatch):
+    commits = _stub_queue(monkeypatch, tmp_path, [{"status": "RUNNING"}])
+    req = {"model": "org/m", "status": "RUNNING"}
+
+    assert not runner._push_request(req, "org/m.json", expect={"status": "PENDING"})
+    assert commits == []
+
+
+def test_conditional_push_rechecks_after_losing_a_race(tmp_path, monkeypatch):
+    # The first commit is rejected because the head moved; on re-reading, another
+    # worker has claimed the request, so this one backs off.
+    commits = _stub_queue(
+        monkeypatch,
+        tmp_path,
+        [{"status": "PENDING"}, {"status": "RUNNING"}],
+        commit_errors=[_HubConflict(412)],
+    )
+    req = {"model": "org/m", "status": "RUNNING"}
+
+    assert not runner._push_request(req, "org/m.json", expect={"status": "PENDING"})
+    assert commits == []
+
+
+def test_conditional_push_retries_when_unrelated_commit_moved_head(
+    tmp_path, monkeypatch
+):
+    commits = _stub_queue(
+        monkeypatch,
+        tmp_path,
+        [{"status": "PENDING"}, {"status": "PENDING"}],
+        commit_errors=[_HubConflict(412)],
+    )
+    req = {"model": "org/m", "status": "RUNNING"}
+
+    assert runner._push_request(req, "org/m.json", expect={"status": "PENDING"})
+    assert [c["parent_commit"] for c in commits] == ["head1"]
+
+
+def test_run_once_skips_request_claimed_by_another_worker(tmp_path, monkeypatch):
+    queue = tmp_path / "eval-queue" / "org"
+    queue.mkdir(parents=True)
+    (queue / "m.json").write_text(
+        json.dumps(
+            {
+                "model": "org/m",
+                "revision": "main",
+                "commit_hash": "abc",
+                "status": "PENDING",
+            }
+        )
+    )
+    monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
+    monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
+    monkeypatch.setattr(runner, "_push_request", lambda req, rel, expect=None: False)
+    evaluated = []
+    monkeypatch.setattr(
+        runner,
+        "_evaluate_with_timeout",
+        lambda req, timeout=None: evaluated.append(req),
+    )
+
+    assert runner.run_once() == (0, 0)
+    assert evaluated == []
