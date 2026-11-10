@@ -35,8 +35,6 @@ def test_run_eval_pins_commit_and_records_onnx_path(tmp_path, monkeypatch):
             "commit_hash": "deadbeefcafebabe",
             "onnx_path": "models/best.onnx",
             "submitter": "alice",
-            "stochastic": False,
-            "k_samples": 1,
             "submitted_time": "2026-06-11T00:00:00Z",
             "n_instances": -1,
         }

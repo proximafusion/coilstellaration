@@ -13,12 +13,6 @@ from leaderboard.src.display.utils import AutoEvalColumn
 logger = logging.getLogger(__name__)
 
 
-def _stochastic_label(record: dict) -> str:
-    if record.get("stochastic"):
-        return f"✓ (K={record.get('k_samples', 1)})"
-    return "—"
-
-
 def _track_summary(track_record: dict, stratum: str) -> dict | None:
     """The summary dict for one stratum view of a track.
 
@@ -60,7 +54,6 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
         AutoEvalColumn.strict.name: _get(summary, "strict_feasibility"),
         AutoEvalColumn.median.name: _get(summary, "median"),
         AutoEvalColumn.p10.name: _get(summary, "p10"),
-        AutoEvalColumn.stochastic.name: _stochastic_label(record),
         AutoEvalColumn.submitted.name: record.get("submitted_time", ""),
         AutoEvalColumn.revision.name: record.get("revision", ""),
         AutoEvalColumn.commit.name: make_clickable_commit(

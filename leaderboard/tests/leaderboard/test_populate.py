@@ -50,8 +50,6 @@ def _write(
         "revision": "abc",
         "submitter": "alice",
         "submitted_time": "2026-06-11T00:00:00Z",
-        "stochastic": False,
-        "k_samples": 1,
         "status": "FINISHED",
         "overall_score": mean,
         "tracks": {
@@ -134,7 +132,6 @@ def test_running_queue_surfaces_started_at():
                 "model": "org/m",
                 "revision": "main",
                 "submitter": "a",
-                "stochastic": False,
                 "status": "RUNNING",
                 "started_at": "2026-06-12T00:00:00+00:00",
             }

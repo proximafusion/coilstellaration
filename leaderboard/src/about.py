@@ -140,8 +140,7 @@ columns aggregate `S` over the selected track and stratum:
 | `median` | Median of `S`. Hidden by default. |
 | `p10` | 10th percentile of `S`, showing how the worst instances do. Hidden by default. |
 
-The `Stochastic (K)` column is what the submitter reported; every model is
-currently run once per instance. The full scoring definition
+Each model is run once per instance. The full scoring definition
 is in the [paper]({PAPER_URL}) and the
 [code README]({CODE_URL}#scoring-soft-feasibility).
 """
@@ -152,8 +151,7 @@ EVALUATION_QUEUE_TEXT = """
    contract in the **About** tab, including the `supported_tracks` metadata.
 2. Optionally, check the repo locally first:
    `uv run python -m leaderboard.scripts.check_submission <org/model>`.
-3. Enter the repo id (`org/model`), revision, your name/contact, and whether the
-   model is stochastic (and K samples).
+3. Enter the repo id (`org/model`), revision and your name/contact.
 4. On submit, we check that the repo is public and that `model.onnx` has the
    required tensor names and metadata and is at most 50 MiB. The physics evaluation
    runs on the backend; watch its progress in the queue below.

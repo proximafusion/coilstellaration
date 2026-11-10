@@ -15,7 +15,7 @@ from leaderboard.src.about import (
     TITLE,
 )
 from leaderboard.src.display.css_html_js import custom_css
-from leaderboard.src.display.leaderboard import ColumnFilter, Leaderboard, SelectColumns
+from leaderboard.src.display.leaderboard import Leaderboard, SelectColumns
 from leaderboard.src.display.utils import (
     COLS,
     EVAL_COLS,
@@ -39,8 +39,7 @@ def restart_space():
     API.restart_space(repo_id=REPO_ID)
 
 
-# Submission-form radio labels. Each radio toggles its companion slider on/off.
-DETERMINISTIC, STOCHASTIC = "Deterministic", "Stochastic"
+# Submission-form radio labels. The radio toggles its companion slider on/off.
 FULL_SET, LIMIT_N = "Full set", "Limit to N"
 INTERVAL = int(os.environ.get("COILBENCH_LEADERBOARD_INTERVAL", "300"))
 
@@ -50,21 +49,16 @@ def submit_eval(
     revision,
     onnx_path,
     submitter,
-    model_type,
-    k_samples,
     instance_mode,
     n_instances,
 ):
     """Adapt the radio/slider controls to `add_new_eval`'s arguments.
 
     A disabled slider still submits its last value, so the radio is the source
-    of truth: deterministic forces a single sample, full-set forces n=0.
+    of truth: full-set forces n=-1 (the whole split).
     """
-    stochastic = model_type == STOCHASTIC
     n = int(n_instances) if instance_mode == LIMIT_N else -1
-    return add_new_eval(
-        model, revision, submitter, stochastic, int(k_samples), n, onnx_path
-    )
+    return add_new_eval(model, revision, submitter, n, onnx_path)
 
 
 ### Space initialisation
@@ -128,11 +122,6 @@ def init_leaderboard(frames):
         ),
         search_columns=[AutoEvalColumn.model.name, AutoEvalColumn.submitter.name],
         hide_columns=[c.name for c in fields(AutoEvalColumn) if c.hidden],
-        filter_columns=[
-            ColumnFilter(
-                AutoEvalColumn.stochastic.name, type="checkboxgroup", label="Stochastic"
-            ),
-        ],
         interactive=False,
     )
 
@@ -226,19 +215,6 @@ with app_leaderboard:
                     )
                     submitter_textbox = gr.Textbox(label="Submitter / contact")
                 with gr.Column():
-                    stochastic_radio = gr.Radio(
-                        choices=[DETERMINISTIC, STOCHASTIC],
-                        value=DETERMINISTIC,
-                        label="Model type",
-                    )
-                    k_samples_slider = gr.Slider(
-                        minimum=1,
-                        maximum=20,
-                        step=1,
-                        value=1,
-                        label="K samples",
-                        interactive=False,
-                    )
                     instance_radio = gr.Radio(
                         choices=[FULL_SET, LIMIT_N],
                         value=FULL_SET,
@@ -253,11 +229,6 @@ with app_leaderboard:
                         interactive=False,
                     )
 
-                    stochastic_radio.change(
-                        lambda mode: gr.update(interactive=mode == STOCHASTIC),
-                        inputs=stochastic_radio,
-                        outputs=k_samples_slider,
-                    )
                     instance_radio.change(
                         lambda mode: gr.update(interactive=mode == LIMIT_N),
                         inputs=instance_radio,
@@ -273,8 +244,6 @@ with app_leaderboard:
                     revision_name_textbox,
                     onnx_path_textbox,
                     submitter_textbox,
-                    stochastic_radio,
-                    k_samples_slider,
                     instance_radio,
                     n_instances_slider,
                 ],

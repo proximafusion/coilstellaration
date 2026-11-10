@@ -22,8 +22,6 @@ def add_new_eval(
     model: str,
     revision: str,
     submitter: str,
-    stochastic: bool,
-    k_samples: int,
     n_instances: int = -1,
     onnx_path: str = "model.onnx",
 ):
@@ -35,7 +33,6 @@ def add_new_eval(
     onnx_path = (onnx_path or ONNX_FILENAME).strip().lstrip("/")
     if not onnx_path.lower().endswith(".onnx"):
         return styled_error("The model file path must end in `.onnx`.")
-    k_samples = int(k_samples) if stochastic else 1
 
     # Instances per track to score: any value < 1 means the full split
     n_instances = int(n_instances)
@@ -144,8 +141,6 @@ def add_new_eval(
         "commit_hash": commit_hash,
         "onnx_path": onnx_path,
         "submitter": submitter,
-        "stochastic": bool(stochastic),
-        "k_samples": k_samples,
         "n_instances": n_instances,
         "tracks": tracks,
         "status": "PENDING",

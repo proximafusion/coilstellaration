@@ -375,8 +375,6 @@ def _is_finite(achieved: types.RequirementMetrics) -> bool:
 
 def evaluate_model(
     model: onnx_model.OnnxModel,
-    stochastic: bool,
-    k_samples: int,
     tracks: Sequence[Literal["fixed_shape", "variable_shape"]] = get_args(
         config.TRACKS
     ),
@@ -486,8 +484,6 @@ def evaluate_model(
         total_failed,
     )
     record = {
-        "stochastic": stochastic,
-        "k_samples": k_samples,
         "status": "FINISHED",
         "overall_score": overall,
         "tracks": track_results,
