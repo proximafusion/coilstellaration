@@ -215,13 +215,13 @@ with app_leaderboard:
             )
 
             gr.Markdown("## Evaluation queue", elem_classes="markdown-text")
-            for title, frame in [
-                ("Running", running_eval_queue_df),
-                ("Pending", pending_eval_queue_df),
-                ("Finished", finished_eval_queue_df),
-                ("Failed", failed_eval_queue_df),
+            for icon, title, frame in [
+                ("🔄", "Running", running_eval_queue_df),
+                ("⏳", "Pending", pending_eval_queue_df),
+                ("✅", "Finished", finished_eval_queue_df),
+                ("❌", "Failed", failed_eval_queue_df),
             ]:
-                with gr.Accordion(f"{title} ({len(frame)})", open=False):
+                with gr.Accordion(f"{icon} {title} ({len(frame)})", open=False):
                     gr.Dataframe(
                         value=frame,
                         label=f"{title} evaluations",

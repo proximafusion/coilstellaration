@@ -40,7 +40,14 @@ CONTROL_BORDER_ON_DARK = STEEL_BLUE
 # state, so the selected tab and focus ring are navy; on navy, teal is 9.6:1 and
 # is kept.
 
-_FONT = (gr.themes.GoogleFont("Inter Tight"), "system-ui", "sans-serif")
+# Load every weight in use: 400 (body), 500 (Medium: headings, labels, emphasis)
+# and 600 (the best value in each table column). Gradio loads only 400 and 600 by
+# default, which renders every Medium as 400.
+_FONT = (
+    gr.themes.GoogleFont("Inter Tight", weights=(400, 500, 600)),
+    "system-ui",
+    "sans-serif",
+)
 
 theme = gr.themes.Base(
     font=_FONT,
@@ -122,6 +129,9 @@ theme = gr.themes.Base(
     input_shadow_focus="none",
     input_shadow_focus_dark="none",
     input_radius="4px",
+    # Gradio's base theme draws no edge on inputs (0 px), and checkboxes and
+    # radio chips inherit it, so without this the edge colours never show.
+    input_border_width="1px",
     # Radios and checkboxes: white chips edged in steel-blue; the selected one
     # is navy (white on dark).
     checkbox_label_background_fill=WHITE,

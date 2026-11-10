@@ -45,10 +45,11 @@ def search_rows(df: pd.DataFrame, query: str, columns) -> pd.DataFrame:
     return df[mask]
 
 
-# How the best value in each metric column is marked: Medium weight on a pale
-# surface (the design system has no bold, and teal text is not allowed).
-# `--pf-best-bg` is set per light/dark mode in the app's CSS.
-BEST_VALUE_CSS = "font-weight: 500; background: var(--pf-best-bg);"
+# How the best value in each metric column is marked: SemiBold on a pale surface.
+# This is the one place heavier than the design system's Medium, so the winners
+# stand out from the Medium column headers. `--pf-best-bg` is set per light/dark
+# mode in the app's CSS.
+BEST_VALUE_CSS = "font-weight: 600; background: var(--pf-best-bg);"
 
 
 def style_frame(df: pd.DataFrame, highlight_columns, integer_columns=()):
