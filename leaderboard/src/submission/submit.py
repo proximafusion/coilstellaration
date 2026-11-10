@@ -6,10 +6,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import get_args
 
+import gradio as gr
 from huggingface_hub import hf_hub_download
 
 from leaderboard.src.backend import config
-from leaderboard.src.display.formatting import styled_error, styled_message
 from leaderboard.src.envs import API, QUEUE_REPO
 from leaderboard.src.submission import requests_dataset
 from leaderboard.src.submission.check_validity import validate_local_onnx
@@ -34,20 +34,60 @@ def file_sha256(path: str | Path) -> str:
 # back to the client's token (or HF_TOKEN).
 
 
+def _limit_message(size: int) -> str:
+    return (
+        f"Model file is {size / 1024 / 1024:.1f} MB, over the "
+        f"{config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
+    )
+
+
+def form_errors(model: str, submitter: str, onnx_path: str) -> dict[str, str]:
+    """The cheap format checks on the form, keyed by field; empty when it is valid."""
+    errors = {}
+    if not model or "/" not in model:
+        errors["model"] = "Please enter a model id of the form `org/model`."
+    if not submitter:
+        errors["submitter"] = "Please enter a submitter name or contact."
+    onnx_path = (onnx_path or ONNX_FILENAME).strip()
+    if not onnx_path.lower().endswith(".onnx"):
+        errors["onnx_path"] = "The model file path must end in `.onnx`."
+    return errors
+
+
+def validate_submission(
+    model: str,
+    revision: str,  # noqa: ARG001 (validators get every input)
+    submitter: str,
+    onnx_path: str,
+):
+    """Gradio validator for the form: a `gr.validate` per input, in input order."""
+    errors = form_errors(model, submitter, onnx_path)
+    return [
+        gr.validate("model" not in errors, errors.get("model", "")),
+        gr.validate(True, ""),
+        gr.validate("submitter" not in errors, errors.get("submitter", "")),
+        gr.validate("onnx_path" not in errors, errors.get("onnx_path", "")),
+    ]
+
+
 def add_new_eval(
     model: str,
     revision: str,
     submitter: str,
     onnx_path: str = "model.onnx",
-):
-    if not model or "/" not in model:
-        return styled_error("Please enter a model id of the form `org/model`.")
-    if not submitter:
-        return styled_error("Please enter a submitter name or contact.")
+    progress=gr.Progress(),  # noqa: B008 (Gradio injects it by this default)
+) -> str:
+    """Validate a submission and add it to the evaluation queue.
+
+    Returns the confirmation message. Raises `gr.Error` with the reason when the
+    submission is rejected. The form validator runs the same format checks first,
+    but they are repeated here because API callers skip the validator.
+    """
+    errors = form_errors(model, submitter, onnx_path)
+    if errors:
+        raise gr.Error(" ".join(errors.values()))
     revision = revision or "main"
     onnx_path = (onnx_path or ONNX_FILENAME).strip().lstrip("/")
-    if not onnx_path.lower().endswith(".onnx"):
-        return styled_error("The model file path must end in `.onnx`.")
 
     logger.info(
         "New submission: model=%s revision=%s submitter=%s",
@@ -56,6 +96,7 @@ def add_new_eval(
         submitter,
     )
 
+    progress(0.1, desc="Resolving the model repo")
     try:
         info = API.repo_info(
             repo_id=model, revision=revision, repo_type="model", token=False
@@ -63,27 +104,29 @@ def add_new_eval(
         commit_hash = info.sha
     except Exception as exc:  # noqa: BLE001
         logger.warning("Repo info check failed for %s: %s", model, exc)
-        return styled_error(
-            f'Model "{model}" was not found or is not accessible: {exc}'
-        )
+        raise gr.Error(
+            f'Model "{model}" was not found or is not public: {exc}'
+        ) from exc
     if not commit_hash:
         logger.warning("Could not resolve a commit hash for %s@%s", model, revision)
-        return styled_error(
+        raise gr.Error(
             f'Could not resolve a commit hash for "{model}" at revision "{revision}".'
         )
 
+    progress(0.25, desc="Checking the queue for duplicates")
     try:
         duplicate = requests_dataset.submission_exists(model, commit_hash, onnx_path)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not check the queue for duplicates: %s", exc)
-        return styled_error("Couldn't verify against the queue — please retry.")
+        raise gr.Error("Couldn't verify against the queue. Please retry.") from exc
     if duplicate:
         logger.info("Duplicate submission for %s@%s:%s", model, commit_hash, onnx_path)
-        return styled_error(
+        raise gr.Error(
             f"This exact model commit ({commit_hash}) and file ({onnx_path}) "
             "has already been submitted."
         )
 
+    progress(0.4, desc=f"Reading `{onnx_path}` metadata")
     try:
         infos = API.get_paths_info(
             repo_id=model,
@@ -104,18 +147,16 @@ def add_new_eval(
         logger.warning(
             "Could not fetch metadata for %s from %s: %s", onnx_path, model, exc
         )
-        return styled_error(
+        raise gr.Error(
             f"Could not read `{onnx_path}` metadata from the repo: {exc}"
-        )
+        ) from exc
     if size is not None and size > config.MAX_ONNX_BYTES:
         logger.info("Rejecting oversized model %s: %d bytes", model, size)
-        return styled_error(
-            f"Model file is {size / 1024 / 1024:.1f} MB, over the "
-            f"{config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
-        )
+        raise gr.Error(_limit_message(size))
 
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
+    progress(0.55, desc=f"Downloading `{onnx_path}`")
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
             logger.debug("Downloading %s from %s for validation", onnx_path, model)
             local = hf_hub_download(
                 repo_id=model,
@@ -124,25 +165,25 @@ def add_new_eval(
                 local_dir=tmp,
                 token=False,
             )
-            actual = Path(local).stat().st_size
-            if size is None and actual > config.MAX_ONNX_BYTES:
-                logger.info(
-                    "Rejecting oversized model %s: %d bytes (post-download)",
-                    model,
-                    actual,
-                )
-                return styled_error(
-                    f"Model file is {actual / 1024 / 1024:.1f} MB, over the "
-                    f"{config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
-                )
-            ok, msg, tracks = validate_local_onnx(local)
-            onnx_sha256 = file_sha256(local)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not download %s from %s: %s", onnx_path, model, exc)
-        return styled_error(f"Could not download `{onnx_path}` from the repo: {exc}")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not download %s from %s: %s", onnx_path, model, exc)
+            raise gr.Error(
+                f"Could not download `{onnx_path}` from the repo: {exc}"
+            ) from exc
+        actual = Path(local).stat().st_size
+        if size is None and actual > config.MAX_ONNX_BYTES:
+            logger.info(
+                "Rejecting oversized model %s: %d bytes (post-download)",
+                model,
+                actual,
+            )
+            raise gr.Error(_limit_message(actual))
+        progress(0.75, desc="Checking the ONNX contract")
+        ok, msg, tracks = validate_local_onnx(local)
+        onnx_sha256 = file_sha256(local)
     if not ok:
         logger.info("ONNX contract check failed for %s: %s", model, msg)
-        return styled_error(f"ONNX contract check failed: {msg}")
+        raise gr.Error(f"ONNX contract check failed: {msg}")
 
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     eval_entry = {
@@ -159,18 +200,22 @@ def add_new_eval(
         "private": False,
     }
 
+    progress(0.9, desc="Adding the model to the queue")
     rel_path = requests_dataset.request_path(model, commit_hash, onnx_path)
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=True) as f:
-        json.dump(eval_entry, f, indent=2)
-        f.flush()
-        tmp = f.name
+    try:
         API.upload_file(
-            path_or_fileobj=tmp,
+            path_or_fileobj=json.dumps(eval_entry, indent=2).encode(),
             path_in_repo=rel_path,
             repo_id=QUEUE_REPO,
             repo_type="dataset",
             commit_message=f"Add {model} to eval queue",
         )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not add %s to the queue: %s", model, exc)
+        raise gr.Error(
+            "The model passed all checks, but adding it to the queue failed. "
+            "Please retry."
+        ) from exc
     if set(tracks) == set(get_args(config.TRACKS)):
         detail = (
             "Model declares `supported_tracks=fixed_shape,variable_shape` — "
@@ -182,6 +227,6 @@ def add_new_eval(
             "will be scored on the fixed_shape track only."
         )
     logger.info("Submission %s queued (PENDING) at %s", model, current_time)
-    return styled_message(
-        "Your model has been submitted to the evaluation queue! " + detail
-    )
+    message = "Your model has been submitted to the evaluation queue! " + detail
+    gr.Info(message)
+    return message

@@ -33,7 +33,7 @@ from leaderboard.src.populate import (
     get_leaderboard_frames,
 )
 from leaderboard.src.submission import requests_dataset
-from leaderboard.src.submission.submit import add_new_eval
+from leaderboard.src.submission.submit import add_new_eval, validate_submission
 
 
 def restart_space():
@@ -210,15 +210,27 @@ with app_leaderboard:
 
             submit_button = gr.Button("Submit Eval")
             submission_result = gr.Markdown()
+            submission_inputs = [
+                model_name_textbox,
+                revision_name_textbox,
+                submitter_textbox,
+                onnx_path_textbox,
+            ]
+            # Format checks run first and are shown on the fields. The button is
+            # disabled while the submission runs, and re-enabled however it ends.
             submit_button.click(
+                lambda *_: gr.Button(interactive=False),
+                submission_inputs,
+                submit_button,
+                validator=validate_submission,
+            ).then(
                 add_new_eval,
-                [
-                    model_name_textbox,
-                    revision_name_textbox,
-                    submitter_textbox,
-                    onnx_path_textbox,
-                ],
+                submission_inputs,
                 submission_result,
+            ).then(
+                lambda: gr.Button(interactive=True),
+                None,
+                submit_button,
             )
 
 

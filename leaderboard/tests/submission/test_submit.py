@@ -1,5 +1,7 @@
 import json
-from pathlib import Path
+
+import gradio as gr
+import pytest
 
 from leaderboard.src.backend import config
 from leaderboard.src.submission import requests_dataset, submit
@@ -54,7 +56,7 @@ def _wire(
     monkeypatch.setattr(submit, "hf_hub_download", fake_download)
 
     def fake_upload(**kw):
-        captured["entry"] = json.loads(Path(kw["path_or_fileobj"]).read_text())
+        captured["entry"] = json.loads(kw["path_or_fileobj"])
         captured["path_in_repo"] = kw["path_in_repo"]
 
     monkeypatch.setattr(submit.API, "upload_file", fake_upload)
@@ -104,9 +106,9 @@ def test_submission_rejects_non_onnx_path(tmp_path, monkeypatch):
     captured = {}
     _wire(monkeypatch, tmp_path, captured)
 
-    out = submit.add_new_eval("org/m", "main", "alice", onnx_path="weights.bin")
+    with pytest.raises(gr.Error, match=r"(?i)\.onnx"):
+        submit.add_new_eval("org/m", "main", "alice", onnx_path="weights.bin")
 
-    assert ".onnx" in out
     assert "entry" not in captured
     assert "download" not in captured
 
@@ -116,9 +118,9 @@ def test_submission_rejects_duplicate(tmp_path, monkeypatch):
     existing = [requests_dataset.request_path("org/m", _Info.sha, "model.onnx")]
     _wire(monkeypatch, tmp_path, captured, existing=existing)
 
-    out = submit.add_new_eval("org/m", "main", "alice")
+    with pytest.raises(gr.Error, match=r"(?i)already"):
+        submit.add_new_eval("org/m", "main", "alice")
 
-    assert "already" in out.lower()
     assert "entry" not in captured
     assert "download" not in captured  # dedup fires before the download
 
@@ -132,9 +134,9 @@ def test_submission_fails_closed_when_queue_unreadable(tmp_path, monkeypatch):
 
     monkeypatch.setattr(requests_dataset, "list_request_files", boom)
 
-    out = submit.add_new_eval("org/m", "main", "alice")
+    with pytest.raises(gr.Error, match=r"(?i)retry"):
+        submit.add_new_eval("org/m", "main", "alice")
 
-    assert "retry" in out.lower()
     assert "entry" not in captured
     assert "download" not in captured  # never reaches validation
 
@@ -143,9 +145,9 @@ def test_submission_rejects_oversized_model(tmp_path, monkeypatch):
     captured = {}
     _wire(monkeypatch, tmp_path, captured, size=config.MAX_ONNX_BYTES + 1)
 
-    out = submit.add_new_eval("org/m", "main", "alice")
+    with pytest.raises(gr.Error, match=r"(?i)limit"):
+        submit.add_new_eval("org/m", "main", "alice")
 
-    assert "limit" in out.lower()
     assert "entry" not in captured
     assert "download" not in captured  # rejected before download
 
@@ -183,3 +185,25 @@ def test_submission_falls_back_to_getsize_when_metadata_lacks_size(
     # A tiny dummy file is well under the limit, so it still queues.
     assert "submitted" in out.lower()
     assert captured["entry"]["tracks"] == ["fixed_shape"]
+
+
+def test_submission_reports_queue_upload_failure(tmp_path, monkeypatch):
+    captured = {}
+    _wire(monkeypatch, tmp_path, captured)
+
+    def boom(**kw):
+        raise RuntimeError("hub down")
+
+    monkeypatch.setattr(submit.API, "upload_file", boom)
+
+    with pytest.raises(gr.Error, match="retry"):
+        submit.add_new_eval("org/m", "main", "alice")
+
+
+def test_validator_flags_each_invalid_field():
+    results = submit.validate_submission("no-slash", "", "", "weights.bin")
+    assert [r["is_valid"] for r in results] == [False, True, False, False]
+    assert ".onnx" in results[3]["message"]
+
+    results = submit.validate_submission("org/m", "main", "alice", "")
+    assert all(r["is_valid"] for r in results)  # empty path means model.onnx
