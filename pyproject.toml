@@ -106,14 +106,19 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 88
+src = ["src"]
 
 [tool.ruff.lint]
+# Pin the pre-0.17 default rule set explicitly so ruff upgrades don't silently
+# enable new rule families; opt in to more via extend-select below.
+select = ["E4", "E7", "E9", "F"]
 external = ["ARR001", "ARR002"]
 extend-select = [
   "ARG",      # flake8-unused-arguments
   "EXE",      # flake8-executable
   "E501",     # line-too-long
   "FURB",     # refurb
+  "I",        # isort
   "G",        # flake8-logging-format
   "ICN",      # flake8-import-conventions
   "NPY",      # NumPy specific rules
@@ -125,9 +130,6 @@ extend-select = [
 ignore = [
   "F722",     # Disable 'forward-annotation-syntax-error' for jaxtyping compatibility, see https://docs.kidger.site/jaxtyping/faq/#flake8-or-ruff-are-throwing-an-error
 ]
-
-[tool.isort]
-profile = "black"
 
 [tool.pyright]
 typeCheckingMode = "basic"

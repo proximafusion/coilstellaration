@@ -450,7 +450,7 @@ uv run python <script>.py                      # run anything else in the env
 
 After editing dependencies, run `uv lock` and commit `uv.lock` (or use `uv add` / `uv remove`, which do both). `uv lock --upgrade-package <pkg>` upgrades a single package; `uv lock --check` fails if the lockfile is stale, which is suitable for CI.
 
-Pre-commit hooks (`ruff --fix`, `black`, `isort`, `pyright`, plus generic hygiene hooks) are auto-installed by the devcontainer's `onCreateCommand`. Outside the devcontainer, install them with `uv run pre-commit install`.
+Pre-commit hooks (`ruff check --fix` including import sorting, `ruff format`, `pyright`, plus generic hygiene hooks) are auto-installed by the devcontainer's `onCreateCommand`. Outside the devcontainer, install them with `uv run pre-commit install`.
 
 VS Code and Pyright pick up the environment via `python.defaultInterpreterPath` and `[tool.pyright].venv`, both pointing at `.venv`.
 

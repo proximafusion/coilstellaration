@@ -42,7 +42,6 @@
                 "ms-python.vscode-pylance",
                 "ms-pyright.pyright",
                 "charliermarsh.ruff",
-                "ms-python.black-formatter",
                 "redhat.vscode-yaml",
                 "streetsidesoftware.code-spell-checker",
                 "Anthropic.claude-code"
@@ -51,8 +50,11 @@
                 "python-envs.terminal.autoActivationType": "shellStartup",
                 "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
                 "[python]": {
-                    "editor.defaultFormatter": "ms-python.black-formatter",
-                    "editor.formatOnSave": true
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.formatOnSave": true,
+                    "editor.codeActionsOnSave": {
+                        "source.organizeImports.ruff": "explicit"
+                    }
                 }
             }
         }
