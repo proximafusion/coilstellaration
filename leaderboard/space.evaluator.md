@@ -9,6 +9,7 @@ pinned: true
 license: mit
 short_description: Duplicate this leaderboard to initialize your own!
 sdk_version: 6.17.3
+python_version: "3.12"
 tags:
 - evaluator
 - coilstellaration
