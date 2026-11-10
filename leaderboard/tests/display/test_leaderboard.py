@@ -29,3 +29,18 @@ def test_search_matches_plain_model_name_not_link_markup():
 def test_empty_query_keeps_every_row():
     df = _frame()
     assert len(search_rows(df, "", ["model_name"])) == 2
+
+
+def test_style_frame_marks_column_maxima_and_rounds():
+    from leaderboard.src.display.leaderboard import BEST_VALUE_CSS, style_frame
+
+    df = pd.DataFrame({"Model": ["a", "b"], "mean": [0.5, 0.512], "p10": [0.2, None]})
+    styled = style_frame(df, ["mean", "p10", "not-shown"])
+    html = styled.to_html()
+    assert "0.500" in html
+    assert "0.512" in html
+    # One highlighted cell per metric column: b's mean and a's p10.
+    ctx = styled._compute().ctx
+    highlighted = {cell for cell, props in ctx.items() if props}
+    assert highlighted == {(1, 1), (0, 2)}
+    assert BEST_VALUE_CSS.startswith("font-weight: bold")

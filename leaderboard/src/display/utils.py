@@ -58,7 +58,7 @@ auto_eval_column_dict.append(
 )
 # metadata
 auto_eval_column_dict.append(
-    ["submitted", ColumnContent, ColumnContent("Submitted", "str", True)]
+    ["submitted", ColumnContent, ColumnContent("Submitted", "date", True)]
 )
 auto_eval_column_dict.append(
     ["revision", ColumnContent, ColumnContent("Revision", "str", False)]
@@ -93,6 +93,9 @@ TRACK_LABELS = {"fixed_shape": "fixed", "variable_shape": "variable"}
 # Stratum views offered by the leaderboard's stratum selector. "All" is the
 # all-strata pool (the paper's headline); the others slice a single stratum.
 STRATUM_VIEWS = ["All", "tight", "medium", "loose"]
+
+# Metric columns, each of whose best (maximum) value is highlighted.
+METRIC_COLS = [c.name for c in fields(AutoEvalColumn) if c.type == "number"]
 
 # Rows are ordered by strict feasibility, then mean, both descending.
 SORT_COLS = [AutoEvalColumn.strict.name, AutoEvalColumn.mean.name]

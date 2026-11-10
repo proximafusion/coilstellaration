@@ -20,6 +20,7 @@ from leaderboard.src.display.utils import (
     COLS,
     EVAL_COLS,
     EVAL_TYPES,
+    METRIC_COLS,
     STRATUM_VIEWS,
     TRACK_LABELS,
     TRACKS,
@@ -106,6 +107,8 @@ def init_leaderboard(frames):
             AutoEvalColumn.submitter.name,
         ],
         hide_columns=[c.name for c in fields(AutoEvalColumn) if c.hidden],
+        highlight_columns=METRIC_COLS,
+        label="Leaderboard",
         interactive=False,
     )
 
@@ -147,6 +150,7 @@ with app_leaderboard:
                         with gr.Row():
                             finished_eval_table = gr.components.Dataframe(
                                 value=finished_eval_queue_df,
+                                label="Finished evaluations",
                                 headers=EVAL_COLS,
                                 datatype=EVAL_TYPES,
                                 row_count=5,
@@ -158,6 +162,7 @@ with app_leaderboard:
                         with gr.Row():
                             running_eval_table = gr.components.Dataframe(
                                 value=running_eval_queue_df,
+                                label="Running evaluations",
                                 headers=EVAL_COLS,
                                 datatype=EVAL_TYPES,
                                 row_count=5,
@@ -170,6 +175,7 @@ with app_leaderboard:
                         with gr.Row():
                             pending_eval_table = gr.components.Dataframe(
                                 value=pending_eval_queue_df,
+                                label="Pending evaluations",
                                 headers=EVAL_COLS,
                                 datatype=EVAL_TYPES,
                                 row_count=5,
@@ -181,6 +187,7 @@ with app_leaderboard:
                         with gr.Row():
                             failed_eval_table = gr.components.Dataframe(
                                 value=failed_eval_queue_df,
+                                label="Failed evaluations",
                                 headers=EVAL_COLS,
                                 datatype=EVAL_TYPES,
                                 row_count=5,
