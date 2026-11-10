@@ -1,0 +1,50 @@
+name: Sync leaderboard to Hugging Face Spaces
+
+# The Spaces expect app.py and the README front matter at their repo root, so we
+# push a snapshot of leaderboard/ (not this repo) as a single parentless commit.
+# History stays here; the Spaces only need the current tree.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'leaderboard/**'
+      - '!leaderboard/tests/**'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-to-hf-spaces
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with LFS objects for the current tree)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Build snapshot commit of leaderboard/
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          commit=$(git commit-tree "HEAD:leaderboard" \
+            -m "Sync leaderboard/ from ${GITHUB_REPOSITORY}@${GITHUB_SHA}")
+          echo "SNAPSHOT=${commit}" >> "$GITHUB_ENV"
+
+      - name: Push to evaluator (worker) Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git push --force \
+            "https://jhewers-pf:${HF_TOKEN}@huggingface.co/spaces/jhewers-pf/coilstellaration-bench-evaluator" \
+            "${SNAPSHOT}:refs/heads/main"
+
+      - name: Push to leaderboard Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git push --force \
+            "https://jhewers-pf:${HF_TOKEN}@huggingface.co/spaces/jhewers-pf/coilstellaration-bench" \
+            "${SNAPSHOT}:refs/heads/main"
