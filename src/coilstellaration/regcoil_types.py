@@ -5,9 +5,8 @@ from typing import Annotated, Literal, Self
 import jaxtyping as jt
 import numpy as np
 import pydantic
-from scipy import constants
-
 from coilstellaration import types
+from scipy import constants
 
 RegcoilTargetOption = Literal[
     "normalized_coil_to_coil_distance",
@@ -160,20 +159,20 @@ class RegcoilOutput(types.BaseModel):
     """Values of chi^2_B (the area integral over the plasma surface of |B_normal|^2)
     that resulted for each value of lambda.
 
-    @stardash-unit: T^2 * m^2
+    Units: T^2 * m^2
     """
 
     chi2_K: jt.Float[np.ndarray, " n_lambda"]
     """Values of chi^2_K (the area integral over the coil winding surface of current
     density squared) that resulted for each value of lambda.
 
-    @stardash-unit: A^2
+    Units: A^2
     """
 
     lambda_: jt.Float[np.ndarray, " n_lambda"]
     """Values of the regularization parameter that were used.
 
-    @stardash-unit: T^2 * m^2 / A^2
+    Units: T^2 * m^2 / A^2
     """
 
     maximum_K: jt.Float[np.ndarray, " n_lambda"]
@@ -182,55 +181,55 @@ class RegcoilOutput(types.BaseModel):
 
     `max_K` in the REGCOIL output file.
 
-    @stardash-unit: A/m
+    Units: A/m
     """
 
     plasma_major_radius: float
     """Major radius of the plasma surface.
 
-    @stardash-unit: m
+    Units: m
     """
 
     coil_winding_surface_major_radius: float
     """Major radius of the coil winding surface.
 
-    @stardash-unit: m
+    Units: m
     """
 
     plasma_area: float
     """Area of the plasma surface.
 
-    @stardash-unit: m^2
+    Units: m^2
     """
 
     coil_winding_surface_area: float
     """Area of the coil winding surface.
 
-    @stardash-unit: m^2
+    Units: m^2
     """
 
     plasma_volume: float
     """Volume of the plasma surface.
 
-    @stardash-unit: m^3
+    Units: m^3
     """
 
     coil_winding_surface_volume: float
     """Volume of the coil winding surface.
 
-    @stardash-unit: m^3
+    Units: m^3
     """
 
     net_poloidal_current: float
     """Net current that flows on the coil winding surface in the poloidal direction.
 
-    @stardash-unit: A
+    Units: A
     """
 
     net_toroidal_current: float
     """Net current that flows on the coil winding surface in the toroidal direction.
 
-    @stardash-unit: A
+    Units: A
     """
 
     orthogonal_magnetic_field_component: Annotated[
@@ -239,7 +238,7 @@ class RegcoilOutput(types.BaseModel):
     """Residual magnetic field normal to the plasma surface, for each value of the
     regularization parameter lambda considered.
 
-    @stardash-unit: T
+    Units: T
     """
 
     plasma_normal_vector_norm: Annotated[
@@ -265,7 +264,7 @@ class RegcoilOutput(types.BaseModel):
     def on_axis_averaged_magnetic_field_strength(self) -> float:
         """On-axis averaged magnetic field strength.
 
-        @stardash-unit: T
+        Units: T
         """
         return (
             constants.mu_0
@@ -275,6 +274,7 @@ class RegcoilOutput(types.BaseModel):
 
     @pydantic.computed_field
     @property
+    @types.runtime_check_array_sizes
     def normalized_field_error(
         self,
     ) -> Annotated[
@@ -290,6 +290,7 @@ class RegcoilOutput(types.BaseModel):
 
     @pydantic.computed_field
     @property
+    @types.runtime_check_array_sizes
     def average_normalized_field_error(self) -> jt.Float[np.ndarray, " n_lambda"]:
         """Average normalized field error, defined as the area integral of the
         normalized field error divided by the plasma surface area."""
@@ -299,6 +300,7 @@ class RegcoilOutput(types.BaseModel):
 
     @pydantic.computed_field
     @property
+    @types.runtime_check_array_sizes
     def normalized_chi2_B(self) -> jt.Float[np.ndarray, " n_lambda"]:
         """Normalized chi^2_B, defined as chi^2_B divided by the product of the plasma
         surface area and the square of the on-axis averaged magnetic field strength."""
@@ -308,6 +310,7 @@ class RegcoilOutput(types.BaseModel):
 
     @pydantic.computed_field
     @property
+    @types.runtime_check_array_sizes
     def normalized_chi2_K(self) -> jt.Float[np.ndarray, " n_lambda"]:
         """Normalized chi^2_K, defined as chi^2_K divided by the square of the net
         poloidal current."""
@@ -315,12 +318,14 @@ class RegcoilOutput(types.BaseModel):
 
     @pydantic.computed_field
     @property
+    @types.runtime_check_array_sizes
     def maximum_normalized_field_error(self) -> jt.Float[np.ndarray, " n_lambda"]:
         """Maximum normalized field error on the plasma surface for each lambda."""
         return np.max(self.normalized_field_error, axis=(1, 2))
 
     @pydantic.computed_field
     @property
+    @types.runtime_check_array_sizes
     def normalized_maximum_K(self) -> jt.Float[np.ndarray, " n_lambda"]:
         """Maximum current density normalized by ``G / (2 * pi * R0_plasma)``."""
         return self.maximum_K / (
@@ -329,6 +334,7 @@ class RegcoilOutput(types.BaseModel):
 
     @pydantic.computed_field
     @property
+    @types.runtime_check_array_sizes
     def normalized_chi2_K_times_chi2_B(self) -> jt.Float[np.ndarray, " n_lambda"]:
         """Normalized chi^2_K times chi^2_B, defined as the product of the normalized
         chi^2_K and normalized chi^2_B."""
@@ -431,7 +437,7 @@ class RegcoilConfig:
                 f"  target_value = {self.target_value}\n"
             )
 
-        with open(filepath, "w") as f:
+        with pathlib.Path(filepath).open("w") as f:
             f.write(
                 REGCOIL_INPUT_TEMPLATE.format(
                     general_option=self.general_option,

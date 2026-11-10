@@ -1,7 +1,5 @@
 import logging
 
-from constellaration.geometry import surface_utils_desc
-
 from coilstellaration import (
     coilset_utils,
     data_utils,
@@ -11,7 +9,10 @@ from coilstellaration import (
     plot_utils,
     types,
 )
-from coilstellaration.machine_learning import model_definition
+from coilstellaration.machine_learning import (
+    model_definition,
+)
+from constellaration.geometry import surface_utils_desc
 
 logging.basicConfig(level=logging.INFO, force=True)
 logging.getLogger("geometry.surface.surface_types").setLevel(logging.ERROR)
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     # Load one of the MLP models
-    model_path = paths.model_path("D2HbzeYjo57Aif48z5T6axt")
+    model_path = paths.model_path("DHmCARHZ4ay9rsMDPdjVCu3")
 
     logger.info("Loading model checkpoint from %s", model_path)
     model_checkpoint = types.CoilPredictorCheckpoint.model_validate_json(
@@ -39,17 +40,17 @@ if __name__ == "__main__":
     )
     predictions = model_definition.predict_coilsets(coil_predictor, eval_data)
     prediction = predictions[0]
+    predicted_coilset = prediction.predicted_coilset
+    assert predicted_coilset is not None
 
     predicted_coilset_path = paths.OUTPUTS_PATH / "predicted_coilset.json"
     logger.info("Writing predicted coilset to %s", predicted_coilset_path)
     with predicted_coilset_path.open("w") as f:
-        f.write(prediction.predicted_coilset.model_dump_json())
+        f.write(predicted_coilset.model_dump_json())
 
     logger.info("Plotting initial coilset and equilibrium...")
     figure = plot_utils.plot_surface(prediction.boundary)
-    figure = plot_utils.plot_coilset(
-        prediction.predicted_coilset, figure=figure, color="blue"
-    )
+    figure = plot_utils.plot_coilset(predicted_coilset, figure=figure, color="blue")
     figure = plot_utils.plot_coilset(
         prediction.true_coilset, figure=figure, color="green"
     )
@@ -60,7 +61,7 @@ if __name__ == "__main__":
         boundary=surface_utils_desc.to_desc_fourier_rz_toroidal_surface(
             prediction.boundary
         ),
-        coilset=coilset_utils.coilstellaration_to_desc(prediction.predicted_coilset),
+        coilset=coilset_utils.coilstellaration_to_desc(predicted_coilset),
         surf_eval_m=24,
         surf_eval_n=24,
         coil_eval_n=100,

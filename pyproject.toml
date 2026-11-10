@@ -41,7 +41,8 @@ dependencies = [
   # which breaks lineax under jax >=0.9 with "cannot create weak reference
   # to 'Flatten' object". Upper bound matches desc-opt 0.17.1's metadata.
   "equinox>=0.13.1,<=0.13.6",
-  "wandb"
+  "wandb",
+  "click",
 ]
 
 [tool.hatch.metadata]
@@ -107,6 +108,7 @@ exclude_lines = [
 line-length = 88
 
 [tool.ruff.lint]
+external = ["ARR001", "ARR002"]
 extend-select = [
   "ARG",      # flake8-unused-arguments
   "EXE",      # flake8-executable

@@ -7,13 +7,19 @@ reuse the compiled traces.
 """
 
 import collections
+import functools
 import hashlib
 import logging
-from typing import cast
+from typing import Callable, NamedTuple, cast
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+from coilstellaration import (
+    metrics_utils,
+    min_distance_utils,
+    types,
+)
 from desc.coils import CoilSet as DescCoilSet
 from desc.coils import _Coil as DescCoil
 from desc.compute.utils import _compute as compute_fun
@@ -34,11 +40,7 @@ from desc.objectives import (
     PlasmaCoilSetMinDistance,
     ToroidalFlux,
 )
-
-from coilstellaration import (
-    metrics_utils,
-    types,
-)
+from desc.utils import copy_rpz_periods, rpz2xyz
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +74,9 @@ class MetricsEvaluator:
         self._surf_grid = LinearGrid(
             M=surf_eval_m, N=surf_eval_n, NFP=template_eq.NFP, sym=template_eq.sym
         )
+        self._plasma_distance_grid = LinearGrid(
+            M=surf_eval_m, N=surf_eval_n, NFP=template_eq.NFP, sym=False
+        )
         self._coil_grid = LinearGrid(N=coil_eval_n)
         self._toroidal_flux_eval_grid = LinearGrid(
             L=surf_eval_m, M=surf_eval_m, zeta=0.0, NFP=template_eq.NFP
@@ -103,8 +108,12 @@ class MetricsEvaluator:
         # into a single fused `jax.jit` below (`self._fused_evaluate`) so we
         # pay one trace, one compile, one dispatch instead of one per
         # objective.
-        coil_to_coil_fn = self._make_compute(
-            CoilSetMinDistance(coil=template_coilset, grid=self._coil_grid)
+        coil_to_coil_fn = self._make_pruned_coil_to_coil(
+            CoilSetMinDistance(
+                coil=template_coilset,
+                grid=self._coil_grid,
+                dist_chunk_size=_DIST_CHUNK_SIZE,
+            )
         )
         coil_length_fn = self._make_compute(
             CoilLength(coil=template_coilset, grid=self._coil_grid)
@@ -112,13 +121,14 @@ class MetricsEvaluator:
         coil_curvature_fn = self._make_compute(
             CoilCurvature(coil=template_coilset, grid=self._coil_grid)
         )
-        coil_to_plasma_fn = self._make_compute(
+        coil_to_plasma_fn = self._make_pruned_coil_to_plasma(
             PlasmaCoilSetMinDistance(
                 eq=template_eq,
                 coil=template_coilset,
                 coil_grid=self._coil_grid,
-                plasma_grid=self._surf_grid,
+                plasma_grid=self._plasma_distance_grid,
                 eq_fixed=False,
+                dist_chunk_size=_DIST_CHUNK_SIZE,
             )
         )
         minor_radius_inner = self._make_minor_radius_fn()
@@ -280,6 +290,7 @@ class MetricsEvaluator:
                 basis="rpz",
                 source_grid=coil_grid,
                 params=coil_params,
+                chunk_size=_BIOT_SAVART_CHUNK_SIZE,
             )
             Bn = jnp.sum(B_vec * data["n_rho"], axis=-1)
             B_mag = jnp.linalg.norm(B_vec, axis=-1)
@@ -310,26 +321,88 @@ class MetricsEvaluator:
             for t in obj.things
             if not isinstance(t, (DescEquilibrium, DescCoilSet))
         ]
-        assert (
-            not unexpected
-        ), f"Unexpected `things` for {type(obj).__name__}: {unexpected}"
+        assert not unexpected, (
+            f"Unexpected `things` for {type(obj).__name__}: {unexpected}"
+        )
         things_is_eq = tuple(isinstance(t, DescEquilibrium) for t in obj.things)
 
+        n_periods = _distance_field_periods(obj)
+        if n_periods > 1:
+            # Coil `j + num_coils / NFP` is coil `j` rotated by one field period,
+            # and the plasma shares that periodicity, so the per-coil min
+            # distances repeat exactly across field periods. Computing only the
+            # first period (`compute` reads `dim_f` at trace time) removes what
+            # is otherwise the dominant per-evaluation cost.
+            obj._dim_f = obj.dim_f // n_periods
+
+        call: Callable[..., jax.Array]
         if not any(things_is_eq):
 
-            def call_coil_only(eq_params, coil_params):
+            def call_coil_only(_, coil_params):
                 return obj.compute(coil_params)
 
-            return call_coil_only
+            call = call_coil_only
+        else:
 
-        def call(eq_params, coil_params):
-            args = [eq_params if is_eq else coil_params for is_eq in things_is_eq]
-            return obj.compute(*args)
+            def call_with_eq(eq_params, coil_params):
+                args = [eq_params if is_eq else coil_params for is_eq in things_is_eq]
+                return obj.compute(*args)
 
+            call = call_with_eq
+
+        if n_periods > 1:
+            return functools.partial(_tile_field_periods, call, n_periods)
         return call
 
+    def _make_pruned_coil_to_plasma(self, obj: PlasmaCoilSetMinDistance):
+        """Pruned per-coil plasma distance, DESC brute force as the fallback."""
+        brute_force = self._make_compute(obj)
+        n_periods = _distance_field_periods_built(obj, self._template_num_coils)
+        n_pts = self._coil_grid.num_nodes
+        grid = self._plasma_distance_grid
+        if _is_zeta_major(grid):
+            # Plasma points are the grid copied period after period, so the stacked
+            # copies form one `(NFP * num_zeta, num_theta)` grid.
+            tgt_patches = min_distance_utils.grid_patches(
+                grid.NFP * grid.num_zeta, grid.num_theta, *_PLASMA_TILE
+            )
+        else:
+            tgt_patches = min_distance_utils.segment_patches(
+                grid.NFP * grid.num_nodes, _PLASMA_TILE[0] * _PLASMA_TILE[1]
+            )
+        layout = _PrunedLayout(
+            n_src=self._template_num_coils // n_periods,
+            n_periods=n_periods,
+            src_patches=min_distance_utils.segment_patches(n_pts, _COIL_SEGMENT),
+            tgt_patches=tgt_patches,
+            allowed=None,
+        )
+        return functools.partial(_pruned_coil_to_plasma, obj, layout, brute_force)
+
+    def _make_pruned_coil_to_coil(self, obj: CoilSetMinDistance):
+        """Pruned per-coil coil-coil distance, DESC brute force as the fallback."""
+        brute_force = self._make_compute(obj)
+        n_periods = _distance_field_periods_built(obj, self._template_num_coils)
+        n_coils = self._template_num_coils
+        n_pts = self._coil_grid.num_nodes
+        segments = min_distance_utils.segment_patches(n_pts, _COIL_SEGMENT)
+        n_src = n_coils // n_periods
+        tgt_patches = (np.arange(n_coils)[:, None, None] * n_pts + segments).reshape(
+            -1, segments.shape[1]
+        )
+        patch_coil = np.repeat(np.arange(n_coils), segments.shape[0])
+        layout = _PrunedLayout(
+            n_src=n_src,
+            n_periods=n_periods,
+            src_patches=segments,
+            tgt_patches=tgt_patches,
+            allowed=patch_coil[None, :] != np.arange(n_src)[:, None],
+        )
+        return functools.partial(_pruned_coil_to_coil, obj, layout, brute_force)
+
     def evaluate(self, eq: DescEquilibrium, coilset: DescCoilSet) -> types.Metrics:
-        assert eq.NFP == self._template_NFP and eq.sym == self._template_sym
+        assert eq.NFP == self._template_NFP
+        assert eq.sym == self._template_sym
         assert coilset.num_coils == self._template_num_coils
         assert len(coilset) == self._template_num_unique_coils
 
@@ -397,6 +470,177 @@ class MetricsEvaluator:
         )
 
 
+def _distance_field_periods(obj) -> int:
+    """Number of field periods over which `obj`'s per-coil outputs repeat."""
+    if not isinstance(obj, (CoilSetMinDistance, PlasmaCoilSetMinDistance)):
+        return 1
+    nfp = int(getattr(obj.things[0], "NFP", 1))
+    num_coils = int(obj.dim_f)
+    if nfp > 1 and num_coils > nfp and num_coils % nfp == 0:
+        return nfp
+    return 1
+
+
+def _distance_field_periods_built(obj, num_coils: int) -> int:
+    """`_distance_field_periods` after `_make_compute` has shrunk `obj.dim_f`."""
+    nfp = int(getattr(obj.things[0], "NFP", 1))
+    if nfp > 1 and num_coils > nfp and num_coils % nfp == 0:
+        return nfp
+    return 1
+
+
+def _tile_field_periods(call, n_periods: int, eq_params, coil_params) -> jax.Array:
+    return jnp.tile(call(eq_params, coil_params), n_periods)
+
+
+# Throughput knobs for the distance and Biot-Savart kernels. Chunking only bounds how
+# many evaluation points/coils are vectorized at once; every per-point reduction is
+# unchanged, so outputs are bit-identical for any value.
+_DIST_CHUNK_SIZE = 1
+_BIOT_SAVART_CHUNK_SIZE = 512
+# Pruned-distance patch shapes: coil points per segment, and (zeta, theta) points per
+# plasma tile. Small patches give tight bounds. A pruned minimum is certified once the
+# evaluated pairs cover every patch pair whose lower bound undercuts it; most instances
+# certify at the first level, while near-parallel coil runs need the second.
+_COIL_SEGMENT = 16
+_PLASMA_TILE = (7, 9)
+_PRUNED_NUM_PAIRS = (512, 4096)
+
+
+class _PrunedLayout(NamedTuple):
+    n_src: int
+    n_periods: int
+    src_patches: np.ndarray
+    tgt_patches: np.ndarray
+    allowed: np.ndarray | None
+
+
+def _is_zeta_major(grid) -> bool:
+    """Whether `grid.nodes` is a row-major `(num_zeta, num_theta)` array."""
+    if grid.num_nodes != grid.num_zeta * grid.num_theta:
+        return False
+    nodes = np.asarray(grid.nodes).reshape(grid.num_zeta, grid.num_theta, 3)
+    return bool(
+        np.all(nodes[:, :, 2] == nodes[:, :1, 2])
+        and np.all(nodes[:, :, 1] == nodes[:1, :, 1])
+    )
+
+
+def _pruned_coil_to_plasma(
+    obj: PlasmaCoilSetMinDistance,
+    layout: _PrunedLayout,
+    brute_force: Callable[..., jax.Array],
+    eq_params,
+    coil_params,
+) -> jax.Array:
+    # Points built exactly as `PlasmaCoilSetDistanceBound.compute` builds them, so
+    # pruned and brute-force distances agree bit for bit.
+    constants = cast(dict, obj.constants)
+    coils_pts = constants["coil"]._compute_position(
+        params=coil_params, grid=constants["coil_grid"]
+    )
+    data = compute_fun(
+        constants["eq"],
+        obj._data_keys,
+        params=eq_params,
+        transforms=constants["eq_transforms"],
+        profiles=constants["eq_profiles"],
+    )
+    rpz = jnp.array([data["R"], data["phi"], data["Z"]]).T
+    rpz = copy_rpz_periods(rpz, constants["eq_transforms"]["grid"].NFP)
+    return _pruned_cascade(
+        layout,
+        brute_force,
+        0,
+        coils_pts[: layout.n_src],
+        rpz2xyz(rpz),
+        eq_params,
+        coil_params,
+    )
+
+
+def _pruned_coil_to_coil(
+    obj: CoilSetMinDistance,
+    layout: _PrunedLayout,
+    brute_force: Callable[..., jax.Array],
+    eq_params,
+    coil_params,
+) -> jax.Array:
+    # Points built exactly as `CoilSetMinDistance.compute` builds them.
+    constants = cast(dict, obj.constants)
+    pts = constants["coilset"]._compute_position(
+        params=coil_params, grid=constants["grid"], basis="xyz"
+    )
+    return _pruned_cascade(
+        layout,
+        brute_force,
+        0,
+        pts[: layout.n_src],
+        pts.reshape(-1, 3),
+        eq_params,
+        coil_params,
+    )
+
+
+def _pruned_cascade(
+    layout: _PrunedLayout,
+    brute_force: Callable[..., jax.Array],
+    level: int,
+    src_pts: jax.Array,
+    tgt_pts: jax.Array,
+    eq_params,
+    coil_params,
+) -> jax.Array:
+    """Pruned minimum at `_PRUNED_NUM_PAIRS[level]`, escalating until certified.
+
+    Past the last level the brute force runs. `lax.cond` outside `vmap` executes only
+    the taken branch, so an escalation costs nothing unless a coil is uncertified.
+    """
+    if level == len(_PRUNED_NUM_PAIRS):
+        return brute_force(eq_params, coil_params)
+    pruned = min_distance_utils.pruned_min_distance(
+        src_pts=src_pts,
+        src_patches=layout.src_patches,
+        tgt_pts=tgt_pts,
+        tgt_patches=layout.tgt_patches,
+        allowed=layout.allowed,
+        num_pairs=_PRUNED_NUM_PAIRS[level],
+    )
+    return jax.lax.cond(
+        jnp.all(pruned.certified),
+        functools.partial(_tile_pruned, layout.n_periods),
+        functools.partial(_escalate, layout, brute_force, level + 1),
+        pruned.min_distance,
+        src_pts,
+        tgt_pts,
+        eq_params,
+        coil_params,
+    )
+
+
+def _tile_pruned(
+    n_periods: int, min_distance, src_pts, tgt_pts, eq_params, coil_params
+) -> jax.Array:
+    del src_pts, tgt_pts, eq_params, coil_params
+    return jnp.tile(min_distance, n_periods)
+
+
+def _escalate(
+    layout: _PrunedLayout,
+    brute_force: Callable[..., jax.Array],
+    level: int,
+    min_distance,
+    src_pts,
+    tgt_pts,
+    eq_params,
+    coil_params,
+) -> jax.Array:
+    del min_distance
+    return _pruned_cascade(
+        layout, brute_force, level, src_pts, tgt_pts, eq_params, coil_params
+    )
+
+
 def _surface_content_key(
     surface: DescFourierRZToroidalSurface,
 ) -> tuple[int | bool | str, ...]:
@@ -437,7 +681,7 @@ def get_cached_equilibrium(surface: DescFourierRZToroidalSurface) -> DescEquilib
     if cached is not None:
         _EQUILIBRIUM_CACHE.move_to_end(key)
         return cached
-    logger.info(f"Equilibrium cache miss for key {key}. Building new equilibrium...")
+    logger.info("Equilibrium cache miss for key %s. Building new equilibrium...", key)
     equilibrium = DescEquilibrium(
         surface=surface, check_orientation=False, ensure_nested=False
     )
@@ -445,7 +689,8 @@ def get_cached_equilibrium(surface: DescFourierRZToroidalSurface) -> DescEquilib
     if len(_EQUILIBRIUM_CACHE) > _EQUILIBRIUM_CACHE_MAX:
         popped_key, _ = _EQUILIBRIUM_CACHE.popitem(last=False)
         logger.info(
-            f"Equilibrium cache full. Evicting oldest equilibrium for key {popped_key}."
+            "Equilibrium cache full. Evicting oldest equilibrium for key %s.",
+            popped_key,
         )
     return equilibrium
 
@@ -483,7 +728,7 @@ def _evaluator_shape_key(
         int(eq.surface.M),
         int(eq.surface.N),
         int(coilset.num_coils),
-        int(len(coilset)),
+        len(coilset),
         # Coil basis resolution: every coil shares basis structure in our
         # use cases, so the first coil's params shape is representative.
         *tuple(sorted(coil_0.params_dict.keys())),
@@ -524,7 +769,9 @@ def get_cached_evaluator(
     if cached is not None:
         _EVALUATOR_CACHE.move_to_end(key)
         return cached
-    logger.info(f"MetricsEvaluator cache miss for key {key}. Building new evaluator...")
+    logger.info(
+        "MetricsEvaluator cache miss for key %s. Building new evaluator...", key
+    )
     evaluator = MetricsEvaluator(
         template_eq=eq,
         template_coilset=coilset,
@@ -537,8 +784,8 @@ def get_cached_evaluator(
     if len(_EVALUATOR_CACHE) > _EVALUATOR_CACHE_MAX:
         popped_key, _ = _EVALUATOR_CACHE.popitem(last=False)
         logger.info(
-            "MetricsEvaluator cache full. Evicting oldest evaluator for key "
-            f"{popped_key}."
+            "MetricsEvaluator cache full. Evicting oldest evaluator for key %s.",
+            popped_key,
         )
     return evaluator
 

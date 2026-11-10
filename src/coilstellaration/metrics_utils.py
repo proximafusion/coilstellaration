@@ -1,7 +1,9 @@
 import typing
 
+import jax
 import jax.numpy as jnp
 import jaxtyping as jt
+from coilstellaration import types
 from desc.coils import CoilSet as DescCoilSet
 from desc.coils import LinearGrid
 from desc.equilibrium import Equilibrium as DescEquilibrium
@@ -20,8 +22,6 @@ from desc.objectives import (
     QuadraticFlux,
     ToroidalFlux,
 )
-
-from coilstellaration import types
 
 METRICS_FIELD_ORDER: tuple[str, ...] = (
     "min_normalized_coil_to_coil_distance",
@@ -55,8 +55,8 @@ def compute_surface_field_metrics(
     surf_eval_grid: LinearGrid,
     coil_eval_grid: LinearGrid,
 ) -> tuple[
-    jt.Float[jt.Array, " {surf_eval_grid.N}+1 2*{surf_eval_grid.M}+1"],
-    jt.Float[jt.Array, " {surf_eval_grid.N}+1 2*{surf_eval_grid.M}+1"],
+    jt.Float[jt.Array, " {surf_eval_grid.num_theta} {surf_eval_grid.num_zeta}"],
+    jt.Float[jt.Array, " {surf_eval_grid.num_theta} {surf_eval_grid.num_zeta}"],
 ]:
     """Compute normalized field error and local quadratic flux on the plasma surface.
 
@@ -137,7 +137,7 @@ def compute_coil_to_coil_min_distances(
 ) -> jt.Float[jt.Array, " {coilset.num_coils}"]:
     obj = CoilSetMinDistance(coil=coilset, grid=coil_eval_grid)
     obj.build(verbose=0)
-    return jnp.asarray(obj.compute(coilset.params_dict))
+    return jnp.asarray(jax.jit(obj.compute)(coilset.params_dict))
 
 
 @types.runtime_check_array_sizes
@@ -147,7 +147,7 @@ def compute_coil_linking_numbers(
 ) -> jt.Float[jt.Array, " {coilset.num_coils}"]:
     obj = CoilSetLinkingNumber(coil=coilset, grid=coil_eval_grid)
     obj.build(verbose=0)
-    return jnp.asarray(obj.compute(coilset.params_dict))
+    return jnp.asarray(jax.jit(obj.compute)(coilset.params_dict))
 
 
 @types.runtime_check_array_sizes
@@ -166,7 +166,7 @@ def compute_coilset_quadratic_flux(
     eq: DescEquilibrium,
     surf_eval_grid: LinearGrid,
     coil_eval_grid: LinearGrid,
-) -> jt.Float[jt.Array, " {surf_eval_grid.N}+1 2*{surf_eval_grid.M}+1"]:
+) -> jt.Float[jt.Array, " {surf_eval_grid.num_theta} {surf_eval_grid.num_zeta}"]:
     obj = QuadraticFlux(
         eq=eq,
         field=coilset,
@@ -230,7 +230,7 @@ def compute_coil_to_plasma_min_distances(
         eq_fixed=True,
     )
     obj.build(verbose=0)
-    return jnp.asarray(obj.compute(coilset.params_dict))
+    return jnp.asarray(jax.jit(obj.compute)(coilset.params_dict))
 
 
 @types.runtime_check_array_sizes
@@ -296,8 +296,13 @@ def evaluate_coilset_metrics(
     coil_to_coil_min_distances = compute_coil_to_coil_min_distances(
         coilset, coil_eval_grid
     )
+    # `PlasmaCoilSetMinDistance` never mirrors a `sym=True` grid (theta in [0, pi]),
+    # so the distance needs the full surface.
     coil_to_plasma_min_distances = compute_coil_to_plasma_min_distances(
-        coilset, eq, coil_eval_grid, surf_eval_grid
+        coilset,
+        eq,
+        coil_eval_grid,
+        LinearGrid(M=surf_eval_m, N=surf_eval_n, NFP=eq.NFP, sym=False),
     )
     coil_curvatures = compute_coil_curvatures(coilset, coil_eval_grid)
     coil_current_lengths = compute_coil_current_lengths(coilset, coil_eval_grid)

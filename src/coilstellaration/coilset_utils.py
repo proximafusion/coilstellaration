@@ -1,10 +1,11 @@
 import jax.numpy as jnp
 import jaxtyping as jt
 import numpy as np
+from coilstellaration import metrics_utils, types
 from desc.coils import CoilSet, FourierXYZCoil
 from desc.equilibrium import Equilibrium
 
-from coilstellaration import metrics_utils, types
+runtime_check_array_sizes = types.runtime_check_array_sizes
 
 
 def pad_coilset_to_fourier_order(
@@ -40,6 +41,7 @@ def pad_coilset_to_fourier_order(
     )
 
 
+@runtime_check_array_sizes
 def make_fourier_order_mask(
     fourier_order: int,
     n_modes_coils_max: int,
@@ -57,6 +59,78 @@ def make_fourier_order_mask(
     pad = n_modes_coils_max - fourier_order
     indices = jnp.arange(n_modes)
     return jnp.where((indices >= pad) & (indices < n_modes - pad), 1.0, 0.0)
+
+
+def pad_coilset_to_n_coils(
+    coilset: types.Coilset,
+    max_coils: int,
+) -> types.Coilset:
+    """Pad a coilset to `max_coils` unique coils with zero rows.
+
+    Appends zero-filled coil rows to reach `max_coils` total. Currents are
+    padded with zeros as well. Raises `ValueError` if `max_coils` is smaller
+    than the input's `n_unique_coils`.
+    """
+    n_unique = coilset.n_unique_coils
+    if max_coils < n_unique:
+        raise ValueError(
+            f"cannot shrink: requested max_coils={max_coils} < "
+            f"n_unique_coils={n_unique}"
+        )
+    pad = int(max_coils) - int(n_unique)
+    if pad == 0:
+        return coilset
+    pad_widths = ((0, pad), (0, 0))
+    return coilset.model_copy(
+        update={
+            "coil_x_n": jnp.pad(coilset.coil_x_n, pad_widths),
+            "coil_y_n": jnp.pad(coilset.coil_y_n, pad_widths),
+            "coil_z_n": jnp.pad(coilset.coil_z_n, pad_widths),
+            "currents": jnp.pad(coilset.currents, (0, pad)),
+        }
+    )
+
+
+def trim_to_n_coils(
+    coilset: types.Coilset,
+    n_coils: int,
+) -> types.Coilset:
+    """Trim a coilset to the first `n_coils` unique coils.
+
+    Takes only the first `n_coils` rows from all coefficient arrays and
+    currents. Raises `ValueError` if `n_coils` is larger than the input's
+    `n_unique_coils`.
+    """
+    n_unique = coilset.n_unique_coils
+    if n_coils > n_unique:
+        raise ValueError(
+            f"cannot grow: requested n_coils={n_coils} > n_unique_coils={n_unique}"
+        )
+    if n_coils == n_unique:
+        return coilset
+    return coilset.model_copy(
+        update={
+            "coil_x_n": coilset.coil_x_n[:n_coils],
+            "coil_y_n": coilset.coil_y_n[:n_coils],
+            "coil_z_n": coilset.coil_z_n[:n_coils],
+            "currents": coilset.currents[:n_coils],
+        }
+    )
+
+
+@runtime_check_array_sizes
+def make_coil_mask(
+    n_coils: int,
+    max_coils: int,
+) -> jt.Float[jt.Array, " max_coils"]:
+    """1.0 for the first `n_coils`, 0.0 for the remainder.
+
+    Shape is `(max_coils,)`. Used to mask padded coilset losses.
+    """
+    if n_coils > max_coils:
+        raise ValueError(f"n_coils={n_coils} > max_coils={max_coils}")
+    indices = jnp.arange(max_coils)
+    return jnp.where(indices < n_coils, 1.0, 0.0)
 
 
 def coilstellaration_from_desc(
@@ -100,7 +174,7 @@ def coilstellaration_from_desc(
 
 
 def coilstellaration_to_desc(
-    coilset_desc_data: types.Coilset,
+    coilset_desc_data: types.Coilset, check_intersection: bool = True
 ) -> CoilSet:
     """Convert a CoilsetDESC to a DESC CoilSet.
 
@@ -121,6 +195,7 @@ def coilstellaration_to_desc(
         *desc_coils,
         NFP=int(coilset_desc_data.n_field_periods),
         sym=coilset_desc_data.is_stellarator_symmetric,
+        check_intersection=check_intersection,
     )
 
 

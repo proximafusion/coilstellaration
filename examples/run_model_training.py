@@ -14,8 +14,14 @@ logging.getLogger("httpx").setLevel(logging.ERROR)
 logging.getLogger("absl").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
-from coilstellaration import data_utils, paths, types
-from coilstellaration.machine_learning import train
+from coilstellaration import (
+    data_utils,
+    paths,
+    types,
+)
+from coilstellaration.machine_learning import (
+    train,
+)
 
 if __name__ == "__main__":
     train_config = types.TrainConfig(
@@ -25,7 +31,7 @@ if __name__ == "__main__":
         eval_batch_size=2266,  # full eval set
         eval_every=10,
         max_wall_time_s=60 * 60,
-        model_type="mlp",
+        model_kind="mlp",
     )
 
     checkpoint = train.train(train_config)
