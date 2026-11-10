@@ -323,7 +323,6 @@ def _evaluate_with_timeout(
         parquet_bytes = None
         if rows:
             df = pd.DataFrame.from_records(rows)
-            df["results_json"] = None
             buf = io.BytesIO()
             df.to_parquet(buf, index=False)
             parquet_bytes = buf.getvalue()

@@ -26,7 +26,6 @@ def main() -> None:
     if rows:
         parquet_path = Path(out_path).with_suffix(".parquet")
         df = pd.DataFrame.from_records(rows)
-        df["results_json"] = out_path
         buf = io.BytesIO()
         df.to_parquet(buf, index=False)
         parquet_path.write_bytes(buf.getvalue())

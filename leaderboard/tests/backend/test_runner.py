@@ -442,7 +442,10 @@ def test_eval_one_writes_parquet_sibling_when_rows_present(tmp_path, monkeypatch
 
     parquet = tmp_path / "result.parquet"
     assert parquet.exists()
-    assert pd.read_parquet(parquet).iloc[0]["boundary_id"] == "b0"
+    df = pd.read_parquet(parquet)
+    assert df.iloc[0]["boundary_id"] == "b0"
+    # Only the per-instance rows: no column whose type differs between files.
+    assert list(df.columns) == list(rows[0])
 
 
 # --- claim stamps attempts/started_at/worker_id (items 2 & 3) ---
