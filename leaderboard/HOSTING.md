@@ -13,7 +13,7 @@ Each Space receives the whole repo with `leaderboard/app.py` as its `app_file`.
 Hugging Face reads Space config only from the root `README.md` front matter and
 installs from a root `requirements.txt` / `packages.txt`, so the workflow writes
 those at sync time: the README from the matching `space.*.md`, the requirements
-from `uv.lock` (this package plus the `leaderboard` dependency group). Edit
+from `uv.lock` (this package's dependencies plus the `leaderboard` dependency group; the package itself is imported from `src/`, which `leaderboard/app.py` puts on `sys.path`). Edit
 `space.*.md`, not the README on the Hub; the next sync overwrites it.
 
 The Spaces communicate only through two datasets, `<OWNER>/<REPO>-requests` (the
