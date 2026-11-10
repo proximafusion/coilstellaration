@@ -26,5 +26,5 @@ repos:
   rev: v1.1.401
   hooks:
   - id: pyright
-    # leaderboard/ is its own uv project; its deps aren't in the root .venv.
+    # leaderboard/ has ~36 pre-existing type errors; drop this once they're fixed.
     exclude: ^leaderboard/
