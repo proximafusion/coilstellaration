@@ -14,7 +14,31 @@ UTC = dt.timezone.utc
 # --- _run_eval: download/eval argument wiring (was test_run_once_pins_commit...) ---
 
 
-def test_run_eval_pins_commit_and_records_onnx_path(tmp_path, monkeypatch):
+class _RemoteFile:
+    """Stand-in for the `RepoFile` that `get_paths_info` returns."""
+
+    def __init__(self, path, size=1024, sha256=None):
+        self.path = path
+        self.size = size
+        self.lfs = type("Lfs", (), {"sha256": sha256})() if sha256 else None
+
+
+@pytest.fixture
+def remote_onnx(monkeypatch):
+    """Stub the pre-download Hub check; tests can tweak the reported file."""
+    remote = {"size": 1024, "sha256": None, "missing": False}
+
+    def fake_paths_info(repo_id, paths, revision, repo_type, token):
+        assert token is False
+        if remote["missing"]:
+            return []
+        return [_RemoteFile(paths[0], remote["size"], remote["sha256"])]
+
+    monkeypatch.setattr(runner.API, "get_paths_info", fake_paths_info)
+    return remote
+
+
+def test_run_eval_pins_commit_and_records_onnx_path(tmp_path, monkeypatch, remote_onnx):
     captured = {}
     monkeypatch.setattr(runner.jax_cache, "enable", lambda: None)
 
@@ -63,7 +87,7 @@ def test_run_eval_pins_commit_and_records_onnx_path(tmp_path, monkeypatch):
     ],
 )
 def test_run_eval_scores_only_metadata_declared_tracks(
-    tmp_path, monkeypatch, declared, queued, expected
+    tmp_path, monkeypatch, remote_onnx, declared, queued, expected
 ):
     captured = {}
     monkeypatch.setattr(runner.jax_cache, "enable", lambda: None)
@@ -79,9 +103,81 @@ def test_run_eval_scores_only_metadata_declared_tracks(
 
     monkeypatch.setattr(runner.evaluate, "evaluate_model", fake_eval)
 
-    runner._run_eval({"model": "org/m", "revision": "main", "tracks": queued})
+    runner._run_eval(
+        {
+            "model": "org/m",
+            "revision": "main",
+            "commit_hash": "deadbeef",
+            "tracks": queued,
+        }
+    )
 
     assert captured["tracks"] == expected
+
+
+def _eval_request(**overrides):
+    return {
+        "model": "org/m",
+        "revision": "main",
+        "commit_hash": "deadbeef",
+        "onnx_path": "model.onnx",
+        **overrides,
+    }
+
+
+def _stub_download_and_eval(monkeypatch, tmp_path):
+    monkeypatch.setattr(runner.jax_cache, "enable", lambda: None)
+    model_path = build_dummy_onnx(tmp_path / "x.onnx")
+    monkeypatch.setattr(runner, "hf_hub_download", lambda **kw: model_path)
+    monkeypatch.setattr(
+        runner.evaluate, "evaluate_model", lambda **kw: ({"status": "FINISHED"}, [])
+    )
+    return model_path
+
+
+def test_run_eval_refuses_request_without_commit_hash(
+    tmp_path, monkeypatch, remote_onnx
+):
+    # Without a pinned commit the download would follow a branch that may have
+    # moved since the file was validated.
+    _stub_download_and_eval(monkeypatch, tmp_path)
+    req = _eval_request()
+    del req["commit_hash"]
+    with pytest.raises(ValueError, match="commit_hash"):
+        runner._run_eval(req)
+
+
+def test_run_eval_refuses_missing_or_oversized_file(tmp_path, monkeypatch, remote_onnx):
+    _stub_download_and_eval(monkeypatch, tmp_path)
+    remote_onnx["missing"] = True
+    with pytest.raises(ValueError, match="not found"):
+        runner._run_eval(_eval_request())
+    remote_onnx["missing"] = False
+    remote_onnx["size"] = runner.config.MAX_ONNX_BYTES + 1
+    with pytest.raises(ValueError, match="limit"):
+        runner._run_eval(_eval_request())
+
+
+def test_run_eval_checks_sha256_before_and_after_download(
+    tmp_path, monkeypatch, remote_onnx
+):
+    model_path = _stub_download_and_eval(monkeypatch, tmp_path)
+    good = runner.file_sha256(model_path)
+
+    # Matching hash: evaluates.
+    remote_onnx["sha256"] = good
+    record, _rows, _bytes = runner._run_eval(_eval_request(onnx_sha256=good))
+    assert record["status"] == "FINISHED"
+
+    # The Hub reports a different LFS hash: refused before downloading.
+    remote_onnx["sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="SHA-256"):
+        runner._run_eval(_eval_request(onnx_sha256=good))
+
+    # Not in LFS, so only the downloaded bytes can be checked.
+    remote_onnx["sha256"] = None
+    with pytest.raises(ValueError, match="SHA-256"):
+        runner._run_eval(_eval_request(onnx_sha256="0" * 64))
 
 
 def test_push_result_path_disambiguates_by_commit_and_onnx(monkeypatch):

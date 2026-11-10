@@ -22,7 +22,7 @@ from leaderboard.src.envs import (
     RESULTS_REPO,
     TOKEN,
 )
-from leaderboard.src.submission.submit import ONNX_FILENAME
+from leaderboard.src.submission.submit import ONNX_FILENAME, file_sha256
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,41 @@ def _push_result_model(record: dict, model_bytes: bytes):
     )
 
 
+def _check_remote_onnx(
+    model: str, commit_hash: str | None, onnx_path: str, expected_sha256: str | None
+) -> None:
+    """Validate the submitted file on the Hub before downloading it.
+
+    The request must be pinned to a commit SHA (never a branch, which can move after
+    validation). At that commit the file must exist and be within the size limit,
+    and when the Hub stores it in LFS its SHA-256 must match the one recorded at
+    submission. Raises `ValueError` otherwise.
+    """
+    if not commit_hash:
+        raise ValueError("Request has no commit_hash; refusing to evaluate a branch")
+    infos = API.get_paths_info(
+        repo_id=model,
+        paths=[onnx_path],
+        revision=commit_hash,
+        repo_type="model",
+        token=False,
+    )
+    info = next((i for i in infos if getattr(i, "path", None) == onnx_path), None)
+    if info is None:
+        raise ValueError(f"{onnx_path} not found in {model} at {commit_hash}")
+    size = getattr(info, "size", None)
+    if size is not None and size > config.MAX_ONNX_BYTES:
+        raise ValueError(
+            f"{onnx_path} is {size} bytes, over the {config.MAX_ONNX_BYTES}-byte limit"
+        )
+    lfs = getattr(info, "lfs", None)
+    if expected_sha256 and lfs is not None and lfs.sha256 != expected_sha256:
+        raise ValueError(
+            f"{onnx_path} at {commit_hash} does not match the SHA-256 recorded at "
+            "submission"
+        )
+
+
 def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
     """Download the submitted ONNX at its pinned ref and score it.
 
@@ -137,7 +172,9 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
     jax_cache.enable()
     with tempfile.TemporaryDirectory() as tmp:
         onnx_path = req.get("onnx_path", ONNX_FILENAME)
-        ref = req.get("commit_hash") or req["revision"]
+        ref = req.get("commit_hash")
+        expected_sha256 = req.get("onnx_sha256")
+        _check_remote_onnx(req["model"], ref, onnx_path, expected_sha256)
         logger.info("Downloading %s from %s at %s", onnx_path, req["model"], ref)
         dl_start = time.perf_counter()
         local_model_path = hf_hub_download(
@@ -154,6 +191,11 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
             Path(local_model_path).stat().st_size / 1e6,
             time.perf_counter() - dl_start,
         )
+        if expected_sha256 and file_sha256(local_model_path) != expected_sha256:
+            raise ValueError(
+                f"{onnx_path} at {ref} does not match the SHA-256 recorded at "
+                "submission"
+            )
         model = onnx_model.OnnxModel(local_model_path)
         # The model's own metadata decides the tracks: a queued request's `tracks`
         # may predate a re-exported model and must not override what it declares.

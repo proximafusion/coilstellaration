@@ -72,6 +72,8 @@ def test_submission_records_commit_hash_and_default_path(tmp_path, monkeypatch):
     assert captured["path_in_repo"] == "org/m_eval_request_%s_model.json" % _Info.sha
     assert captured["download"]["revision"] == _Info.sha
     assert captured["download"]["filename"] == "model.onnx"
+    downloaded = tmp_path / "dl.onnx"
+    assert captured["entry"]["onnx_sha256"] == submit.file_sha256(downloaded)
 
 
 def test_submission_reads_the_repo_anonymously(tmp_path, monkeypatch):

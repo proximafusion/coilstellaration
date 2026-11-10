@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import tempfile
@@ -16,6 +17,15 @@ from leaderboard.src.submission.check_validity import validate_local_onnx
 logger = logging.getLogger(__name__)
 
 ONNX_FILENAME = "model.onnx"
+
+
+def file_sha256(path: str | Path) -> str:
+    """Hex SHA-256 of a file's contents."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 # Submitted repos are read anonymously, never with the Space's token: only public
@@ -126,6 +136,7 @@ def add_new_eval(
                     f"{config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
                 )
             ok, msg, tracks = validate_local_onnx(local)
+            onnx_sha256 = file_sha256(local)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not download %s from %s: %s", onnx_path, model, exc)
         return styled_error(f"Could not download `{onnx_path}` from the repo: {exc}")
@@ -139,6 +150,8 @@ def add_new_eval(
         "revision": revision,
         "commit_hash": commit_hash,
         "onnx_path": onnx_path,
+        # The runner checks the file it evaluates against this hash.
+        "onnx_sha256": onnx_sha256,
         "submitter": submitter,
         "tracks": tracks,
         "status": "PENDING",
