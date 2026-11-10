@@ -45,15 +45,24 @@ def search_rows(df: pd.DataFrame, query: str, columns) -> pd.DataFrame:
 BEST_VALUE_CSS = "font-weight: bold; color: var(--color-accent);"
 
 
-def style_frame(df: pd.DataFrame, highlight_columns):
-    """A Styler that marks each `highlight_columns` maximum and shows 3 decimals.
+def style_frame(df: pd.DataFrame, highlight_columns, integer_columns=()):
+    """A Styler that marks each `highlight_columns` maximum and formats numbers.
 
-    Gradio renders the Styler's display values, so the numbers are formatted here.
-    Missing values show as blank cells.
+    Gradio renders the Styler's display values, so every number is formatted
+    here: `integer_columns` as whole numbers with thousands separators, the other
+    numeric columns with 3 decimals. Missing values show as blank cells.
     """
     present = [c for c in highlight_columns if c in df.columns]
-    return df.style.highlight_max(subset=present, props=BEST_VALUE_CSS).format(
-        precision=3, na_rep="", subset=present
+    integers = [c for c in integer_columns if c in df.columns]
+    decimals = [
+        c
+        for c in df.columns
+        if c not in integers and pd.api.types.is_numeric_dtype(df[c])
+    ]
+    return (
+        df.style.highlight_max(subset=present, props=BEST_VALUE_CSS)
+        .format(precision=3, na_rep="", subset=decimals)
+        .format("{:,.0f}", na_rep="", subset=integers)
     )
 
 
@@ -72,6 +81,7 @@ def Leaderboard(
     track_label="Track",
     stratum_label="Stratum",
     highlight_columns=None,
+    integer_columns=None,
     label=None,
 ):
     """Render the leaderboard controls and table, returning the table component.
@@ -81,7 +91,8 @@ def Leaderboard(
     re-derive the displayed frame from the active base frame, never mutating it.
 
     `highlight_columns` (optional) are the metric columns whose best (maximum)
-    value is highlighted. `label` is the table's label.
+    value is highlighted. `integer_columns` (optional) are shown as whole numbers.
+    `label` is the table's label.
 
     `frames` (optional) maps a `(track, stratum)` key to a same-columns frame;
     with `tracks`/`strata` giving the axis orders, a Track radio and a Stratum
@@ -102,6 +113,7 @@ def Leaderboard(
     hide_columns = hide_columns or []
     filter_columns = filter_columns or []
     highlight_columns = highlight_columns or []
+    integer_columns = integer_columns or []
 
     # Radios carry the human labels; map back to the (track, stratum) frame key.
     label_to_track = {label: t for t, label in track_labels.items()}
@@ -123,7 +135,7 @@ def Leaderboard(
         ]
         df = df[keep]
         return gr.update(
-            value=style_frame(df, highlight_columns),
+            value=style_frame(df, highlight_columns, integer_columns),
             datatype=[type_of[c] for c in keep],
         )
 
@@ -168,7 +180,9 @@ def Leaderboard(
         if c in select_columns.default_selection or c in select_columns.cant_deselect
     ]
     table = gr.Dataframe(
-        value=style_frame(default_frame[default_keep], highlight_columns),
+        value=style_frame(
+            default_frame[default_keep], highlight_columns, integer_columns
+        ),
         datatype=[type_of[c] for c in default_keep],
         interactive=interactive,
         wrap=True,

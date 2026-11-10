@@ -44,3 +44,16 @@ def test_style_frame_marks_column_maxima_and_rounds():
     highlighted = {cell for cell, props in ctx.items() if props}
     assert highlighted == {(1, 1), (0, 2)}
     assert BEST_VALUE_CSS.startswith("font-weight: bold")
+
+
+def test_style_frame_formats_counts_as_integers_and_other_numbers_to_3dp():
+    from leaderboard.src.display.leaderboard import style_frame
+
+    df = pd.DataFrame(
+        {"strict SE": [0.0412345], "n": [2771.0], "Params": [float("nan")]}
+    )
+    html = style_frame(df, [], ["n", "Params"]).to_html()
+    assert "0.041" in html
+    assert "2,771" in html
+    assert "2771.0" not in html
+    assert "nan" not in html

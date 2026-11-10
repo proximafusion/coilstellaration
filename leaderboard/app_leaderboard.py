@@ -20,6 +20,7 @@ from leaderboard.src.display.utils import (
     COLS,
     EVAL_COLS,
     EVAL_TYPES,
+    INTEGER_COLS,
     METRIC_COLS,
     STRATUM_VIEWS,
     TRACK_LABELS,
@@ -114,6 +115,7 @@ def init_leaderboard(frames):
         ],
         hide_columns=[c.name for c in fields(AutoEvalColumn) if c.hidden],
         highlight_columns=METRIC_COLS,
+        integer_columns=INTEGER_COLS,
         label="Leaderboard",
         interactive=False,
     )

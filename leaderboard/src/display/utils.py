@@ -113,6 +113,9 @@ METRIC_COLS = [
     AutoEvalColumn.p10.name,
 ]
 
+# Count columns, shown as whole numbers.
+INTEGER_COLS = [AutoEvalColumn.n.name, AutoEvalColumn.n_parameters.name]
+
 # Rows are ordered by strict feasibility, then mean, both descending.
 SORT_COLS = [AutoEvalColumn.strict.name, AutoEvalColumn.mean.name]
 
