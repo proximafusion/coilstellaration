@@ -71,10 +71,17 @@ scheduler.add_job(
 )
 scheduler.start()
 
+# How often an open status page refreshes itself, in seconds.
+STATUS_REFRESH = 30
+
 with gr.Blocks() as app_runner:
     status = gr.Markdown(_status_md())
     refresh = gr.Button("Refresh status")
     refresh.click(_status_md, outputs=status)
+    # The Markdown value above is computed once, when the app starts. Recompute it
+    # for each page load and keep open pages current.
+    app_runner.load(_status_md, outputs=status)
+    gr.Timer(STATUS_REFRESH).tick(_status_md, outputs=status, show_progress="hidden")
 
 if __name__ == "__main__":
     from leaderboard.src.display.css_html_js import theme
