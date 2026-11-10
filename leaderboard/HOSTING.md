@@ -51,7 +51,6 @@ branches on the `COILBENCH_ROLE` variable. Add these Space **secrets / variables
   to submitted model repos.
 - `COILBENCH_OWNER` — only if not `proxima-fusion`.
 - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
-- `COILBENCH_N` (optional) — instances per track; `0` = full split.
 - `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single
   eval is killed (default 7200; `0` disables the subprocess guard). A full
   both-track evaluation takes ~1.2 h on cpu-basic (2 vCPU).
@@ -82,7 +81,7 @@ and `attempts` on the request; `started_at` is surfaced in the queue UI.
   `runner.run_once` flips a request to `RUNNING` before evaluating, so a second
   worker won't re-pick a running one, but don't run several pollers in lockstep.
 - **No GPU needed**, but the physics eval is CPU-heavy; the full split takes a
-  while. Tune `COILBENCH_N` while iterating.
+  while; every model is always scored on the full eval split.
 
 ## Run the worker without a Space
 

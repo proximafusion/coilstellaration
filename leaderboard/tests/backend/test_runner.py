@@ -36,7 +36,6 @@ def test_run_eval_pins_commit_and_records_onnx_path(tmp_path, monkeypatch):
             "onnx_path": "models/best.onnx",
             "submitter": "alice",
             "submitted_time": "2026-06-11T00:00:00Z",
-            "n_instances": -1,
         }
     )
 

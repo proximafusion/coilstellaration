@@ -22,7 +22,6 @@ def add_new_eval(
     model: str,
     revision: str,
     submitter: str,
-    n_instances: int = -1,
     onnx_path: str = "model.onnx",
 ):
     if not model or "/" not in model:
@@ -34,17 +33,11 @@ def add_new_eval(
     if not onnx_path.lower().endswith(".onnx"):
         return styled_error("The model file path must end in `.onnx`.")
 
-    # Instances per track to score: any value < 1 means the full split
-    n_instances = int(n_instances)
-    if n_instances < 1:
-        n_instances = -1
-
     logger.info(
-        "New submission: model=%s revision=%s submitter=%s n_instances=%s",
+        "New submission: model=%s revision=%s submitter=%s",
         model,
         revision,
         submitter,
-        n_instances,
     )
 
     try:
@@ -141,7 +134,6 @@ def add_new_eval(
         "commit_hash": commit_hash,
         "onnx_path": onnx_path,
         "submitter": submitter,
-        "n_instances": n_instances,
         "tracks": tracks,
         "status": "PENDING",
         "submitted_time": current_time,

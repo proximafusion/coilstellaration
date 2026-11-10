@@ -39,26 +39,7 @@ def restart_space():
     API.restart_space(repo_id=REPO_ID)
 
 
-# Submission-form radio labels. The radio toggles its companion slider on/off.
-FULL_SET, LIMIT_N = "Full set", "Limit to N"
 INTERVAL = int(os.environ.get("COILBENCH_LEADERBOARD_INTERVAL", "300"))
-
-
-def submit_eval(
-    model,
-    revision,
-    onnx_path,
-    submitter,
-    instance_mode,
-    n_instances,
-):
-    """Adapt the radio/slider controls to `add_new_eval`'s arguments.
-
-    A disabled slider still submits its last value, so the radio is the source
-    of truth: full-set forces n=-1 (the whole split).
-    """
-    n = int(n_instances) if instance_mode == LIMIT_N else -1
-    return add_new_eval(model, revision, submitter, n, onnx_path)
 
 
 ### Space initialisation
@@ -214,38 +195,16 @@ with app_leaderboard:
                         label="ONNX file path", placeholder="model.onnx"
                     )
                     submitter_textbox = gr.Textbox(label="Submitter / contact")
-                with gr.Column():
-                    instance_radio = gr.Radio(
-                        choices=[FULL_SET, LIMIT_N],
-                        value=FULL_SET,
-                        label="Instances per track (larger than the split scores all)",
-                    )
-                    n_instances_slider = gr.Slider(
-                        minimum=1,
-                        maximum=1000,
-                        step=1,
-                        value=10,
-                        label="N instances per track",
-                        interactive=False,
-                    )
-
-                    instance_radio.change(
-                        lambda mode: gr.update(interactive=mode == LIMIT_N),
-                        inputs=instance_radio,
-                        outputs=n_instances_slider,
-                    )
 
             submit_button = gr.Button("Submit Eval")
             submission_result = gr.Markdown()
             submit_button.click(
-                submit_eval,
+                add_new_eval,
                 [
                     model_name_textbox,
                     revision_name_textbox,
-                    onnx_path_textbox,
                     submitter_textbox,
-                    instance_radio,
-                    n_instances_slider,
+                    onnx_path_textbox,
                 ],
                 submission_result,
             )
