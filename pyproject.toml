@@ -66,6 +66,20 @@ dev = [
   "pytest",
   "pre-commit",
   "ruff",
+  # ONNX export tooling (leaderboard/scripts/export_coilstellaration_onnx.py).
+  # onnx >=1.23 writes IR v14, which onnxruntime (<=1.31) cannot load yet.
+  "onnx<1.23",
+  "jax2onnx",
+]
+# The HF Spaces app in leaderboard/. The sync workflow exports this group
+# (plus the package itself) as the Spaces' requirements.txt.
+leaderboard = [
+  "APScheduler",
+  "gradio[oauth]==6.17.3",
+  "gradio_client==2.5.0",
+  "onnxruntime",
+  "pandas",
+  "python-dateutil",
 ]
 
 # uv is the frontend (env + lockfile in uv.lock, venv in .venv);
@@ -74,9 +88,12 @@ dev = [
 # The version comes from git via hatch-vcs, so rebuild the editable install
 # when the commit or tags change, not just when pyproject.toml changes.
 cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
+default-groups = ["dev", "leaderboard"]
 
 [tool.pytest.ini_options]
-testpaths = ["src"]
+testpaths = ["src", "leaderboard/tests"]
+# leaderboard/ code imports itself as `leaderboard.src...` from the repo root.
+pythonpath = ["."]
 
 [tool.hatch.build]
 packages = ["src/coilstellaration"]
