@@ -268,6 +268,8 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
             commit_hash=req.get("commit_hash", ""),
             onnx_path=onnx_path,
             submitted_time=req.get("submitted_time", ""),
+            n_parameters=req.get("n_parameters"),
+            no_eval_training=req.get("no_eval_training"),
         )
         record |= metadata
         model_bytes = Path(local_model_path).read_bytes()

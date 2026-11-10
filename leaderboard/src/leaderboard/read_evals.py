@@ -66,6 +66,7 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
         AutoEvalColumn.median.name: _get(summary, "median"),
         AutoEvalColumn.p10.name: _get(summary, "p10"),
         AutoEvalColumn.n.name: summary.get("n", math.nan),
+        AutoEvalColumn.n_parameters.name: record.get("n_parameters") or math.nan,
         AutoEvalColumn.submitted.name: record.get("submitted_time", ""),
         AutoEvalColumn.revision.name: record.get("revision", ""),
         AutoEvalColumn.commit.name: make_clickable_commit(

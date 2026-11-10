@@ -63,6 +63,10 @@ auto_eval_column_dict.append(
 # Number of instances scored in the selected track and stratum.
 auto_eval_column_dict.append(["n", ColumnContent, ColumnContent("n", "number", True)])
 # metadata
+# Values stored in the ONNX graph, read at submission. Blank for older results.
+auto_eval_column_dict.append(
+    ["n_parameters", ColumnContent, ColumnContent("Params", "number", True)]
+)
 auto_eval_column_dict.append(
     ["submitted", ColumnContent, ColumnContent("Submitted", "date", True)]
 )

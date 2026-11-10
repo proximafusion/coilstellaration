@@ -151,7 +151,9 @@ EVALUATION_QUEUE_TEXT = """
    contract in the **About** tab, including the `supported_tracks` metadata.
 2. Optionally, check the repo locally first:
    `uv run python -m leaderboard.scripts.check_submission <org/model>`.
-3. Enter the repo id (`org/model`), revision and your name/contact.
+3. Enter the repo id (`org/model`), revision and your name/contact, and confirm
+   that the model was not exposed to the eval split during training, tuning or
+   model selection.
 4. On submit, we check that the repo is public and that `model.onnx` has the
    required tensor names and metadata and is at most 50 MiB. The physics evaluation
    runs on the backend; watch its progress in the queue below.

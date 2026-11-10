@@ -10,6 +10,7 @@ import gradio as gr
 from huggingface_hub import hf_hub_download
 
 from leaderboard.src.backend import config
+from leaderboard.src.backend.onnx_model import count_parameters
 from leaderboard.src.envs import API, QUEUE_REPO
 from leaderboard.src.submission import requests_dataset
 from leaderboard.src.submission.check_validity import validate_local_onnx
@@ -41,7 +42,16 @@ def _limit_message(size: int) -> str:
     )
 
 
-def form_errors(model: str, submitter: str, onnx_path: str) -> dict[str, str]:
+# The declaration a submitter must make, shown next to the form's checkbox.
+NO_EVAL_TRAINING_DECLARATION = (
+    "I declare that this model was not exposed to the eval split of "
+    "`proxima-fusion/coilstellaration` during training, tuning or model selection."
+)
+
+
+def form_errors(
+    model: str, submitter: str, onnx_path: str, no_eval_training: bool
+) -> dict[str, str]:
     """The cheap format checks on the form, keyed by field; empty when it is valid."""
     errors = {}
     if not model or "/" not in model:
@@ -51,6 +61,10 @@ def form_errors(model: str, submitter: str, onnx_path: str) -> dict[str, str]:
     onnx_path = (onnx_path or ONNX_FILENAME).strip()
     if not onnx_path.lower().endswith(".onnx"):
         errors["onnx_path"] = "The model file path must end in `.onnx`."
+    if not no_eval_training:
+        errors["no_eval_training"] = (
+            "Please confirm that the model was not exposed to the eval split."
+        )
     return errors
 
 
@@ -59,15 +73,12 @@ def validate_submission(
     revision: str,  # noqa: ARG001 (validators get every input)
     submitter: str,
     onnx_path: str,
+    no_eval_training: bool,
 ):
     """Gradio validator for the form: a `gr.validate` per input, in input order."""
-    errors = form_errors(model, submitter, onnx_path)
-    return [
-        gr.validate("model" not in errors, errors.get("model", "")),
-        gr.validate(True, ""),
-        gr.validate("submitter" not in errors, errors.get("submitter", "")),
-        gr.validate("onnx_path" not in errors, errors.get("onnx_path", "")),
-    ]
+    errors = form_errors(model, submitter, onnx_path, no_eval_training)
+    fields = ["model", "revision", "submitter", "onnx_path", "no_eval_training"]
+    return [gr.validate(f not in errors, errors.get(f, "")) for f in fields]
 
 
 def add_new_eval(
@@ -75,6 +86,7 @@ def add_new_eval(
     revision: str,
     submitter: str,
     onnx_path: str = "model.onnx",
+    no_eval_training: bool = False,
     progress=gr.Progress(),  # noqa: B008 (Gradio injects it by this default)
 ) -> str:
     """Validate a submission and add it to the evaluation queue.
@@ -83,7 +95,7 @@ def add_new_eval(
     submission is rejected. The form validator runs the same format checks first,
     but they are repeated here because API callers skip the validator.
     """
-    errors = form_errors(model, submitter, onnx_path)
+    errors = form_errors(model, submitter, onnx_path, no_eval_training)
     if errors:
         raise gr.Error(" ".join(errors.values()))
     revision = revision or "main"
@@ -181,6 +193,7 @@ def add_new_eval(
         progress(0.75, desc="Checking the ONNX contract")
         ok, msg, tracks = validate_local_onnx(local)
         onnx_sha256 = file_sha256(local)
+        n_parameters = count_parameters(local) if ok else None
     if not ok:
         logger.info("ONNX contract check failed for %s: %s", model, msg)
         raise gr.Error(f"ONNX contract check failed: {msg}")
@@ -194,6 +207,8 @@ def add_new_eval(
         # The runner checks the file it evaluates against this hash.
         "onnx_sha256": onnx_sha256,
         "submitter": submitter,
+        "n_parameters": n_parameters,
+        "no_eval_training": True,
         "tracks": tracks,
         "status": "PENDING",
         "submitted_time": current_time,

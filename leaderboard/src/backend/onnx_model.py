@@ -1,9 +1,11 @@
 """Onnxruntime wrapper + contract validation for submitted models."""
 
 import logging
+import math
 from typing import Literal, Mapping
 
 import numpy as np
+import onnx
 import onnxruntime as ort
 
 from leaderboard.src.backend import config
@@ -32,6 +34,25 @@ class OnnxModel:
         feed = {k: v for k, v in inputs.items() if k in self.input_names}
         results = map(np.asarray, self.session.run(self.output_names, feed))
         return dict(zip(self.output_names, results))
+
+
+def count_parameters(model_path: str) -> int:
+    """Number of values stored in the graph: initializers plus Constant tensors.
+
+    This is the usual parameter count (weights, biases and buffers such as
+    normalization statistics), read without loading external data or running the
+    model.
+    """
+    graph = onnx.load(model_path, load_external_data=False).graph
+    initializers = sum(math.prod(t.dims) for t in graph.initializer)
+    constants = sum(
+        math.prod(attr.t.dims)
+        for node in graph.node
+        if node.op_type == "Constant"
+        for attr in node.attribute
+        if attr.name == "value"
+    )
+    return initializers + constants
 
 
 def validate_onnx_contract(model_path: str) -> list[str]:

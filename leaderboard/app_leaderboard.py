@@ -33,7 +33,11 @@ from leaderboard.src.populate import (
     get_leaderboard_frames,
 )
 from leaderboard.src.submission import requests_dataset
-from leaderboard.src.submission.submit import add_new_eval, validate_submission
+from leaderboard.src.submission.submit import (
+    NO_EVAL_TRAINING_DECLARATION,
+    add_new_eval,
+    validate_submission,
+)
 
 
 def restart_space():
@@ -231,6 +235,10 @@ with app_leaderboard:
                         label="Submitter / contact",
                         info="Shown on the leaderboard next to your model.",
                     )
+                    no_eval_training_checkbox = gr.Checkbox(
+                        label=NO_EVAL_TRAINING_DECLARATION,
+                        value=False,
+                    )
 
             submit_button = gr.Button("Submit Eval", variant="primary")
             submission_result = gr.Markdown()
@@ -239,6 +247,7 @@ with app_leaderboard:
                 revision_name_textbox,
                 submitter_textbox,
                 onnx_path_textbox,
+                no_eval_training_checkbox,
             ]
             # Format checks run first and are shown on the fields. The button is
             # disabled while the submission runs, and re-enabled however it ends.
