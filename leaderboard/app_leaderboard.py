@@ -113,6 +113,15 @@ def init_leaderboard(frames):
     )
 
 
+TAB_IDS = ("leaderboard", "about", "submit")
+
+
+def select_tab_from_url(request: gr.Request):
+    """Open the tab named by the `tab` query parameter, if it names one."""
+    tab = request.query_params.get("tab")
+    return gr.Tabs(selected=tab) if tab in TAB_IDS else gr.skip()
+
+
 # Passed to `app_leaderboard.launch()` (here and in app.py).
 LAUNCH_KWARGS = {"css": custom_css, "theme": theme}
 
@@ -123,11 +132,13 @@ with app_leaderboard:
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
         with gr.TabItem(
-            "🏅 Coilstellaration Benchmark", elem_id="benchmark-tab-table", id=0
+            "🏅 Coilstellaration Benchmark",
+            elem_id="benchmark-tab-table",
+            id="leaderboard",
         ):
             init_leaderboard(LEADERBOARD_FRAMES)
 
-        with gr.TabItem("📝 About", elem_id="about-tab", id=2):
+        with gr.TabItem("📝 About", elem_id="about-tab", id="about"):
             gr.Markdown(ABOUT_TEXT, elem_classes="markdown-text")
             gr.Markdown(CITATION_INTRO_TEXT, elem_classes="markdown-text")
             gr.Code(
@@ -137,7 +148,7 @@ with app_leaderboard:
                 interactive=False,
             )
 
-        with gr.TabItem("🚀 Submit here! ", elem_id="submit-tab", id=3):
+        with gr.TabItem("🚀 Submit here! ", elem_id="submit-tab", id="submit"):
             with gr.Column():
                 with gr.Row():
                     gr.Markdown(EVALUATION_QUEUE_TEXT, elem_classes="markdown-text")
@@ -199,16 +210,27 @@ with app_leaderboard:
 
             with gr.Row():
                 with gr.Column():
-                    model_name_textbox = gr.Textbox(label="Model repo (org/model)")
+                    model_name_textbox = gr.Textbox(
+                        label="Model repo (org/model)",
+                        info="A public Hugging Face model repo.",
+                    )
                     revision_name_textbox = gr.Textbox(
-                        label="Revision", placeholder="main"
+                        label="Revision",
+                        placeholder="main",
+                        info="Branch, tag or commit. It is pinned to a commit on "
+                        "submission.",
                     )
                     onnx_path_textbox = gr.Textbox(
-                        label="ONNX file path", placeholder="model.onnx"
+                        label="ONNX file path",
+                        placeholder="model.onnx",
+                        info="Path of the ONNX file within the repo.",
                     )
-                    submitter_textbox = gr.Textbox(label="Submitter / contact")
+                    submitter_textbox = gr.Textbox(
+                        label="Submitter / contact",
+                        info="Shown on the leaderboard next to your model.",
+                    )
 
-            submit_button = gr.Button("Submit Eval")
+            submit_button = gr.Button("Submit Eval", variant="primary")
             submission_result = gr.Markdown()
             submission_inputs = [
                 model_name_textbox,
@@ -232,6 +254,9 @@ with app_leaderboard:
                 None,
                 submit_button,
             )
+
+    # `?tab=about` or `?tab=submit` in the URL opens that tab.
+    app_leaderboard.load(select_tab_from_url, None, tabs)
 
 
 if os.environ.get("SPACE_ID") is not None:

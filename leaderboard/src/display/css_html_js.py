@@ -5,6 +5,10 @@ import gradio as gr
 theme = gr.themes.Soft(primary_hue="indigo")
 
 custom_css = """
+#space-title {
+    text-align: center;
+}
+
 .markdown-text {
     font-size: 16px !important;
 }

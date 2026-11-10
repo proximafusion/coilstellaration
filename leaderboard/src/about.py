@@ -2,9 +2,7 @@
 # ruff: noqa: E501
 
 # Your leaderboard name
-TITLE = (
-    '<h1 align="center" id="space-title">Coilstellaration Benchmark Leaderboard</h1>'
-)
+TITLE = '<h1 id="space-title">Coilstellaration Benchmark Leaderboard</h1>'
 
 PAPER_URL = "https://arxiv.org/abs/2611.12689"
 CONSTELLARATION_PAPER_URL = "https://arxiv.org/abs/2506.19583"
