@@ -1,9 +1,5 @@
 name: Sync leaderboard to Hugging Face Spaces
 
-# The Spaces expect app.py and the README front matter at their repo root, so we
-# push a snapshot of leaderboard/ (not this repo) as a single parentless commit.
-# History stays here; the Spaces only need the current tree.
-
 on:
   push:
     branches: [main]
@@ -15,36 +11,41 @@ on:
       - uv.lock
   workflow_dispatch:
 
-concurrency:
-  group: sync-to-hf-spaces
-  cancel-in-progress: true
-
 jobs:
-  sync:
+  sync-evaluator:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: "Set the HuggingFace Space front matter"
+      - name: "Set the Space front matter"
         run: |
-          mv leaderboard/space.yaml README.md
-
-      - uses: huggingface/hub-sync@v0.3.0
-        name: "Updated proxima-fusion/coilstellaration-bench"
-        with:
-          github_repo_id: ${{ github.repository }}
-          huggingface_repo_id: proxima-fusion/coilstellaration-bench
-          hf_token: ${{ secrets.HF_TOKEN }}
-          exclude: |
-            analysis/
-            examples/
-            scripts/
+          cat leaderboard/space.evaluator.md > README.md
 
       - uses: huggingface/hub-sync@v0.3.0
         name: "Updated proxima-fusion/coilstellaration-bench-evaluator"
         with:
           github_repo_id: ${{ github.repository }}
           huggingface_repo_id: proxima-fusion/coilstellaration-bench-evaluator
+          hf_token: ${{ secrets.HF_TOKEN }}
+          exclude: |
+            analysis/
+            examples/
+            scripts/
+
+  sync-leaderboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: "Set the Space front matter"
+        run: |
+          cat leaderboard/space.leaderboard.md > README.md
+
+      - uses: huggingface/hub-sync@v0.3.0
+        name: "Updated proxima-fusion/coilstellaration-bench"
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: proxima-fusion/coilstellaration-bench
           hf_token: ${{ secrets.HF_TOKEN }}
           exclude: |
             analysis/
