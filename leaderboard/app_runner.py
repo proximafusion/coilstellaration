@@ -10,8 +10,7 @@ Deploy it by mirroring this repo unchanged (the Space's `app_file` is
 `leaderboard/app.py` then imports and launches this module.
 
 Required secrets / variables on the worker Space:
-    HF_TOKEN          write access to the requests and results datasets,
-                      read access to submitted model repos
+    HF_TOKEN          write access to the requests and results datasets
     COILBENCH_OWNER   org owning the requests/results datasets (default proxima-fusion)
 Optional:
     COILBENCH_RUNNER_INTERVAL   seconds between polls (default 300)

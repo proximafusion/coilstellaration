@@ -145,7 +145,8 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
             filename=onnx_path,
             revision=ref,
             local_dir=tmp,
-            token=TOKEN,
+            # Submissions are public repos; never send the worker's write token.
+            token=False,
         )
         logger.info(
             "Downloaded %s (%.1f MB) in %.1fs",
@@ -177,6 +178,17 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
 _EVAL_CMD = [sys.executable, "-u", "-m", "leaderboard.src.backend.evaluate_one"]
 # `-m leaderboard...` needs the repo root importable, whatever the worker's cwd.
 _REPO_ROOT = str(Path(__file__).resolve().parents[3])
+
+
+# Environment variables huggingface_hub reads a token from. The eval child runs
+# the submitted (untrusted) model and needs only public repos, so it gets none of
+# them and can't use or leak the worker's write token.
+_HUB_TOKEN_ENV_VARS = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HF_API_TOKEN")
+
+
+def _without_hub_tokens(env) -> dict[str, str]:
+    """A copy of `env` without any Hugging Face Hub token."""
+    return {k: v for k, v in env.items() if k not in _HUB_TOKEN_ENV_VARS}
 
 
 def _kill_group(proc: "subprocess.Popen") -> None:
@@ -224,7 +236,7 @@ def _evaluate_with_timeout(
         req_path.write_text(json.dumps(req, indent=2))
 
         child_env = {
-            **os.environ,
+            **_without_hub_tokens(os.environ),
             evaluate.DEADLINE_ENV: str(time.time() + timeout),
             "PYTHONPATH": os.pathsep.join(
                 p for p in (_REPO_ROOT, os.environ.get("PYTHONPATH")) if p

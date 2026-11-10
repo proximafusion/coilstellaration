@@ -47,8 +47,9 @@ branches on the `COILBENCH_ROLE` variable. Add these Space **secrets / variables
 
 - `COILBENCH_ROLE` = `runner`  ← this flips the Space into worker mode, which
   launches `app_runner.py` instead of the leaderboard.
-- `HF_TOKEN` — write access to the requests and results datasets, read access
-  to submitted model repos.
+- `HF_TOKEN` — write access to the requests and results datasets. Submitted
+  model repos must be public and are read without it, and the subprocess that
+  runs a submitted model does not get it.
 - `COILBENCH_OWNER` — only if not `proxima-fusion`.
 - `COILBENCH_RUNNER_INTERVAL` (optional) — seconds between polls (default 300).
 - `COILBENCH_EVAL_TIMEOUT` (optional) — wall-clock seconds before a single

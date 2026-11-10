@@ -21,6 +21,7 @@ def test_run_eval_pins_commit_and_records_onnx_path(tmp_path, monkeypatch):
     def fake_download(repo_id, filename, revision, local_dir, token):
         captured["filename"] = filename
         captured["revision"] = revision
+        captured["token"] = token
         return build_dummy_onnx(tmp_path / "x.onnx")
 
     monkeypatch.setattr(runner, "hf_hub_download", fake_download)
@@ -40,6 +41,7 @@ def test_run_eval_pins_commit_and_records_onnx_path(tmp_path, monkeypatch):
     )
 
     assert captured["revision"] == "deadbeefcafebabe"  # pinned SHA, not "main"
+    assert captured["token"] is False  # never the worker's write token
     assert captured["filename"] == "models/best.onnx"
     assert record["commit_hash"] == "deadbeefcafebabe"
     assert record["onnx_path"] == "models/best.onnx"
@@ -194,6 +196,34 @@ def test_evaluate_with_timeout_passes_absolute_deadline_to_child(monkeypatch):
     assert rec["deadline"] is not None
     deadline = float(rec["deadline"])
     assert before + 120 <= deadline <= time.time() + 120
+
+
+_STUB_ENV = [
+    sys.executable,
+    "-c",
+    "import sys, json, os; "
+    "json.dump({k: os.environ.get(k) for k in "
+    "('HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HF_API_TOKEN', 'KEEP_ME')}, "
+    "open(sys.argv[2], 'w'))",
+]
+
+
+def test_evaluate_with_timeout_hides_hub_tokens_from_child(monkeypatch):
+    # The child runs the submitted model, so it must not see the write token.
+    monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_ENV)
+    monkeypatch.setenv("HF_TOKEN", "hf_secret")
+    monkeypatch.setenv("HUGGING_FACE_HUB_TOKEN", "hf_secret")
+    monkeypatch.setenv("HF_API_TOKEN", "hf_secret")
+    monkeypatch.setenv("KEEP_ME", "yes")
+    rec, _parquet, _model = runner._evaluate_with_timeout(
+        {"model": "org/m"}, timeout=30
+    )
+    assert rec == {
+        "HF_TOKEN": None,
+        "HUGGING_FACE_HUB_TOKEN": None,
+        "HF_API_TOKEN": None,
+        "KEEP_ME": "yes",
+    }
 
 
 def test_evaluate_with_timeout_kills_hung_eval(monkeypatch):
