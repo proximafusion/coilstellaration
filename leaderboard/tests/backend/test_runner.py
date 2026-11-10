@@ -180,14 +180,22 @@ def test_run_eval_checks_sha256_before_and_after_download(
         runner._run_eval(_eval_request(onnx_sha256="0" * 64))
 
 
-def test_push_result_path_disambiguates_by_commit_and_onnx(monkeypatch):
+def _capture_commit(monkeypatch):
     captured = {}
-    monkeypatch.setattr(
-        runner.API,
-        "upload_file",
-        lambda **kw: captured.update(path_in_repo=kw["path_in_repo"]),
-    )
-    runner._push_result(
+
+    def fake_commit(**kw):
+        captured["repo"] = kw["repo_id"]
+        captured["files"] = {
+            op.path_in_repo: op.path_or_fileobj for op in kw["operations"]
+        }
+
+    monkeypatch.setattr(runner.API, "create_commit", fake_commit)
+    return captured
+
+
+def test_push_results_path_disambiguates_by_commit_and_onnx(monkeypatch):
+    captured = _capture_commit(monkeypatch)
+    runner._push_results(
         {
             "model": "org/m",
             "revision": "main",
@@ -196,44 +204,35 @@ def test_push_result_path_disambiguates_by_commit_and_onnx(monkeypatch):
             "status": "FINISHED",
         }
     )
-    assert captured["path_in_repo"] == "org/m_deadbeefcafebabe_models-best.json"
+    assert list(captured["files"]) == ["org/m_deadbeefcafebabe_models-best.json"]
 
 
-def test_push_result_falls_back_for_legacy_record(monkeypatch):
-    captured = {}
-    monkeypatch.setattr(
-        runner.API,
-        "upload_file",
-        lambda **kw: captured.update(path_in_repo=kw["path_in_repo"]),
-    )
-    runner._push_result({"model": "org/m", "revision": "main", "status": "FINISHED"})
+def test_push_results_falls_back_for_legacy_record(monkeypatch):
+    captured = _capture_commit(monkeypatch)
+    runner._push_results({"model": "org/m", "revision": "main", "status": "FINISHED"})
     # No commit_hash/onnx_path -> falls back to revision + default model file slug.
-    assert captured["path_in_repo"] == "org/m_main_model.json"
+    assert list(captured["files"]) == ["org/m_main_model.json"]
 
 
-def test_push_result_parquet_uses_sibling_path_and_uploads_bytes(monkeypatch):
-    captured = {}
-    monkeypatch.setattr(
-        runner.API,
-        "upload_file",
-        lambda **kw: captured.update(
-            path=kw["path_in_repo"], repo=kw["repo_id"], obj=kw["path_or_fileobj"]
-        ),
-    )
-    runner._push_result_parquet(
-        {
-            "model": "org/m",
-            "revision": "main",
-            "commit_hash": "deadbeefcafebabe",
-            "onnx_path": "models/best.onnx",
-            "status": "FINISHED",
-        },
-        b"PARQUET-BYTES",
-    )
-    # Same disambiguation as the JSON summary, .parquet extension.
-    assert captured["path"] == "org/m_deadbeefcafebabe_models-best.parquet"
+def test_push_results_writes_all_files_in_one_commit(monkeypatch):
+    captured = _capture_commit(monkeypatch)
+    record = {
+        "model": "org/m",
+        "revision": "main",
+        "commit_hash": "deadbeefcafebabe",
+        "onnx_path": "models/best.onnx",
+        "status": "FINISHED",
+    }
+    runner._push_results(record, b"PARQUET-BYTES", b"ONNX-BYTES")
+    # Same disambiguation for every file, different extensions, one commit.
     assert captured["repo"] == runner.RESULTS_REPO
-    assert captured["obj"] == b"PARQUET-BYTES"
+    assert captured["files"] == {
+        "org/m_deadbeefcafebabe_models-best.json": json.dumps(
+            record, indent=2
+        ).encode(),
+        "org/m_deadbeefcafebabe_models-best.parquet": b"PARQUET-BYTES",
+        "org/m_deadbeefcafebabe_models-best.onnx": b"ONNX-BYTES",
+    }
 
 
 # --- per-eval timeout (item 1) ---
@@ -474,8 +473,7 @@ def test_run_once_claims_with_attempt_and_timestamp(tmp_path, monkeypatch):
         "_push_request",
         lambda req, rel, expect=None: pushed.append(dict(req)) or True,
     )
-    monkeypatch.setattr(runner, "_push_result", lambda rec: None)
-    monkeypatch.setattr(runner, "_push_result_parquet", lambda rec, blob: None)
+    monkeypatch.setattr(runner, "_push_results", lambda rec, parquet, model: None)
     monkeypatch.setattr(
         runner,
         "_evaluate_with_timeout",
@@ -511,10 +509,11 @@ def test_run_once_pushes_parquet_when_present(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
     monkeypatch.setattr(runner, "_push_request", lambda req, rel, expect=None: True)
-    monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     pushed_parquet = []
     monkeypatch.setattr(
-        runner, "_push_result_parquet", lambda rec, blob: pushed_parquet.append(blob)
+        runner,
+        "_push_results",
+        lambda rec, parquet, model: parquet and pushed_parquet.append(parquet),
     )
     monkeypatch.setattr(
         runner,
@@ -546,10 +545,11 @@ def test_run_once_skips_parquet_when_absent(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "EVAL_REQUESTS_PATH", str(tmp_path / "eval-queue"))
     monkeypatch.setattr(runner, "snapshot_download", lambda **kw: None)
     monkeypatch.setattr(runner, "_push_request", lambda req, rel, expect=None: True)
-    monkeypatch.setattr(runner, "_push_result", lambda rec: None)
     pushed_parquet = []
     monkeypatch.setattr(
-        runner, "_push_result_parquet", lambda rec, blob: pushed_parquet.append(blob)
+        runner,
+        "_push_results",
+        lambda rec, parquet, model: parquet and pushed_parquet.append(parquet),
     )
     monkeypatch.setattr(
         runner,
@@ -726,8 +726,7 @@ def test_run_once_processes_valid_requests_despite_poison_file(tmp_path, monkeyp
         "_push_request",
         lambda req, rel, expect=None: pushed.append(dict(req)) or True,
     )
-    monkeypatch.setattr(runner, "_push_result", lambda rec: None)
-    monkeypatch.setattr(runner, "_push_result_parquet", lambda rec, blob: None)
+    monkeypatch.setattr(runner, "_push_results", lambda rec, parquet, model: None)
     monkeypatch.setattr(
         runner,
         "_evaluate_with_timeout",

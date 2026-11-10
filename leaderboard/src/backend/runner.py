@@ -145,45 +145,44 @@ def _result_rel_path(record: dict, ext: str) -> str:
     return f"{org}/{model}_{commit}_{onnx_slug}.{ext}"
 
 
-def _push_result(record: dict):
-    rel_path = _result_rel_path(record, "json")
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump(record, f, indent=2)
-        tmp = f.name
-    logger.debug("Pushing result for %s to %s", record["model"], rel_path)
-    API.upload_file(
-        path_or_fileobj=tmp,
-        path_in_repo=rel_path,
+def _push_results(
+    record: dict, parquet_bytes: bytes | None = None, model_bytes: bytes | None = None
+):
+    """Upload a result's JSON summary, raw-scores parquet and ONNX in one commit.
+
+    One commit means the leaderboard never sees a summary whose sibling files
+    failed to upload. The parquet and ONNX are skipped when not given.
+    """
+    operations = [
+        CommitOperationAdd(
+            path_in_repo=_result_rel_path(record, "json"),
+            path_or_fileobj=json.dumps(record, indent=2).encode(),
+        )
+    ]
+    if parquet_bytes:
+        operations.append(
+            CommitOperationAdd(
+                path_in_repo=_result_rel_path(record, "parquet"),
+                path_or_fileobj=parquet_bytes,
+            )
+        )
+    if model_bytes:
+        operations.append(
+            CommitOperationAdd(
+                path_in_repo=_result_rel_path(record, "onnx"),
+                path_or_fileobj=model_bytes,
+            )
+        )
+    logger.debug(
+        "Pushing results for %s: %s",
+        record["model"],
+        [op.path_in_repo for op in operations],
+    )
+    API.create_commit(
         repo_id=RESULTS_REPO,
         repo_type="dataset",
+        operations=operations,
         commit_message=f"Add results for {record['model']}",
-    )
-    Path(tmp).unlink()
-
-
-def _push_result_parquet(record: dict, parquet_bytes: bytes):
-    """Upload the raw per-instance scores parquet alongside the JSON summary."""
-    rel_path = _result_rel_path(record, "parquet")
-    logger.debug("Pushing raw scores parquet for %s to %s", record["model"], rel_path)
-    API.upload_file(
-        path_or_fileobj=parquet_bytes,
-        path_in_repo=rel_path,
-        repo_id=RESULTS_REPO,
-        repo_type="dataset",
-        commit_message=f"Add raw scores for {record['model']}",
-    )
-
-
-def _push_result_model(record: dict, model_bytes: bytes):
-    """Upload the ONNX model alongside the JSON summary."""
-    rel_path = _result_rel_path(record, "onnx")
-    logger.debug("Pushing model ONNX for %s to %s", record["model"], rel_path)
-    API.upload_file(
-        path_or_fileobj=model_bytes,
-        path_in_repo=rel_path,
-        repo_id=RESULTS_REPO,
-        repo_type="dataset",
-        commit_message=f"Add ONNX for {record['model']}",
     )
 
 
@@ -439,11 +438,7 @@ def run_once() -> tuple[int, int]:
             record, parquet_bytes, model_bytes = _evaluate_with_timeout(
                 req, config.EVAL_TIMEOUT
             )
-            _push_result(record)
-            if parquet_bytes:
-                _push_result_parquet(record, parquet_bytes)
-            if model_bytes:
-                _push_result_model(record, model_bytes)
+            _push_results(record, parquet_bytes, model_bytes)
             req["status"] = "FINISHED"
             req.pop("error", None)
             finished += 1
