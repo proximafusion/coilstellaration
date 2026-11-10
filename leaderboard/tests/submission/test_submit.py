@@ -9,7 +9,14 @@ class _Info:
     sha = "deadbeefcafebabe1234567890abcdef12345678"
 
 
-def _wire(monkeypatch, tmp_path, captured, existing=(), size=1024, supported_tracks="fixed_shape"):
+def _wire(
+    monkeypatch,
+    tmp_path,
+    captured,
+    existing=(),
+    size=1024,
+    supported_tracks="fixed_shape",
+):
     """Stub all Hub I/O; `existing` seeds the requests-dataset file list.
 
     `size` is the file size get_paths_info reports; `supported_tracks` is the
@@ -60,7 +67,9 @@ def test_submission_accepts_custom_onnx_path(tmp_path, monkeypatch):
     captured = {}
     _wire(monkeypatch, tmp_path, captured)
 
-    out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1, onnx_path="models/best.onnx")
+    out = submit.add_new_eval(
+        "org/m", "main", "alice", False, 1, -1, onnx_path="models/best.onnx"
+    )
 
     assert "submitted" in out.lower()
     assert captured["entry"]["onnx_path"] == "models/best.onnx"
@@ -71,7 +80,9 @@ def test_submission_rejects_non_onnx_path(tmp_path, monkeypatch):
     captured = {}
     _wire(monkeypatch, tmp_path, captured)
 
-    out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1, onnx_path="weights.bin")
+    out = submit.add_new_eval(
+        "org/m", "main", "alice", False, 1, -1, onnx_path="weights.bin"
+    )
 
     assert ".onnx" in out
     assert "entry" not in captured
@@ -129,7 +140,9 @@ def test_submission_records_fixed_only_tracks(tmp_path, monkeypatch):
 
 def test_submission_records_both_tracks(tmp_path, monkeypatch):
     captured = {}
-    _wire(monkeypatch, tmp_path, captured, supported_tracks="fixed_shape,variable_shape")
+    _wire(
+        monkeypatch, tmp_path, captured, supported_tracks="fixed_shape,variable_shape"
+    )
 
     out = submit.add_new_eval("org/m", "main", "alice", False, 1, -1)
 
@@ -137,7 +150,9 @@ def test_submission_records_both_tracks(tmp_path, monkeypatch):
     assert "both" in out.lower()
 
 
-def test_submission_falls_back_to_getsize_when_metadata_lacks_size(tmp_path, monkeypatch):
+def test_submission_falls_back_to_getsize_when_metadata_lacks_size(
+    tmp_path, monkeypatch
+):
     captured = {}
     _wire(monkeypatch, tmp_path, captured, size=None)  # metadata reports no size
 

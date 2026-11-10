@@ -35,7 +35,10 @@ OUT_PATH = os.path.join(OUT_DIR, "dummy-constant-circle.onnx")
 
 def _float_const(name: str, value: float) -> onnx.NodeProto:
     return helper.make_node(
-        "Constant", [], [name], value=helper.make_tensor(name + "_v", TensorProto.FLOAT, [], [value])
+        "Constant",
+        [],
+        [name],
+        value=helper.make_tensor(name + "_v", TensorProto.FLOAT, [], [value]),
     )
 
 
@@ -46,7 +49,10 @@ def _int64_const(name: str, values: list[int]) -> onnx.NodeProto:
 
 def _int64_scalar(name: str, value: int) -> onnx.NodeProto:
     return helper.make_node(
-        "Constant", [], [name], value=helper.make_tensor(name + "_v", TensorProto.INT64, [], [value])
+        "Constant",
+        [],
+        [name],
+        value=helper.make_tensor(name + "_v", TensorProto.INT64, [], [value]),
     )
 
 
@@ -102,8 +108,12 @@ def _circular_coil_nodes() -> list[onnx.NodeProto]:
 def build_model() -> onnx.ModelProto:
     # Inputs: boundary arrays have dynamic [n_pol, n_tor]; requirements is [4].
     inputs = [
-        helper.make_tensor_value_info("boundary_r_cos", TensorProto.FLOAT, ["n_pol", "n_tor"]),
-        helper.make_tensor_value_info("boundary_z_sin", TensorProto.FLOAT, ["n_pol", "n_tor"]),
+        helper.make_tensor_value_info(
+            "boundary_r_cos", TensorProto.FLOAT, ["n_pol", "n_tor"]
+        ),
+        helper.make_tensor_value_info(
+            "boundary_z_sin", TensorProto.FLOAT, ["n_pol", "n_tor"]
+        ),
         helper.make_tensor_value_info("requirement_metrics", TensorProto.FLOAT, [4]),
         helper.make_tensor_value_info("n_field_periods", TensorProto.INT64, []),
         helper.make_tensor_value_info("n_coils_per_half_period", TensorProto.INT64, []),
@@ -113,7 +123,9 @@ def build_model() -> onnx.ModelProto:
         helper.make_tensor_value_info(name, TensorProto.FLOAT, ["n_coils", 3])
         for name in ["coil_x_n", "coil_y_n", "coil_z_n"]
     ]
-    outputs.append(helper.make_tensor_value_info("currents", TensorProto.FLOAT, ["n_coils"]))
+    outputs.append(
+        helper.make_tensor_value_info("currents", TensorProto.FLOAT, ["n_coils"])
+    )
 
     graph = helper.make_graph(nodes, "coilstellaration_example", inputs, outputs)
     model = helper.make_model(

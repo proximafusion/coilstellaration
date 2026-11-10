@@ -43,7 +43,9 @@ def poll_once() -> None:
         _status["finished"] += finished
         _status["failed"] += failed
         _status["last_result"] = f"{finished} finished, {failed} failed"
-        print(f"[runner_app] poll at {_status['last_run']}: {finished} finished, {failed} failed")
+        print(
+            f"[runner_app] poll at {_status['last_run']}: {finished} finished, {failed} failed"
+        )
     except Exception as exc:  # noqa: BLE001
         _status["last_result"] = f"error: {exc}"
         print(f"[runner_app] run_once FAILED: {exc}\n{traceback.format_exc()}")

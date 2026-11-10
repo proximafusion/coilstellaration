@@ -39,7 +39,9 @@ def test_inputs_contain_required_names_and_shapes():
     assert inputs["requirement_metrics"].shape == (4,)
     assert inputs["requirement_metrics"].dtype == np.float32
     # order matches RequirementMetrics.to_array()
-    np.testing.assert_allclose(inputs["requirement_metrics"], [0.1, 0.2, 1.5, 0.01], rtol=1e-6)
+    np.testing.assert_allclose(
+        inputs["requirement_metrics"], [0.1, 0.2, 1.5, 0.01], rtol=1e-6
+    )
 
 
 def test_inputs_include_int64_counts():
@@ -73,7 +75,9 @@ def _desc_equilibrium():
         poloidal_resolution=1,
         toroidal_resolution=0,
         n_field_periods=3,
-        pressure_profile=types.DescSplineProfile(knots=np.array([0.0, 1.0]), params=np.array([1.0, 0.0])),
+        pressure_profile=types.DescSplineProfile(
+            knots=np.array([0.0, 1.0]), params=np.array([1.0, 0.0])
+        ),
     )
 
 

@@ -2,7 +2,9 @@ from dataclasses import dataclass, make_dataclass
 
 
 def fields(raw_class):
-    return [v for k, v in raw_class.__dict__.items() if k[:2] != "__" and k[-2:] != "__"]
+    return [
+        v for k, v in raw_class.__dict__.items() if k[:2] != "__" and k[-2:] != "__"
+    ]
 
 
 @dataclass(frozen=True)
@@ -19,20 +21,48 @@ class ColumnContent:
 # metric columns are track-agnostic; the Track × Stratum selection decides which
 # track's numbers fill them.
 auto_eval_column_dict = []
-auto_eval_column_dict.append(["model", ColumnContent, ColumnContent("Model", "markdown", True, never_hidden=True)])
-auto_eval_column_dict.append(["submitter", ColumnContent, ColumnContent("Submitter", "str", True)])
+auto_eval_column_dict.append(
+    [
+        "model",
+        ColumnContent,
+        ColumnContent("Model", "markdown", True, never_hidden=True),
+    ]
+)
+auto_eval_column_dict.append(
+    ["submitter", ColumnContent, ColumnContent("Submitter", "str", True)]
+)
 # per-track metrics
-auto_eval_column_dict.append(["mean", ColumnContent, ColumnContent("mean", "number", True)])
-auto_eval_column_dict.append(["feas09", ColumnContent, ColumnContent("feas@0.9", "number", False)])
-auto_eval_column_dict.append(["strict", ColumnContent, ColumnContent("strict", "number", True)])
-auto_eval_column_dict.append(["median", ColumnContent, ColumnContent("median", "number", False)])
-auto_eval_column_dict.append(["p10", ColumnContent, ColumnContent("p10", "number", False)])
+auto_eval_column_dict.append(
+    ["mean", ColumnContent, ColumnContent("mean", "number", True)]
+)
+auto_eval_column_dict.append(
+    ["feas09", ColumnContent, ColumnContent("feas@0.9", "number", False)]
+)
+auto_eval_column_dict.append(
+    ["strict", ColumnContent, ColumnContent("strict", "number", True)]
+)
+auto_eval_column_dict.append(
+    ["median", ColumnContent, ColumnContent("median", "number", False)]
+)
+auto_eval_column_dict.append(
+    ["p10", ColumnContent, ColumnContent("p10", "number", False)]
+)
 # metadata
-auto_eval_column_dict.append(["stochastic", ColumnContent, ColumnContent("Stochastic (K)", "str", False)])
-auto_eval_column_dict.append(["submitted", ColumnContent, ColumnContent("Submitted", "str", True)])
-auto_eval_column_dict.append(["revision", ColumnContent, ColumnContent("Revision", "str", False)])
-auto_eval_column_dict.append(["commit", ColumnContent, ColumnContent("Commit", "markdown", True)])
-auto_eval_column_dict.append(["onnx_file", ColumnContent, ColumnContent("ONNX file", "str", True)])
+auto_eval_column_dict.append(
+    ["stochastic", ColumnContent, ColumnContent("Stochastic (K)", "str", False)]
+)
+auto_eval_column_dict.append(
+    ["submitted", ColumnContent, ColumnContent("Submitted", "str", True)]
+)
+auto_eval_column_dict.append(
+    ["revision", ColumnContent, ColumnContent("Revision", "str", False)]
+)
+auto_eval_column_dict.append(
+    ["commit", ColumnContent, ColumnContent("Commit", "markdown", True)]
+)
+auto_eval_column_dict.append(
+    ["onnx_file", ColumnContent, ColumnContent("ONNX file", "str", True)]
+)
 
 AutoEvalColumn = make_dataclass("AutoEvalColumn", auto_eval_column_dict, frozen=True)
 

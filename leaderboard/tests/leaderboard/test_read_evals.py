@@ -49,7 +49,10 @@ def _record(name, overall, with_strata=False, tracks=("fixed_shape", "variable_s
         "k_samples": 4,
         "status": "FINISHED",
         "overall_score": overall,
-        "tracks": {t: (scored[t] if t in tracks else {}) for t in ("fixed_shape", "variable_shape")},
+        "tracks": {
+            t: (scored[t] if t in tracks else {})
+            for t in ("fixed_shape", "variable_shape")
+        },
     }
 
 
@@ -69,7 +72,9 @@ def test_get_raw_eval_results_returns_finished_records(tmp_path):
 
 def test_get_raw_eval_results_skips_unfinished(tmp_path):
     _write(tmp_path, "m1", 0.8)
-    (tmp_path / "org" / "m2.json").write_text(json.dumps({"model": "org/m2", "status": "FAILED"}))
+    (tmp_path / "org" / "m2.json").write_text(
+        json.dumps({"model": "org/m2", "status": "FAILED"})
+    )
     recs = get_raw_eval_results(str(tmp_path))
     assert [r["model"] for r in recs] == ["org/m1"]
 

@@ -24,7 +24,9 @@ def _desc_equilibrium():
         poloidal_resolution=1,
         toroidal_resolution=0,
         n_field_periods=3,
-        pressure_profile=types.DescSplineProfile(knots=np.array([0.0, 1.0]), params=np.array([1.0, 0.0])),
+        pressure_profile=types.DescSplineProfile(
+            knots=np.array([0.0, 1.0]), params=np.array([1.0, 0.0])
+        ),
         r_axis=np.array([1.0]),
     )
 
@@ -68,13 +70,19 @@ def test_evaluate_model_summarizes_each_stratum_and_keeps_unscored_tracks(monkey
         "tight": _eval_data("b2"),
     }
     monkeypatch.setattr(
-        evaluate.data_utils, "load_benchmark_dataset", lambda track, stratum, split, n: [datas[stratum]]
+        evaluate.data_utils,
+        "load_benchmark_dataset",
+        lambda track, stratum, split, n: [datas[stratum]],
     )
     monkeypatch.setattr(
-        evaluate, "_evaluate_achieved", lambda coilset, desc_equilibrium: datas["tight"].requirement_metrics
+        evaluate,
+        "_evaluate_achieved",
+        lambda coilset, desc_equilibrium: datas["tight"].requirement_metrics,
     )
 
-    record, rows = evaluate.evaluate_model(model=FakeModel(), stochastic=False, k_samples=1, tracks=["fixed_shape"])
+    record, rows = evaluate.evaluate_model(
+        model=FakeModel(), stochastic=False, k_samples=1, tracks=["fixed_shape"]
+    )
 
     assert record["tracks"]["variable_shape"] == {}
     fixed = record["tracks"]["fixed_shape"]
@@ -86,6 +94,8 @@ def test_evaluate_model_summarizes_each_stratum_and_keeps_unscored_tracks(monkey
     assert all(summary["n"] == 1 for summary in strata.values())
     # The headline pools every stratum's instances.
     assert fixed["n"] == 3
-    assert fixed["mean"] == pytest.approx(np.mean([summary["mean"] for summary in strata.values()]))
+    assert fixed["mean"] == pytest.approx(
+        np.mean([summary["mean"] for summary in strata.values()])
+    )
     assert record["overall_score"] == fixed["mean"]
     assert [row["stratum"] for row in rows] == ["loose", "medium", "tight"]

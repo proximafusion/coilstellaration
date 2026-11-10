@@ -50,14 +50,20 @@ def add_new_eval(
     )
 
     try:
-        info = API.repo_info(repo_id=model, revision=revision, repo_type="model", token=TOKEN)
+        info = API.repo_info(
+            repo_id=model, revision=revision, repo_type="model", token=TOKEN
+        )
         commit_hash = info.sha
     except Exception as exc:  # noqa: BLE001
         logger.warning("Repo info check failed for %s: %s", model, exc)
-        return styled_error(f'Model "{model}" was not found or is not accessible: {exc}')
+        return styled_error(
+            f'Model "{model}" was not found or is not accessible: {exc}'
+        )
     if not commit_hash:
         logger.warning("Could not resolve a commit hash for %s@%s", model, revision)
-        return styled_error(f'Could not resolve a commit hash for "{model}" at revision "{revision}".')
+        return styled_error(
+            f'Could not resolve a commit hash for "{model}" at revision "{revision}".'
+        )
 
     try:
         duplicate = requests_dataset.submission_exists(model, commit_hash, onnx_path)
@@ -78,10 +84,21 @@ def add_new_eval(
             repo_type="model",
             token=TOKEN,
         )
-        size = next((getattr(i, "size", None) for i in infos if getattr(i, "path", None) == onnx_path), None)
+        size = next(
+            (
+                getattr(i, "size", None)
+                for i in infos
+                if getattr(i, "path", None) == onnx_path
+            ),
+            None,
+        )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not fetch metadata for %s from %s: %s", onnx_path, model, exc)
-        return styled_error(f"Could not read `{onnx_path}` metadata from the repo: {exc}")
+        logger.warning(
+            "Could not fetch metadata for %s from %s: %s", onnx_path, model, exc
+        )
+        return styled_error(
+            f"Could not read `{onnx_path}` metadata from the repo: {exc}"
+        )
     if size is not None and size > config.MAX_ONNX_BYTES:
         logger.info("Rejecting oversized model %s: %d bytes", model, size)
         return styled_error(
@@ -100,7 +117,11 @@ def add_new_eval(
             )
             if size is None and os.path.getsize(local) > config.MAX_ONNX_BYTES:
                 actual = os.path.getsize(local)
-                logger.info("Rejecting oversized model %s: %d bytes (post-download)", model, actual)
+                logger.info(
+                    "Rejecting oversized model %s: %d bytes (post-download)",
+                    model,
+                    actual,
+                )
                 return styled_error(
                     f"Model file is {actual / 1024 / 1024:.1f} MB, over the "
                     f"{config.MAX_ONNX_BYTES / 1024 / 1024:.0f} MB limit."
@@ -146,4 +167,6 @@ def add_new_eval(
     else:
         detail = "Model declares `supported_tracks=fixed_shape` — will be scored on the fixed_shape track only."
     logger.info("Submission %s queued (PENDING) at %s", model, current_time)
-    return styled_message("Your model has been submitted to the evaluation queue! " + detail)
+    return styled_message(
+        "Your model has been submitted to the evaluation queue! " + detail
+    )

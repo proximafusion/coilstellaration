@@ -29,7 +29,9 @@ SUMMARY_KEYS = ("mean", "median", "p10", "feasibility_rate_0p9", "strict_feasibi
 DEADLINE_ENV = "COILBENCH_EVAL_DEADLINE"
 
 _DESC_EQUILIBRIUM_CACHE_MAX = 512
-_DESC_EQUILIBRIUM_CACHE: collections.OrderedDict[str, Equilibrium] = collections.OrderedDict()
+_DESC_EQUILIBRIUM_CACHE: collections.OrderedDict[str, Equilibrium] = (
+    collections.OrderedDict()
+)
 
 
 def _read_deadline() -> float | None:
@@ -75,7 +77,9 @@ def _evaluate_achieved(
     """
     metrics = metrics_utils_v2.evaluate_coilset_metrics(
         eq=_cached_desc_equilibrium(desc_equilibrium),
-        coilset=coilset_utils.coilstellaration_to_desc(coilset, check_intersection=False),
+        coilset=coilset_utils.coilstellaration_to_desc(
+            coilset, check_intersection=False
+        ),
         subset_metrics=True,
     )
     return data_utils.metrics_to_requirement_metrics(metrics)
@@ -124,7 +128,9 @@ def _achieved_key(
         a = np.ascontiguousarray(arr)
         digest.update(f"{a.dtype}{a.shape}".encode())
         digest.update(a.tobytes())
-    digest.update(f"{coilset.n_field_periods},{coilset.is_stellarator_symmetric}".encode())
+    digest.update(
+        f"{coilset.n_field_periods},{coilset.is_stellarator_symmetric}".encode()
+    )
     digest.update(_desc_equilibrium_key(desc_equilibrium).encode())
     return digest.hexdigest()
 
@@ -168,7 +174,10 @@ def _summarize_instances(
 ) -> dict[str, float]:
     """Aggregate a set of instance scores into the summary keys plus `n`."""
     summary: dict[str, Any] = {
-        k: float(v) for k, v in scoring.aggregate_instances(instances, config.SCORING_SETTINGS).items()
+        k: float(v)
+        for k, v in scoring.aggregate_instances(
+            instances, config.SCORING_SETTINGS
+        ).items()
     }
     summary["n"] = len(instances)
     return summary
@@ -185,7 +194,11 @@ def _instance_scores_to_rows(
     """Flatten per-instance scores into raw rows for the parquet artifact."""
     rows: list[dict] = []
     for inst, t, coilset in zip(per_instance, times, coilsets, strict=True):
-        row: dict = {"track": track, "stratum": stratum, "boundary_id": inst.boundary_id}
+        row: dict = {
+            "track": track,
+            "stratum": stratum,
+            "boundary_id": inst.boundary_id,
+        }
         row |= scoring.instance_score_to_row(inst)
         row["inference_time_s"] = float(t)
         if coilset is None:
@@ -223,7 +236,9 @@ def inference_model(
             desc_equilibrium = eval_data.desc_equilibrium
             if desc_equilibrium is None:
                 raise ValueError("no DESC equilibrium to score on")
-            inputs = marshal.eval_data_to_inputs(eval_data.boundary, eval_data.requirement_metrics)
+            inputs = marshal.eval_data_to_inputs(
+                eval_data.boundary, eval_data.requirement_metrics
+            )
             t_infer = time.perf_counter()
             outputs = model.run(inputs)
             infer_s = time.perf_counter() - t_infer
@@ -249,7 +264,9 @@ def inference_model(
             )
             n_failed += 1
         inference_times.append(infer_s)
-        eval_datas_maybe_with_inferenced_coilset.append(eval_data_maybe_with_inferenced_coilset)
+        eval_datas_maybe_with_inferenced_coilset.append(
+            eval_data_maybe_with_inferenced_coilset
+        )
 
     elapsed = time.perf_counter() - track_start
     infer = _time_stats(inference_times)
@@ -260,7 +277,10 @@ def inference_model(
         n_total,
         n_failed,
         elapsed / n_total if n_total else 0.0,
-        *(f"{infer[k]:.3f}s" if infer[k] is not None else "n/a" for k in ("mean", "max", "min", "std")),
+        *(
+            f"{infer[k]:.3f}s" if infer[k] is not None else "n/a"
+            for k in ("mean", "max", "min", "std")
+        ),
     )
     return eval_datas_maybe_with_inferenced_coilset, inference_times
 
@@ -287,7 +307,9 @@ def evaluate_data(
             desc_equilibrium = data.desc_equilibrium
             if desc_equilibrium is None:
                 raise ValueError("desc_equilibrium is None")
-            achieved = _evaluate_achieved_cached(predicted_coilset, desc_equilibrium, achieved_cache)
+            achieved = _evaluate_achieved_cached(
+                predicted_coilset, desc_equilibrium, achieved_cache
+            )
             if not _is_finite(achieved):
                 raise ValueError("achieved metrics contain NaN/inf")
             score_inst = scoring.score_eval_data(data, achieved, settings)
@@ -350,7 +372,9 @@ def evaluate_model(
     model: onnx_model.OnnxModel,
     stochastic: bool,
     k_samples: int,
-    tracks: Sequence[Literal["fixed_shape", "variable_shape"]] = get_args(config.TRACKS),
+    tracks: Sequence[Literal["fixed_shape", "variable_shape"]] = get_args(
+        config.TRACKS
+    ),
     n_instances: int = config.N_INSTANCES,
 ) -> tuple[dict, list[dict]]:
     deadline = _read_deadline()
@@ -377,7 +401,9 @@ def evaluate_model(
             _timeout_suffix(deadline),
         )
         load_start = time.perf_counter()
-        eval_datas = data_utils.load_benchmark_dataset(track=track, stratum=stratum, split="eval", n=n_instances)
+        eval_datas = data_utils.load_benchmark_dataset(
+            track=track, stratum=stratum, split="eval", n=n_instances
+        )
         logger.info(
             "Loaded %d instances for track %s and stratum %s in %.1fs",
             len(eval_datas),
@@ -388,10 +414,14 @@ def evaluate_model(
         eval_datas_maybe_with_inferenced_coilset, inference_times = inference_model(
             model=model, eval_datas=eval_datas, deadline=deadline
         )
-        inferenced_coilsets = [f.predicted_coilset for f in eval_datas_maybe_with_inferenced_coilset]
+        inferenced_coilsets = [
+            f.predicted_coilset for f in eval_datas_maybe_with_inferenced_coilset
+        ]
 
         score, n_failed = evaluate_data(
-            eval_datas_maybe_with_inferenced_coilset, deadline=deadline, achieved_cache=achieved_cache
+            eval_datas_maybe_with_inferenced_coilset,
+            deadline=deadline,
+            achieved_cache=achieved_cache,
         )
         track_scores[track] = track_scores.setdefault(track, [])
         track_scores[track].extend(score.per_instance)
@@ -399,7 +429,9 @@ def evaluate_model(
         track_inference_times[track].extend(inference_times)
 
         instance_rows.extend(
-            _instance_scores_to_rows(track, stratum, score.per_instance, inference_times, inferenced_coilsets)
+            _instance_scores_to_rows(
+                track, stratum, score.per_instance, inference_times, inferenced_coilsets
+            )
         )
         track_results[track] = track_results.setdefault(track, {"strata": {}})
         summary = _summarize_instances(score.per_instance)
@@ -429,7 +461,9 @@ def evaluate_model(
         track_results[track] |= summary
 
     if total_instances > 0 and total_failed == total_instances:
-        raise RuntimeError(f"Model failed on all {total_instances} instances across tracks")
+        raise RuntimeError(
+            f"Model failed on all {total_instances} instances across tracks"
+        )
 
     # Unscored tracks stay as `{}` so every record has the same keys as the ones already
     # published to the results repo.

@@ -1,6 +1,12 @@
 import json
 
-from leaderboard.src.display.utils import AutoEvalColumn, COLS, EVAL_COLS, STRATUM_VIEWS, TRACKS
+from leaderboard.src.display.utils import (
+    AutoEvalColumn,
+    COLS,
+    EVAL_COLS,
+    STRATUM_VIEWS,
+    TRACKS,
+)
 from leaderboard.src.populate import (
     get_evaluation_queue_df,
     get_leaderboard_df,
@@ -8,9 +14,23 @@ from leaderboard.src.populate import (
 )
 
 
-def _write(tmp_path, name, mean, with_strata=True, tracks=("fixed_shape", "variable_shape"), strict=0.1):
+def _write(
+    tmp_path,
+    name,
+    mean,
+    with_strata=True,
+    tracks=("fixed_shape", "variable_shape"),
+    strict=0.1,
+):
     def track(m):
-        t = {"mean": m, "median": 0.5, "p10": 0.2, "feasibility_rate_0p9": 0.3, "strict_feasibility": strict, "n": 2}
+        t = {
+            "mean": m,
+            "median": 0.5,
+            "p10": 0.2,
+            "feasibility_rate_0p9": 0.3,
+            "strict_feasibility": strict,
+            "n": 2,
+        }
         if with_strata:
             t["strata"] = {
                 "tight": {
@@ -34,7 +54,10 @@ def _write(tmp_path, name, mean, with_strata=True, tracks=("fixed_shape", "varia
         "k_samples": 1,
         "status": "FINISHED",
         "overall_score": mean,
-        "tracks": {t: (track(mean) if t in tracks else {}) for t in ("fixed_shape", "variable_shape")},
+        "tracks": {
+            t: (track(mean) if t in tracks else {})
+            for t in ("fixed_shape", "variable_shape")
+        },
     }
     sub = tmp_path / "org"
     sub.mkdir(parents=True, exist_ok=True)
@@ -86,7 +109,12 @@ def test_rows_sorted_by_strict_then_mean(tmp_path):
     _write(tmp_path, "lo_strict_lo_mean", 0.5, strict=0.2)
     frames = get_leaderboard_frames(str(tmp_path), COLS)
     models = frames[("fixed_shape", "All")][AutoEvalColumn.model.name].tolist()
-    order = [m for name in ["hi_strict", "lo_strict_hi_mean", "lo_strict_lo_mean"] for m in models if name in m]
+    order = [
+        m
+        for name in ["hi_strict", "lo_strict_hi_mean", "lo_strict_lo_mean"]
+        for m in models
+        if name in m
+    ]
     assert order == models
 
 
@@ -128,15 +156,26 @@ def test_queue_buckets_by_status():
 
 def test_queue_tolerates_missing_status():
     # A stray/partial record without a status must not crash the queue render.
-    finished, running, pending, failed = get_evaluation_queue_df([{"model": "org/x"}], EVAL_COLS)
-    assert len(finished) == 0 and len(running) == 0 and len(pending) == 0 and len(failed) == 0
+    finished, running, pending, failed = get_evaluation_queue_df(
+        [{"model": "org/x"}], EVAL_COLS
+    )
+    assert (
+        len(finished) == 0
+        and len(running) == 0
+        and len(pending) == 0
+        and len(failed) == 0
+    )
 
 
 def test_queue_shows_supported_tracks():
     finished, _running, pending, _failed = get_evaluation_queue_df(
         [
             {"model": "org/f", "status": "PENDING", "tracks": ["fixed_shape"]},
-            {"model": "org/b", "status": "PENDING", "tracks": ["fixed_shape", "variable_shape"]},
+            {
+                "model": "org/b",
+                "status": "PENDING",
+                "tracks": ["fixed_shape", "variable_shape"],
+            },
         ],
         EVAL_COLS,
     )

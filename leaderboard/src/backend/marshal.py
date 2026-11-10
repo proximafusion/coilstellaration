@@ -24,9 +24,13 @@ def eval_data_to_inputs(
     inputs: dict[str, np.ndarray] = {
         "boundary_r_cos": np.asarray(boundary.r_cos, dtype=np.float32),
         "boundary_z_sin": np.asarray(boundary.z_sin, dtype=np.float32),
-        "requirement_metrics": np.asarray(requirement_metrics.to_array(), dtype=np.float32),
+        "requirement_metrics": np.asarray(
+            requirement_metrics.to_array(), dtype=np.float32
+        ),
         "n_field_periods": np.asarray(boundary.n_field_periods, dtype=np.int64),
-        "n_coils_per_half_period": np.asarray(requirement_metrics.n_coils_per_half_period, dtype=np.int64),
+        "n_coils_per_half_period": np.asarray(
+            requirement_metrics.n_coils_per_half_period, dtype=np.int64
+        ),
     }
     if not boundary.is_stellarator_symmetric:
         inputs["boundary_r_sin"] = np.asarray(boundary.r_sin, dtype=np.float32)

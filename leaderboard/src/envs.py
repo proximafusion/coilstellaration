@@ -7,7 +7,9 @@ logger = logging.getLogger(__name__)
 
 TOKEN = os.environ.get("HF_TOKEN")  # A read/write token for your org
 if not TOKEN:
-    logger.warning("HF_TOKEN is not set; authenticated Hugging Face Hub calls will fail.")
+    logger.warning(
+        "HF_TOKEN is not set; authenticated Hugging Face Hub calls will fail."
+    )
 OWNER = os.environ.get("COILBENCH_OWNER", "proxima-fusion")
 REPO_NAME = os.environ.get("COILBENCH_REPO", "coilstellaration-bench")
 

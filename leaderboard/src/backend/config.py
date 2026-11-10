@@ -29,7 +29,9 @@ MAX_ATTEMPTS: int = int(os.environ.get("COILBENCH_MAX_ATTEMPTS", "3"))
 # JAX persistent compilation cache
 JAX_COMPILE_CACHE_DIR: str = os.environ.get(
     "COILBENCH_JAX_CACHE",
-    os.path.join(os.path.expanduser("~"), ".cache", "coilstellaration-bench", "jax-compile"),
+    os.path.join(
+        os.path.expanduser("~"), ".cache", "coilstellaration-bench", "jax-compile"
+    ),
 )
 
 # Frozen scoring definition for the benchmark.

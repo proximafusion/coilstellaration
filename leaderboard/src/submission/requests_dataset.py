@@ -39,7 +39,9 @@ def iter_requests() -> Iterator[dict]:
     """
     for path in list_request_files():
         try:
-            local = hf_hub_download(repo_id=QUEUE_REPO, filename=path, repo_type="dataset", token=TOKEN)
+            local = hf_hub_download(
+                repo_id=QUEUE_REPO, filename=path, repo_type="dataset", token=TOKEN
+            )
             with open(local) as fp:
                 yield json.load(fp)
         except Exception as exc:  # noqa: BLE001

@@ -3,7 +3,12 @@ from collections.abc import Sequence
 
 import pandas as pd
 from leaderboard.src.display.formatting import make_clickable_model
-from leaderboard.src.display.utils import SORT_COLS, STRATUM_VIEWS, TRACKS, EvalQueueColumn
+from leaderboard.src.display.utils import (
+    SORT_COLS,
+    STRATUM_VIEWS,
+    TRACKS,
+    EvalQueueColumn,
+)
 from leaderboard.src.leaderboard.read_evals import get_raw_eval_results, result_to_row
 
 logger = logging.getLogger(__name__)
@@ -12,7 +17,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_VIEW = ("fixed_shape", "All")
 
 
-def _frame_for_view(records: Sequence[dict], track: str, stratum: str, cols: list) -> pd.DataFrame:
+def _frame_for_view(
+    records: Sequence[dict], track: str, stratum: str, cols: list
+) -> pd.DataFrame:
     """Build one display frame from raw records for a single track+stratum view.
 
     Each record contributes a row only when it has data for this track and
@@ -21,7 +28,11 @@ def _frame_for_view(records: Sequence[dict], track: str, stratum: str, cols: lis
     per-stratum breakdown drop out of the specific-stratum views. Rows are
     ordered by strict feasibility then mean, both descending.
     """
-    rows = [row for rec in records if (row := result_to_row(rec, track, stratum)) is not None]
+    rows = [
+        row
+        for rec in records
+        if (row := result_to_row(rec, track, stratum)) is not None
+    ]
     if not rows:
         return pd.DataFrame(columns=cols)
     df = pd.DataFrame.from_records(rows)
@@ -29,7 +40,9 @@ def _frame_for_view(records: Sequence[dict], track: str, stratum: str, cols: lis
     return df[cols].round(decimals=3)
 
 
-def get_leaderboard_frames(results_path: str, cols: list) -> dict[tuple[str, str], pd.DataFrame]:
+def get_leaderboard_frames(
+    results_path: str, cols: list
+) -> dict[tuple[str, str], pd.DataFrame]:
     """One display frame per `(track, stratum)` view.
 
     All frames carry identical columns; the values are the selected track's numbers for
@@ -65,7 +78,9 @@ def _queue_entries(records: Sequence[dict]) -> Sequence[dict]:
     return all_evals
 
 
-def get_evaluation_queue_df(records: Sequence[dict], cols: list) -> Sequence[pd.DataFrame]:
+def get_evaluation_queue_df(
+    records: Sequence[dict], cols: list
+) -> Sequence[pd.DataFrame]:
     """Bucket request records into finished/running/pending dataframes."""
     all_evals = _queue_entries(records)
 
@@ -74,7 +89,8 @@ def get_evaluation_queue_df(records: Sequence[dict], cols: list) -> Sequence[pd.
     finished_list = [
         e
         for e in all_evals
-        if str(e.get("status", "")).startswith("FINISHED") or e.get("status") == "PENDING_NEW_EVAL"
+        if str(e.get("status", "")).startswith("FINISHED")
+        or e.get("status") == "PENDING_NEW_EVAL"
     ]
     failed_list = [e for e in all_evals if e.get("status") == "FAILED"]
     df_pending = pd.DataFrame.from_records(pending_list, columns=cols)

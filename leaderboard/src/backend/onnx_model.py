@@ -15,7 +15,9 @@ class OnnxModel:
 
     def __init__(self, model_path: str):
         logger.debug("Loading ONNX model from %s", model_path)
-        self.session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+        self.session = ort.InferenceSession(
+            model_path, providers=["CPUExecutionProvider"]
+        )
         self.input_names = [i.name for i in self.session.get_inputs()]
         self.output_names = [o.name for o in self.session.get_outputs()]
         logger.debug(
@@ -39,7 +41,9 @@ def validate_onnx_contract(model_path: str) -> list[str]:
     return inspect_onnx(model_path)[0]
 
 
-def read_supported_tracks(session: ort.InferenceSession) -> list[Literal["fixed_shape", "variable_shape"]]:
+def read_supported_tracks(
+    session: ort.InferenceSession,
+) -> list[Literal["fixed_shape", "variable_shape"]]:
     """Tracks a model declares in its `supported_tracks` ONNX metadata.
 
     Raises:
@@ -62,7 +66,9 @@ def read_supported_tracks(session: ort.InferenceSession) -> list[Literal["fixed_
     return value.split(",")
 
 
-def inspect_onnx(model_path: str) -> tuple[list[str], list[Literal["fixed_shape", "variable_shape"]]]:
+def inspect_onnx(
+    model_path: str,
+) -> tuple[list[str], list[Literal["fixed_shape", "variable_shape"]]]:
     """Open the graph once; return (contract_errors, supported_tracks).
 
     `supported_tracks` is empty whenever there are contract errors (including a load

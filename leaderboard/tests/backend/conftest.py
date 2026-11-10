@@ -48,11 +48,16 @@ def build_dummy_onnx(
     }
     int_inputs = {"n_field_periods", "n_coils_per_half_period"}
     inputs = [
-        helper.make_tensor_value_info(n, TensorProto.INT64 if n in int_inputs else TensorProto.FLOAT, in_shapes[n])
+        helper.make_tensor_value_info(
+            n, TensorProto.INT64 if n in int_inputs else TensorProto.FLOAT, in_shapes[n]
+        )
         for n in input_names
     ]
     nodes = [_const(n, out_shapes[n]) for n in output_names]
-    outputs = [helper.make_tensor_value_info(n, TensorProto.FLOAT, out_shapes[n]) for n in output_names]
+    outputs = [
+        helper.make_tensor_value_info(n, TensorProto.FLOAT, out_shapes[n])
+        for n in output_names
+    ]
     graph = helper.make_graph(nodes, "dummy", inputs, outputs)
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
     if supported_tracks is not None:

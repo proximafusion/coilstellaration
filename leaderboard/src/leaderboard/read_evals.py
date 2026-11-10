@@ -3,7 +3,10 @@ import logging
 import math
 import os
 
-from leaderboard.src.display.formatting import make_clickable_commit, make_clickable_model
+from leaderboard.src.display.formatting import (
+    make_clickable_commit,
+    make_clickable_model,
+)
 from leaderboard.src.display.utils import AutoEvalColumn
 
 logger = logging.getLogger(__name__)
@@ -59,7 +62,9 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
         AutoEvalColumn.stochastic.name: _stochastic_label(record),
         AutoEvalColumn.submitted.name: record.get("submitted_time", ""),
         AutoEvalColumn.revision.name: record.get("revision", ""),
-        AutoEvalColumn.commit.name: make_clickable_commit(record["model"], record.get("commit_hash", "")),
+        AutoEvalColumn.commit.name: make_clickable_commit(
+            record["model"], record.get("commit_hash", "")
+        ),
         AutoEvalColumn.onnx_file.name: record.get("onnx_path", "model.onnx"),
     }
 

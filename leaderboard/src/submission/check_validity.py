@@ -14,7 +14,10 @@ def check_model_card(repo_id: str) -> tuple[bool, str]:
         card = ModelCard.load(repo_id)
     except huggingface_hub.utils.EntryNotFoundError:
         logger.info("No model card found for %s", repo_id)
-        return False, "Please add a model card to your model to explain how you trained/fine-tuned it."
+        return (
+            False,
+            "Please add a model card to your model to explain how you trained/fine-tuned it.",
+        )
 
     # Enforce license metadata
     if card.data.license is None:
@@ -31,7 +34,9 @@ def check_model_card(repo_id: str) -> tuple[bool, str]:
     return True, ""
 
 
-def validate_local_onnx(local_path: str) -> tuple[bool, str, list[Literal["fixed_shape", "variable_shape"]]]:
+def validate_local_onnx(
+    local_path: str,
+) -> tuple[bool, str, list[Literal["fixed_shape", "variable_shape"]]]:
     """Open a downloaded ONNX file, check it against the I/O contract, and read which
     tracks it declares in its metadata.
 

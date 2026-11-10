@@ -44,7 +44,16 @@ FULL_SET, LIMIT_N = "Full set", "Limit to N"
 INTERVAL = int(os.environ.get("COILBENCH_LEADERBOARD_INTERVAL", "300"))
 
 
-def submit_eval(model, revision, onnx_path, submitter, model_type, k_samples, instance_mode, n_instances):
+def submit_eval(
+    model,
+    revision,
+    onnx_path,
+    submitter,
+    model_type,
+    k_samples,
+    instance_mode,
+    n_instances,
+):
     """Adapt the radio/slider controls to `add_new_eval`'s arguments.
 
     A disabled slider still submits its last value, so the radio is the source
@@ -52,7 +61,9 @@ def submit_eval(model, revision, onnx_path, submitter, model_type, k_samples, in
     """
     stochastic = model_type == STOCHASTIC
     n = int(n_instances) if instance_mode == LIMIT_N else -1
-    return add_new_eval(model, revision, submitter, stochastic, int(k_samples), n, onnx_path)
+    return add_new_eval(
+        model, revision, submitter, stochastic, int(k_samples), n, onnx_path
+    )
 
 
 ### Space initialisation
@@ -78,9 +89,12 @@ except Exception:
     restart_space()
     request_records = []
 
-(finished_eval_queue_df, running_eval_queue_df, pending_eval_queue_df, failed_eval_queue_df) = get_evaluation_queue_df(
-    request_records, EVAL_COLS
-)
+(
+    finished_eval_queue_df,
+    running_eval_queue_df,
+    pending_eval_queue_df,
+    failed_eval_queue_df,
+) = get_evaluation_queue_df(request_records, EVAL_COLS)
 
 
 def init_leaderboard(frames):
@@ -103,14 +117,18 @@ def init_leaderboard(frames):
         stratum_label="Stratum (All = paper headline; tight/medium/loose slice one stratum)",
         datatype=[c.type for c in fields(AutoEvalColumn)],
         select_columns=SelectColumns(
-            default_selection=[c.name for c in fields(AutoEvalColumn) if c.displayed_by_default],
+            default_selection=[
+                c.name for c in fields(AutoEvalColumn) if c.displayed_by_default
+            ],
             cant_deselect=[c.name for c in fields(AutoEvalColumn) if c.never_hidden],
             label="Select Columns to Display:",
         ),
         search_columns=[AutoEvalColumn.model.name, AutoEvalColumn.submitter.name],
         hide_columns=[c.name for c in fields(AutoEvalColumn) if c.hidden],
         filter_columns=[
-            ColumnFilter(AutoEvalColumn.stochastic.name, type="checkboxgroup", label="Stochastic"),
+            ColumnFilter(
+                AutoEvalColumn.stochastic.name, type="checkboxgroup", label="Stochastic"
+            ),
         ],
         bool_checkboxgroup_label="Hide models",
         interactive=False,
@@ -124,7 +142,9 @@ with app_leaderboard:
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
-        with gr.TabItem("🏅 Coilstellaration Benchmark", elem_id="benchmark-tab-table", id=0):
+        with gr.TabItem(
+            "🏅 Coilstellaration Benchmark", elem_id="benchmark-tab-table", id=0
+        ):
             init_leaderboard(LEADERBOARD_FRAMES)
 
         with gr.TabItem("📝 About", elem_id="about-tab", id=2):
@@ -182,13 +202,19 @@ with app_leaderboard:
                                 row_count=5,
                             )
             with gr.Row():
-                gr.Markdown("# ✉️✨ Submit your model here!", elem_classes="markdown-text")
+                gr.Markdown(
+                    "# ✉️✨ Submit your model here!", elem_classes="markdown-text"
+                )
 
             with gr.Row():
                 with gr.Column():
                     model_name_textbox = gr.Textbox(label="Model repo (org/model)")
-                    revision_name_textbox = gr.Textbox(label="Revision", placeholder="main")
-                    onnx_path_textbox = gr.Textbox(label="ONNX file path", placeholder="model.onnx")
+                    revision_name_textbox = gr.Textbox(
+                        label="Revision", placeholder="main"
+                    )
+                    onnx_path_textbox = gr.Textbox(
+                        label="ONNX file path", placeholder="model.onnx"
+                    )
                     submitter_textbox = gr.Textbox(label="Submitter / contact")
                 with gr.Column():
                     stochastic_radio = gr.Radio(

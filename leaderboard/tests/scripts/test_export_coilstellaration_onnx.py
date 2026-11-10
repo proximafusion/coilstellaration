@@ -31,8 +31,16 @@ _MODELS = {
         types.ResMlpEnsembleCoilPredictorConfig,
         {**_FIXED, "n_ensemble_members": 2},
     ),
-    "per_coil": (model_definition.PerCoilCoilPredictor, types.PerCoilCoilPredictorConfig, _VARIABLE),
-    "masked": (model_definition.MaskedCoilPredictor, types.MaskedCoilPredictorConfig, _VARIABLE),
+    "per_coil": (
+        model_definition.PerCoilCoilPredictor,
+        types.PerCoilCoilPredictorConfig,
+        _VARIABLE,
+    ),
+    "masked": (
+        model_definition.MaskedCoilPredictor,
+        types.MaskedCoilPredictorConfig,
+        _VARIABLE,
+    ),
     "per_coil_ensemble": (
         model_definition.PerCoilEnsembleCoilPredictor,
         types.PerCoilEnsembleCoilPredictorConfig,
@@ -57,13 +65,16 @@ def _tiny_model(model_kind: str):
 def sessions() -> dict[str, ort.InferenceSession]:
     return {
         kind: ort.InferenceSession(
-            export.export_model(_tiny_model(kind)).SerializeToString(), providers=["CPUExecutionProvider"]
+            export.export_model(_tiny_model(kind)).SerializeToString(),
+            providers=["CPUExecutionProvider"],
         )
         for kind in ("mlp", "per_coil")
     }
 
 
-def _run(session: ort.InferenceSession, n_field_periods: int, n_coils: int) -> dict[str, np.ndarray]:
+def _run(
+    session: ort.InferenceSession, n_field_periods: int, n_coils: int
+) -> dict[str, np.ndarray]:
     outputs = session.run(
         list(export.OUTPUT_NAMES),
         {
@@ -74,7 +85,10 @@ def _run(session: ort.InferenceSession, n_field_periods: int, n_coils: int) -> d
             "n_coils_per_half_period": np.asarray(n_coils, np.int64),
         },
     )
-    return {name: np.asarray(value) for name, value in zip(export.OUTPUT_NAMES, outputs, strict=True)}
+    return {
+        name: np.asarray(value)
+        for name, value in zip(export.OUTPUT_NAMES, outputs, strict=True)
+    }
 
 
 @pytest.mark.parametrize("model_kind", sorted(_MODELS))
@@ -126,7 +140,9 @@ def test_inputs_follow_contract(sessions):
 
 def _write_mlp_checkpoint_without_model_kind(json_path, dapper_type=None):
     model = _tiny_model("mlp")
-    checkpoint = flax_nnx_checkpoint_util.to_checkpoint(model, model.config, types.CoilPredictorCheckpoint)
+    checkpoint = flax_nnx_checkpoint_util.to_checkpoint(
+        model, model.config, types.CoilPredictorCheckpoint
+    )
     raw = json.loads(checkpoint.model_dump_json())
     del raw["config"]["model_kind"]
     if dapper_type is not None:

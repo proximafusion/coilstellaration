@@ -23,7 +23,9 @@ def styled_warning(warn):
 
 
 def styled_message(message):
-    return f"<p style='color: green; font-size: 20px; text-align: center;'>{message}</p>"
+    return (
+        f"<p style='color: green; font-size: 20px; text-align: center;'>{message}</p>"
+    )
 
 
 def has_no_nan_values(df, columns):

@@ -81,7 +81,9 @@ _CHECKPOINT_TYPES: dict[str, type[types.AnyModelCheckpoint]] = {
 }
 
 
-def export_checkpoint(json_path: pathlib.Path, out_dir: pathlib.Path = OUT_DIR) -> pathlib.Path:
+def export_checkpoint(
+    json_path: pathlib.Path, out_dir: pathlib.Path = OUT_DIR
+) -> pathlib.Path:
     """Convert one checkpoint JSON to a verified ONNX file; return the output path."""
     config = json.loads(json_path.read_text())["config"]
     model_kind = config.get("model_kind")
@@ -90,7 +92,9 @@ def export_checkpoint(json_path: pathlib.Path, out_dir: pathlib.Path = OUT_DIR) 
             f"{json_path.name}: cannot tell the architecture from config.model_kind "
             f"{config.get('model_kind')!r} or config.dapper_type {config.get('dapper_type')!r}."
         )
-    checkpoint = _CHECKPOINT_TYPES[model_kind].model_validate_json(json_path.read_text())
+    checkpoint = _CHECKPOINT_TYPES[model_kind].model_validate_json(
+        json_path.read_text()
+    )
     model = model_definition.read_model_from_checkpoint(checkpoint)
 
     proto = export_model(model)
@@ -140,8 +144,12 @@ def verify_export(model: model_definition.AnyModel, proto: onnx.ModelProto) -> N
     """
     config = model.config
     shape = (config.n_poloidal_modes, config.n_toroidal_modes)
-    r_cos = 0.1 * np.asarray(jax.random.normal(jax.random.PRNGKey(0), shape), np.float32)
-    z_sin = 0.1 * np.asarray(jax.random.normal(jax.random.PRNGKey(1), shape), np.float32)
+    r_cos = 0.1 * np.asarray(
+        jax.random.normal(jax.random.PRNGKey(0), shape), np.float32
+    )
+    z_sin = 0.1 * np.asarray(
+        jax.random.normal(jax.random.PRNGKey(1), shape), np.float32
+    )
     # Stellarator symmetry requires zero `m = 0, n <= 0` coefficients (except the
     # `r_cos` major radius).
     n_toroidal = (config.n_toroidal_modes - 1) // 2
@@ -149,10 +157,14 @@ def verify_export(model: model_definition.AnyModel, proto: onnx.ModelProto) -> N
     r_cos[0, n_toroidal] = 1.0
     z_sin[0, : n_toroidal + 1] = 0.0
     metrics = np.array([0.4, 1.2, 3.8, 0.01], dtype=np.float32)
-    session = ort.InferenceSession(proto.SerializeToString(), providers=["CPUExecutionProvider"])
+    session = ort.InferenceSession(
+        proto.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
 
     for n_field_periods, n_coils in supported_count_pairs(config):
-        expected = _eager_prediction(model, r_cos, z_sin, metrics, n_field_periods, n_coils)
+        expected = _eager_prediction(
+            model, r_cos, z_sin, metrics, n_field_periods, n_coils
+        )
         actual = session.run(
             list(OUTPUT_NAMES),
             {
@@ -163,10 +175,14 @@ def verify_export(model: model_definition.AnyModel, proto: onnx.ModelProto) -> N
                 "n_coils_per_half_period": np.asarray(n_coils, np.int64),
             },
         )
-        for name, exp, act in zip(OUTPUT_NAMES, expected, map(np.asarray, actual), strict=True):
+        for name, exp, act in zip(
+            OUTPUT_NAMES, expected, map(np.asarray, actual), strict=True
+        ):
             where = f"[{config.model_kind}, NFP {n_field_periods}, {n_coils} coils] {name!r}"
             if exp.shape != act.shape:
-                raise RuntimeError(f"{where}: ONNX shape {act.shape} != JAX shape {exp.shape}")
+                raise RuntimeError(
+                    f"{where}: ONNX shape {act.shape} != JAX shape {exp.shape}"
+                )
             scale = float(np.max(np.abs(exp))) or 1.0
             max_abs = float(np.max(np.abs(exp - act)))
             if not max_abs <= REL_TOL * scale:
@@ -246,7 +262,9 @@ def set_supported_tracks(proto: onnx.ModelProto, tracks: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export coilstellaration checkpoints to ONNX.")
+    parser = argparse.ArgumentParser(
+        description="Export coilstellaration checkpoints to ONNX."
+    )
     parser.add_argument(
         "checkpoints",
         nargs="*",
@@ -282,9 +300,15 @@ def _make_predict_fn(model: model_definition.AnyModel):
     )
     metrics_template = _requirement_metrics(np.zeros(4), FIXED_SHAPE_TRACK_COUNTS[1])
 
-    def predict(boundary_r_cos, boundary_z_sin, requirement_metrics, n_field_periods, n_coils):
+    def predict(
+        boundary_r_cos, boundary_z_sin, requirement_metrics, n_field_periods, n_coils
+    ):
         boundary = boundary_template.model_copy(
-            update={"r_cos": boundary_r_cos, "z_sin": boundary_z_sin, "n_field_periods": n_field_periods}
+            update={
+                "r_cos": boundary_r_cos,
+                "z_sin": boundary_z_sin,
+                "n_field_periods": n_field_periods,
+            }
         )
         metrics = metrics_template.model_copy(
             update={
@@ -296,7 +320,9 @@ def _make_predict_fn(model: model_definition.AnyModel):
         # Fixed-shape models ignore the counts and variable-shape models see an
         # all-zero one-hot for an unknown count; either would predict a plausible but
         # wrong coilset.
-        supported = jnp.any(nfp_values == n_field_periods) & jnp.any(n_coils_values == n_coils)
+        supported = jnp.any(nfp_values == n_field_periods) & jnp.any(
+            n_coils_values == n_coils
+        )
         poison = jnp.where(supported, 1.0, jnp.nan).astype(jnp.float32)
         return tuple(getattr(coilset, name) * poison for name in OUTPUT_NAMES)
 
@@ -324,7 +350,9 @@ def _eager_prediction(
 
 
 def _requirement_metrics(metrics, n_coils) -> types.RequirementMetrics:
-    return types.RequirementMetrics(**_metric_fields(metrics), n_coils_per_half_period=n_coils)
+    return types.RequirementMetrics(
+        **_metric_fields(metrics), n_coils_per_half_period=n_coils
+    )
 
 
 def _metric_fields(metrics) -> dict:
@@ -366,15 +394,23 @@ def _batch_rank1_gemms(proto: onnx.ModelProto) -> None:
         nodes.extend(
             [
                 helper.make_node(
-                    "Unsqueeze", [vector_in, "gemm_batch_axis"], [node.input[0]], name=f"{node.name}_unsqueeze"
+                    "Unsqueeze",
+                    [vector_in, "gemm_batch_axis"],
+                    [node.input[0]],
+                    name=f"{node.name}_unsqueeze",
                 ),
                 node,
                 helper.make_node(
-                    "Squeeze", [node.output[0], "gemm_batch_axis"], [vector_out], name=f"{node.name}_squeeze"
+                    "Squeeze",
+                    [node.output[0], "gemm_batch_axis"],
+                    [vector_out],
+                    name=f"{node.name}_squeeze",
                 ),
             ]
         )
-    graph.initializer.append(helper.make_tensor("gemm_batch_axis", onnx.TensorProto.INT64, [1], [0]))
+    graph.initializer.append(
+        helper.make_tensor("gemm_batch_axis", onnx.TensorProto.INT64, [1], [0])
+    )
     del graph.node[:]
     graph.node.extend(nodes)
 
@@ -390,14 +426,22 @@ def _widen_int_inputs(proto: onnx.ModelProto, names: tuple[str, ...]) -> None:
         _rename_value(graph, graph_input.name, narrow, rename_producers=False)
         graph_input.type.tensor_type.elem_type = onnx.TensorProto.INT64
         casts.append(
-            helper.make_node("Cast", [graph_input.name], [narrow], to=onnx.TensorProto.INT32, name=f"{narrow}_cast")
+            helper.make_node(
+                "Cast",
+                [graph_input.name],
+                [narrow],
+                to=onnx.TensorProto.INT32,
+                name=f"{narrow}_cast",
+            )
         )
     nodes = [*casts, *graph.node]
     del graph.node[:]
     graph.node.extend(nodes)
 
 
-def _rename_value(graph: onnx.GraphProto, old: str, new: str, *, rename_producers: bool = True) -> None:
+def _rename_value(
+    graph: onnx.GraphProto, old: str, new: str, *, rename_producers: bool = True
+) -> None:
     for node in graph.node:
         node.input[:] = [new if name == old else name for name in node.input]
         if rename_producers:

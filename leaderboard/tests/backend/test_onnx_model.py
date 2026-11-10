@@ -20,7 +20,9 @@ def test_validate_rejects_missing_required_input(tmp_path):
 
 
 def test_validate_rejects_missing_output(tmp_path):
-    path = build_dummy_onnx(tmp_path / "bad.onnx", output_names=("coil_x_n", "coil_y_n", "coil_z_n"))
+    path = build_dummy_onnx(
+        tmp_path / "bad.onnx", output_names=("coil_x_n", "coil_y_n", "coil_z_n")
+    )
     errors = onnx_model.validate_onnx_contract(path)
     assert any("currents" in e for e in errors)
 
@@ -46,8 +48,13 @@ def _session(path):
 
 
 def test_read_supported_tracks_both(tmp_path):
-    path = build_dummy_onnx(tmp_path / "m.onnx", supported_tracks="fixed_shape,variable_shape")
-    assert onnx_model.read_supported_tracks(_session(path)) == ["fixed_shape", "variable_shape"]
+    path = build_dummy_onnx(
+        tmp_path / "m.onnx", supported_tracks="fixed_shape,variable_shape"
+    )
+    assert onnx_model.read_supported_tracks(_session(path)) == [
+        "fixed_shape",
+        "variable_shape",
+    ]
 
 
 def test_read_supported_tracks_fixed_only(tmp_path):
@@ -65,7 +72,14 @@ def test_missing_metadata_is_contract_error(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "value", ["fixed_shape, variable", "fixed_shape, variable_shape", "variable_shape", "bogus", ""]
+    "value",
+    [
+        "fixed_shape, variable",
+        "fixed_shape, variable_shape",
+        "variable_shape",
+        "bogus",
+        "",
+    ],
 )
 def test_invalid_metadata_is_contract_error(tmp_path, value):
     path = build_dummy_onnx(tmp_path / "m.onnx", supported_tracks=value)
