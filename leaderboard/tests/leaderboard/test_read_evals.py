@@ -1,4 +1,5 @@
 import json
+import math
 
 from leaderboard.src.display.utils import COLS, AutoEvalColumn
 from leaderboard.src.leaderboard.read_evals import get_raw_eval_results, result_to_row
@@ -127,3 +128,21 @@ def test_result_to_row_defaults_when_fields_absent():
     row = result_to_row(rec, "fixed_shape", "All")
     assert row[AutoEvalColumn.commit.name] == ""
     assert row[AutoEvalColumn.onnx_file.name] == "model.onnx"
+
+
+def test_result_to_row_reports_n_and_strict_standard_error():
+    rec = {
+        "model": "org/m",
+        "tracks": {"fixed_shape": {"mean": 0.5, "strict_feasibility": 0.2, "n": 100}},
+    }
+    row = result_to_row(rec, "fixed_shape", "All")
+    assert row[AutoEvalColumn.n.name] == 100
+    # sqrt(0.2 * 0.8 / 100) = 0.04
+    assert abs(row[AutoEvalColumn.strict_se.name] - 0.04) < 1e-12
+
+
+def test_result_to_row_without_n_has_no_standard_error():
+    rec = {"model": "org/m", "tracks": {"fixed_shape": {"strict_feasibility": 0.2}}}
+    row = result_to_row(rec, "fixed_shape", "All")
+    assert math.isnan(row[AutoEvalColumn.strict_se.name])
+    assert math.isnan(row[AutoEvalColumn.n.name])

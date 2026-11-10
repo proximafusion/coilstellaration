@@ -32,6 +32,13 @@ def _get(summary: dict | None, key: str) -> float:
     return summary.get(key, math.nan)
 
 
+def _proportion_se(p: float, n) -> float:
+    """Standard error of a proportion `p` over `n` instances; NaN without `n`."""
+    if not n or math.isnan(p):
+        return math.nan
+    return math.sqrt(p * (1 - p) / n)
+
+
 def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
     """Map one result record (spec §6) to a leaderboard row for one track+stratum view,
     or `None` when the record has no data for that view.
@@ -53,8 +60,12 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
         AutoEvalColumn.mean.name: _get(summary, "mean"),
         AutoEvalColumn.feas09.name: _get(summary, "feasibility_rate_0p9"),
         AutoEvalColumn.strict.name: _get(summary, "strict_feasibility"),
+        AutoEvalColumn.strict_se.name: _proportion_se(
+            _get(summary, "strict_feasibility"), summary.get("n")
+        ),
         AutoEvalColumn.median.name: _get(summary, "median"),
         AutoEvalColumn.p10.name: _get(summary, "p10"),
+        AutoEvalColumn.n.name: summary.get("n", math.nan),
         AutoEvalColumn.submitted.name: record.get("submitted_time", ""),
         AutoEvalColumn.revision.name: record.get("revision", ""),
         AutoEvalColumn.commit.name: make_clickable_commit(

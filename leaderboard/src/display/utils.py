@@ -50,12 +50,18 @@ auto_eval_column_dict.append(
 auto_eval_column_dict.append(
     ["strict", ColumnContent, ColumnContent("strict", "number", True)]
 )
+# Standard error of `strict`, a proportion over n instances: sqrt(p(1-p)/n).
+auto_eval_column_dict.append(
+    ["strict_se", ColumnContent, ColumnContent("strict SE", "number", True)]
+)
 auto_eval_column_dict.append(
     ["median", ColumnContent, ColumnContent("median", "number", False)]
 )
 auto_eval_column_dict.append(
     ["p10", ColumnContent, ColumnContent("p10", "number", False)]
 )
+# Number of instances scored in the selected track and stratum.
+auto_eval_column_dict.append(["n", ColumnContent, ColumnContent("n", "number", True)])
 # metadata
 auto_eval_column_dict.append(
     ["submitted", ColumnContent, ColumnContent("Submitted", "date", True)]
@@ -95,7 +101,13 @@ TRACK_LABELS = {"fixed_shape": "fixed", "variable_shape": "variable"}
 STRATUM_VIEWS = ["All", "tight", "medium", "loose"]
 
 # Metric columns, each of whose best (maximum) value is highlighted.
-METRIC_COLS = [c.name for c in fields(AutoEvalColumn) if c.type == "number"]
+METRIC_COLS = [
+    AutoEvalColumn.mean.name,
+    AutoEvalColumn.feas09.name,
+    AutoEvalColumn.strict.name,
+    AutoEvalColumn.median.name,
+    AutoEvalColumn.p10.name,
+]
 
 # Rows are ordered by strict feasibility, then mean, both descending.
 SORT_COLS = [AutoEvalColumn.strict.name, AutoEvalColumn.mean.name]

@@ -133,10 +133,12 @@ columns aggregate `S` over the selected track and stratum:
 | Column | Meaning |
 |---|---|
 | `strict` | Fraction of instances that meet every requirement (violation ≤ 1e-3). **Primary ranking key.** |
+| `strict SE` | Standard error of `strict`, `sqrt(strict × (1 − strict) / n)`. |
 | `mean` | Mean of `S`. **Secondary ranking key.** |
 | `feas@0.9` | Fraction of instances with `S ≥ 0.9` (soft-feasible). Hidden by default. |
 | `median` | Median of `S`. Hidden by default. |
 | `p10` | 10th percentile of `S`, showing how the worst instances do. Hidden by default. |
+| `n` | Number of instances scored in the selected track and stratum. |
 
 Each model is run once per instance. The full scoring definition
 is in the [paper]({PAPER_URL}) and the
