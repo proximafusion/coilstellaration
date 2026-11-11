@@ -28,11 +28,10 @@ EVALUATOR_URL = (
     "https://huggingface.co/spaces/proxima-fusion/coilstellaration-bench-evaluator"
 )
 
-INTRODUCTION_TEXT = f"""
+INTRODUCTION_TEXT = """
 A benchmark for ML models that predict a stellarator coilset from a plasma boundary
 and a set of engineering requirements. Rows are ranked by strict feasibility, then
-mean. The **About** tab covers the task, the ONNX contract, scoring and how to cite
-the [paper (arXiv:2611.12689)]({PAPER_URL}).
+mean.
 """
 
 ABOUT_TEXT = f"""

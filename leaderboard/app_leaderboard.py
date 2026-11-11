@@ -105,7 +105,6 @@ def init_leaderboard(frames):
         track_labels=TRACK_LABELS,
         track_label="Track",
         stratum_label="Stratum",
-        stratum_info="All pools the three strata (the paper's headline view).",
         datatype=[c.type for c in fields(AutoEvalColumn)],
         select_columns=SelectColumns(
             default_selection=[
@@ -113,7 +112,6 @@ def init_leaderboard(frames):
             ],
             cant_deselect=[c.name for c in fields(AutoEvalColumn) if c.never_hidden],
             label="Columns",
-            info="Add or remove columns.",
         ),
         search_columns=[
             AutoEvalColumn.model.name,
