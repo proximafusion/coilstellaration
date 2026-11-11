@@ -41,6 +41,8 @@ class ExploreTab:
     pareto_inputs: list
     pareto_outputs: list
     draw_pareto: callable
+    # The Pareto controls' values on a freshly loaded page.
+    pareto_defaults: tuple
 
 
 def render(records: list[dict]) -> ExploreTab:
@@ -164,4 +166,5 @@ def render(records: list[dict]) -> ExploreTab:
     graph_tab.select(show_graph_once, [graph_result, graph_view], graph_view)
     graph_result.change(show_graph, graph_result, graph_view)
 
-    return ExploreTab(pareto_inputs, pareto_outputs, draw_pareto)
+    pareto_defaults = tuple(c.value for c in pareto_inputs)
+    return ExploreTab(pareto_inputs, pareto_outputs, draw_pareto, pareto_defaults)
