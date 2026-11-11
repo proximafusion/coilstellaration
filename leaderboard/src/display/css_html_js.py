@@ -257,6 +257,10 @@ custom_css = """
     color: var(--body-text-color);
 }
 #pf-header .pf-title-lead { color: #6293A0; }
+#pf-header a { color: inherit; text-decoration: none; }
+#pf-header .pf-title-lead a:hover { text-decoration: underline; }
+#pf-header .pf-logo a { display: block; height: 100%; }
+#pf-header .pf-logo a:hover { opacity: 0.8; }
 #pf-header .pf-logo {
     flex: none;
     height: 36px;
@@ -386,12 +390,25 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 """
 
 
-def header_html(lead: str, cont: str) -> str:
+def header_html(
+    lead: str, cont: str, lead_url: str | None = None, logo_url: str | None = None
+) -> str:
     """The page header: a two-tone title (`lead` in steel-blue, `cont` in navy)
-    on the left and the Proxima Fusion logo on the right."""
+    on the left and the Proxima Fusion logo on the right.
+
+    With `lead_url` the title's lead is a link, and with `logo_url` the logo is.
+    """
+    if lead_url:
+        lead = f'<a href="{lead_url}" target="_blank" rel="noopener">{lead}</a>'
+    logo = LOGO_SVG
+    if logo_url:
+        logo = (
+            f'<a href="{logo_url}" target="_blank" rel="noopener" '
+            f'aria-label="Proxima Fusion on Hugging Face">{logo}</a>'
+        )
     return (
         '<div id="pf-header">'
         f'<h1><span class="pf-title-lead">{lead}</span> {cont}</h1>'
-        f'<div class="pf-logo">{LOGO_SVG}</div>'
+        f'<div class="pf-logo">{logo}</div>'
         "</div>"
     )

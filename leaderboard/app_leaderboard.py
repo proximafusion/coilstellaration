@@ -11,9 +11,11 @@ from leaderboard.src.about import (
     CHANGELOG_TEXT,
     CITATION_INTRO_TEXT,
     CITATION_TEXT,
+    DATASET_URL,
     EVALUATION_QUEUE_TEXT,
     FOOTER_TEXT,
     INTRODUCTION_TEXT,
+    ORG_URL,
     TITLE_CONT,
     TITLE_LEAD,
 )
@@ -134,7 +136,7 @@ LAUNCH_KWARGS = {"css": custom_css, "theme": theme}
 
 app_leaderboard = gr.Blocks(title="Coilstellaration benchmark | Proxima Fusion")
 with app_leaderboard:
-    gr.HTML(header_html(TITLE_LEAD, TITLE_CONT))
+    gr.HTML(header_html(TITLE_LEAD, TITLE_CONT, lead_url=DATASET_URL, logo_url=ORG_URL))
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
