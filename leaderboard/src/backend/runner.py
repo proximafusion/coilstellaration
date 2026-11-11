@@ -277,8 +277,11 @@ def _run_eval(req: dict) -> tuple[dict, list[dict], bytes]:
 
 
 _EVAL_CMD = [sys.executable, "-u", "-m", "leaderboard.src.backend.evaluate_one"]
-# `-m leaderboard...` needs the repo root importable, whatever the worker's cwd.
-_REPO_ROOT = str(Path(__file__).resolve().parents[3])
+# `-m leaderboard...` needs the repo root importable, whatever the worker's cwd, and
+# `coilstellaration` is imported from src/: the Spaces install only its dependencies,
+# and the entries `leaderboard/app.py` adds to its own `sys.path` don't reach a child.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_CHILD_PYTHONPATH = (str(_REPO_ROOT), str(_REPO_ROOT / "src"))
 
 
 # Environment variables huggingface_hub reads a token from. The eval child runs
@@ -339,7 +342,7 @@ def _evaluate_with_timeout(
             **_without_hub_tokens(os.environ),
             evaluate.DEADLINE_ENV: str(time.time() + timeout),
             "PYTHONPATH": os.pathsep.join(
-                p for p in (_REPO_ROOT, os.environ.get("PYTHONPATH")) if p
+                p for p in (*_CHILD_PYTHONPATH, os.environ.get("PYTHONPATH")) if p
             ),
         }
         proc = subprocess.Popen(
