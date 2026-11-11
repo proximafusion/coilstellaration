@@ -109,7 +109,6 @@ def init_leaderboard(frames):
             ],
             cant_deselect=[c.name for c in fields(AutoEvalColumn) if c.never_hidden],
             label="Columns",
-            info="Add or remove columns.",
         ),
         search_columns=[
             AutoEvalColumn.model.name,
