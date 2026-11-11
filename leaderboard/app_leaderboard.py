@@ -239,26 +239,27 @@ with app_leaderboard:
         explore_view.pareto_outputs,
     )
 
-    def select_tab_from_url(request: gr.Request, *pareto_values):
+    def select_tab_from_url(request: gr.Request):
         """Open the tab named by the `tab` query parameter, if it names one.
 
         Selecting a tab this way doesn't fire its select event, so the Explore
-        tab's Pareto front is drawn here too.
+        tab's Pareto front is drawn here too, for the controls' default values:
+        the page has only just loaded, so nobody has changed them. The controls
+        aren't passed as inputs, because inputs from a tab that isn't shown yet
+        stall the page's first render by tens of seconds.
         """
         tab = request.query_params.get("tab")
         if tab not in TAB_IDS:
             return gr.skip(), gr.skip(), gr.skip()
         if tab == "explore":
-            return gr.Tabs(selected=tab), *explore_view.draw_pareto(*pareto_values)
+            pareto = explore_view.draw_pareto(*explore_view.pareto_defaults)
+            return gr.Tabs(selected=tab), *pareto
         return gr.Tabs(selected=tab), gr.skip(), gr.skip()
 
     # `?tab=explore`, `?tab=about` or `?tab=submit` in the URL opens that tab.
     app_leaderboard.load(
-        select_tab_from_url,
-        explore_view.pareto_inputs,
-        [tabs, *explore_view.pareto_outputs],
+        select_tab_from_url, None, [tabs, *explore_view.pareto_outputs]
     )
-
 
 if os.environ.get("SPACE_ID") is not None:
     scheduler = BackgroundScheduler()
