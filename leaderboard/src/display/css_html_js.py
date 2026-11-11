@@ -232,9 +232,11 @@ theme = gr.themes.Base(
 LOGO_SVG = (Path(__file__).parent / "assets" / "logo.svg").read_text()
 
 custom_css = """
-/* Page width and base type. */
+/* Page width (centred) and base type. */
 .gradio-container {
     max-width: 1280px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
     font-variant-numeric: tabular-nums;
 }
 
