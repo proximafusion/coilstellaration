@@ -13,6 +13,7 @@ FOOTER_TEXT = "© Proxima Fusion"
 PAPER_URL = "https://arxiv.org/abs/2611.12689"
 CONSTELLARATION_PAPER_URL = "https://arxiv.org/abs/2506.19583"
 CODE_URL = "https://github.com/proximafusion/coilstellaration"
+ORG_URL = "https://huggingface.co/proxima-fusion"
 LEADERBOARD_CODE_URL = f"{CODE_URL}/tree/main/leaderboard"
 DATASET_URL = "https://huggingface.co/datasets/proxima-fusion/coilstellaration"
 CONSTELLARATION_DATASET_URL = (
