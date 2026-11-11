@@ -356,6 +356,31 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     outline-color: #34CEB7;
 }
 
+/* Explore tab: Netron in a frame, edged like the other blocks. */
+.pf-netron iframe {
+    width: 100%;
+    height: 720px;
+    border: 1px solid #6293A0;
+    border-radius: 4px;
+}
+
+/* Pareto plot in dark mode. Plotly can't follow the page's colour scheme, so
+   the figure is drawn for light mode (see `explore/pareto.py`) and recoloured
+   here: white text, navy-tint grid, and the front (the second trace) in teal.
+   Plotly sets colours as inline styles, hence `!important`. */
+.dark #pareto-plot .main-svg text { fill: #FFFFFF !important; }
+.dark #pareto-plot .gridlayer path { stroke: #14233F !important; }
+.dark #pareto-plot .point,
+.dark #pareto-plot .scatterpts { stroke: #0D2447 !important; }
+.dark #pareto-plot .scatterlayer .trace:nth-child(2) .js-line,
+.dark #pareto-plot .legend .traces:nth-child(2) .js-line {
+    stroke: #34CEB7 !important;
+}
+.dark #pareto-plot .scatterlayer .trace:nth-child(2) .point,
+.dark #pareto-plot .legend .traces:nth-child(2) .scatterpts {
+    fill: #34CEB7 !important;
+}
+
 /* Footer line, bottom left. */
 #pf-footer, #pf-footer p { font-size: 12px; }
 """

@@ -15,7 +15,7 @@ from leaderboard.src.envs import RESULTS_REPO
 logger = logging.getLogger(__name__)
 
 
-def _track_summary(track_record: dict, stratum: str) -> dict | None:
+def track_summary(track_record: dict, stratum: str) -> dict | None:
     """The summary dict for one stratum view of a track.
 
     `"All"` maps to the track's headline (all-strata) keys; a specific stratum
@@ -51,7 +51,7 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
     the stratum is absent from the record (predates the per-stratum breakdown),
     so the frame-builder can drop the row from that view.
     """
-    summary = _track_summary(record["tracks"].get(track, {}), stratum)
+    summary = track_summary(record["tracks"].get(track, {}), stratum)
     if not summary:
         return None
 

@@ -32,6 +32,8 @@ from leaderboard.src.display.utils import (
     fields,
 )
 from leaderboard.src.envs import API, EVAL_RESULTS_PATH, REPO_ID, RESULTS_REPO, TOKEN
+from leaderboard.src.explore import tab as explore
+from leaderboard.src.leaderboard.read_evals import get_raw_eval_results
 from leaderboard.src.populate import (
     get_evaluation_queue_df,
     get_leaderboard_frames,
@@ -69,6 +71,7 @@ except Exception:
 
 
 LEADERBOARD_FRAMES = get_leaderboard_frames(EVAL_RESULTS_PATH, COLS)
+RESULT_RECORDS = get_raw_eval_results(EVAL_RESULTS_PATH)
 
 try:
     request_records = list(requests_dataset.iter_requests())
@@ -123,13 +126,7 @@ def init_leaderboard(frames):
     )
 
 
-TAB_IDS = ("leaderboard", "about", "submit")
-
-
-def select_tab_from_url(request: gr.Request):
-    """Open the tab named by the `tab` query parameter, if it names one."""
-    tab = request.query_params.get("tab")
-    return gr.Tabs(selected=tab) if tab in TAB_IDS else gr.skip()
+TAB_IDS = ("leaderboard", "explore", "about", "submit")
 
 
 # Passed to `app_leaderboard.launch()` (here and in app.py).
@@ -143,6 +140,10 @@ with app_leaderboard:
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
         with gr.TabItem("Leaderboard", elem_id="benchmark-tab-table", id="leaderboard"):
             init_leaderboard(LEADERBOARD_FRAMES)
+
+        # Loaded lazily: nothing in it is computed until the tab is opened.
+        with gr.TabItem("Explore", elem_id="explore-tab", id="explore") as explore_tab:
+            explore_view = explore.render(RESULT_RECORDS)
 
         with gr.TabItem("About", elem_id="about-tab", id="about"):
             gr.Markdown(ABOUT_TEXT, elem_classes="markdown-text")
@@ -232,8 +233,31 @@ with app_leaderboard:
 
     gr.Markdown(FOOTER_TEXT, elem_id="pf-footer")
 
-    # `?tab=about` or `?tab=submit` in the URL opens that tab.
-    app_leaderboard.load(select_tab_from_url, None, tabs)
+    explore_tab.select(
+        explore_view.draw_pareto,
+        explore_view.pareto_inputs,
+        explore_view.pareto_outputs,
+    )
+
+    def select_tab_from_url(request: gr.Request, *pareto_values):
+        """Open the tab named by the `tab` query parameter, if it names one.
+
+        Selecting a tab this way doesn't fire its select event, so the Explore
+        tab's Pareto front is drawn here too.
+        """
+        tab = request.query_params.get("tab")
+        if tab not in TAB_IDS:
+            return gr.skip(), gr.skip(), gr.skip()
+        if tab == "explore":
+            return gr.Tabs(selected=tab), *explore_view.draw_pareto(*pareto_values)
+        return gr.Tabs(selected=tab), gr.skip(), gr.skip()
+
+    # `?tab=explore`, `?tab=about` or `?tab=submit` in the URL opens that tab.
+    app_leaderboard.load(
+        select_tab_from_url,
+        explore_view.pareto_inputs,
+        [tabs, *explore_view.pareto_outputs],
+    )
 
 
 if os.environ.get("SPACE_ID") is not None:
