@@ -100,7 +100,7 @@ def init_leaderboard(frames):
             if f is None or f.empty:
                 frames[(track, stratum)] = pd.DataFrame(columns=COLS)
     return Leaderboard(
-        value=frames[(TRACKS[0], "All")],
+        value=frames[(TRACKS[0], "all")],
         frames=frames,
         tracks=TRACKS,
         strata=STRATUM_VIEWS,

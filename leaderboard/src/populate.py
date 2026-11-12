@@ -15,7 +15,7 @@ from leaderboard.src.leaderboard.read_evals import get_raw_eval_results, result_
 logger = logging.getLogger(__name__)
 
 # The leaderboard's default view: variable track, all-strata pool.
-DEFAULT_VIEW = ("variable_shape", "All")
+DEFAULT_VIEW = ("variable_shape", "all")
 
 
 def _frame_for_view(

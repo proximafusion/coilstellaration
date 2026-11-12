@@ -81,9 +81,9 @@ class EvalQueueColumn:
 TRACKS = ["fixed_shape", "variable_shape"]
 TRACK_LABELS = {"fixed_shape": "fixed", "variable_shape": "variable"}
 
-# Stratum views offered by the leaderboard's stratum selector. "All" is the
+# Stratum views offered by the leaderboard's stratum selector. "all" is the
 # all-strata pool (the paper's headline); the others slice a single stratum.
-STRATUM_VIEWS = ["All", "tight", "medium", "loose"]
+STRATUM_VIEWS = ["all", "tight", "medium", "loose"]
 
 # Metric columns, each of whose best (maximum) value is highlighted.
 METRIC_COLS = [

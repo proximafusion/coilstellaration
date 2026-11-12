@@ -1,8 +1,6 @@
 # Markdown tables and BibTeX entries cannot be wrapped without changing how they render.
 # ruff: noqa: E501
 
-from coilstellaration.data_utils import COILSTELLARATION_REPO_REVISION
-from leaderboard.src.backend.config import BENCH_VERSION
 
 # The page title, two-tone: the lead in steel-blue, the rest in navy. Sentence case.
 TITLE_LEAD = "Coilstellaration"
@@ -83,7 +81,7 @@ field error that the data-generation pipeline achieved on that row:
 - `medium`
 - `loose`: the most permissive requirements.
 
-Every model is scored on all three strata. **`All`**, the pool of all three strata,
+Every model is scored on all three strata. **`all`**, the pool of all three strata,
 is the headline view (as in the paper). The other options in the stratum selector
 show a single stratum.
 
@@ -154,15 +152,15 @@ is in the [paper]({PAPER_URL}) and the
 """
 
 # Newest first. Add an entry whenever `BENCH_VERSION` is bumped.
-CHANGELOG_TEXT = f"""
+CHANGELOG_TEXT = """
 ## Changelog
 The **version** column (hidden by default) shows the benchmark version a result was produced with.
 Results with different versions are not directly comparable. Older results
 without a version are blank.
 
-- **{BENCH_VERSION}**: First versioned release. Every model is scored once per
+- **1.0.0**: First versioned release. Every model is scored once per
   instance on the full eval split of both declared tracks, over all strata, on
-  dataset revision `{COILSTELLARATION_REPO_REVISION[:7]}`.
+  dataset revision `f505cc890`.
 """
 
 EVALUATION_QUEUE_TEXT = """
@@ -178,27 +176,28 @@ EVALUATION_QUEUE_TEXT = """
    evaluator. Its progress shows in the queue below.
 """
 
-CITATION_TEXT = r"""@inproceedings{ewers2026coilstellaration,
-  title         = {{CoilStellaration}: A Dataset and Benchmark for Engineering-Aware Stellarator Coilset Generation},
-  author        = {Ewers, Jan-Hendrik and Cadena, Santiago A. and Foppiani, Nicol{\`o} and Merlo, Andrea},
-  booktitle     = {40th Conference on Neural Information Processing Systems (NeurIPS 2026), Track on Evaluations and Datasets},
-  year          = {2026},
-  doi           = {10.48550/arXiv.2611.12689},
-  eprint        = {2611.12689},
-  archivePrefix = {arXiv},
-  url           = {https://arxiv.org/abs/2611.12689}
+CITATION_TEXT = r"""
+@inproceedings{ewers2026coilstellaration,
+	title        = {{CoilStellaration}: A Dataset and Benchmark for Engineering-Aware Stellarator Coilset Generation},
+	author       = {Ewers, Jan-Hendrik and Cadena, Santiago A. and Foppiani, Nicol{\`o} and Merlo, Andrea},
+	year         = 2026,
+	booktitle    = {40th Conference on Neural Information Processing Systems (NeurIPS 2026), Track on Evaluations and Datasets},
+	doi          = {10.48550/arXiv.2611.12689},
+	url          = {https://arxiv.org/abs/2611.12689},
+	eprint       = {2611.12689},
+	archiveprefix = {arXiv}
 }
-
 @inproceedings{cadena2025constellaration,
-      title={ConStellaration: A dataset of QI-like stellarator plasma boundaries and optimization benchmarks},
-      author={Santiago A. Cadena and Andrea Merlo and Emanuel Laude and Alexander Bauer and Atul Agrawal and Maria Pascu and Marija Savtchouk and Enrico Guiraud and Lukas Bonauer and Stuart Hudson and Markus Kaiser},
-      booktitle     = {The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
-      year={2025},
-      eprint={2506.19583},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2506.19583},
-}"""
+	title        = {ConStellaration: A dataset of QI-like stellarator plasma boundaries and optimization benchmarks},
+	author       = {Santiago A. Cadena and Andrea Merlo and Emanuel Laude and Alexander Bauer and Atul Agrawal and Maria Pascu and Marija Savtchouk and Enrico Guiraud and Lukas Bonauer and Stuart Hudson and Markus Kaiser},
+	year         = 2025,
+	booktitle    = {The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
+	url          = {https://arxiv.org/abs/2506.19583},
+	eprint       = {2506.19583},
+	archiveprefix = {arXiv},
+	primaryclass = {cs.LG}
+}
+"""
 
 CITATION_INTRO_TEXT = """
 ## Citation

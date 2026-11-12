@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 def track_summary(track_record: dict, stratum: str) -> dict | None:
     """The summary dict for one stratum view of a track.
 
-    `"All"` maps to the track's headline (all-strata) keys; a specific stratum
+    `"all"` maps to the track's headline (all-strata) keys; a specific stratum
     maps to its entry under `strata`, or `None` if this record predates the
     per-stratum breakdown.
     """
-    if stratum == "All":
+    if stratum == "all":
         return track_record
     return track_record.get("strata", {}).get(stratum)
 
@@ -45,7 +45,7 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
     """Map one result record (spec §6) to a leaderboard row for one track+stratum view,
     or `None` when the record has no data for that view.
 
-    The metric columns are that track's numbers: for `stratum == "All"` the
+    The metric columns are that track's numbers: for `stratum == "all"` the
     all-strata headline, for a specific stratum that stratum's breakdown.
     Returns `None` when the track wasn't scored (empty or missing summary) or
     the stratum is absent from the record (predates the per-stratum breakdown),

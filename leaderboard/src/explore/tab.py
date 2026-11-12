@@ -25,7 +25,7 @@ def _ranked(records: list[dict]) -> list[dict]:
     on the fixed track over all strata."""
 
     def key(record):
-        summary = track_summary(record["tracks"].get(TRACKS[0], {}), "All") or {}
+        summary = track_summary(record["tracks"].get(TRACKS[0], {}), "all") or {}
         return (
             summary.get("strict_feasibility", -1),
             summary.get("mean", -1),
@@ -62,7 +62,7 @@ def render(records: list[dict]) -> ExploreTab:
                 )
                 pareto_track = gr.Radio(track_choices, value=TRACKS[0], label="Track")
                 pareto_stratum = gr.Radio(
-                    STRATUM_VIEWS, value="All", label="Stratum", scale=2
+                    STRATUM_VIEWS, value="all", label="Stratum", scale=2
                 )
             pareto_plot = gr.Plot(show_label=False, elem_id="pareto-plot")
             pareto_note = gr.Markdown(elem_classes="markdown-text")
