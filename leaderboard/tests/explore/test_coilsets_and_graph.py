@@ -39,28 +39,36 @@ def _parquet(tmp_path):
     return str(path)
 
 
+def _row(df: pd.DataFrame, index: int) -> pd.Series:
+    row = df.loc[index]
+    assert isinstance(row, pd.Series)
+    return row
+
+
 def test_instances_are_the_tracks_rows_best_first(tmp_path):
     path = _parquet(tmp_path)
     df = coilsets.instances(path, "fixed_shape")
     # Indexed by row in the file, so the same boundary's rows stay distinct.
     assert list(df.index) == [1, 0]
     assert "coilset_json" not in df.columns
-    label = coilsets.instance_label(1, df.loc[1])
+    label = coilsets.instance_label(1, _row(df, 1))
     assert label == "0.900 · infeasible · tight · B1 (#1)"
 
 
 def test_load_coilset_reads_one_row(tmp_path):
     path = _parquet(tmp_path)
-    assert coilsets.load_coilset(path, 0).n_field_periods == 3
+    coilset = coilsets.load_coilset(path, 0)
+    assert coilset is not None
+    assert coilset.n_field_periods == 3
     assert coilsets.load_coilset(path, 1) is None
 
 
 def test_summary_marks_met_requirements(tmp_path):
     df = coilsets.instances(_parquet(tmp_path), "fixed_shape")
-    summary = coilsets.summary_markdown(df.loc[1])
+    summary = coilsets.summary_markdown(_row(df, 1))
     assert "not strictly feasible" in summary
     assert "| Field error | 0.2 |" in summary
-    summary = coilsets.summary_markdown(df.loc[0])
+    summary = coilsets.summary_markdown(_row(df, 0))
     assert "| Field error | met |" in summary
 
 

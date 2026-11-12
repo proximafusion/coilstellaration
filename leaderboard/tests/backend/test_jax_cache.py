@@ -6,10 +6,15 @@ import pytest
 from leaderboard.src.backend import config, jax_cache
 
 
+def _cache_dir():
+    # jax adds its options as attributes at runtime, so pyright can't see them.
+    return getattr(jax.config, "jax_compilation_cache_dir")
+
+
 @pytest.fixture(autouse=True)
 def _reset_state():
     """Restore the global enable-once flag and jax cache-dir between tests."""
-    prev_dir = jax.config.jax_compilation_cache_dir
+    prev_dir = _cache_dir()
     jax_cache._ENABLED = False
     yield
     jax_cache._ENABLED = False
@@ -23,7 +28,7 @@ def test_enable_points_jax_at_cache_dir(tmp_path, monkeypatch):
     jax_cache.enable()
 
     assert cache.is_dir()
-    assert jax.config.jax_compilation_cache_dir == str(cache)
+    assert _cache_dir() == str(cache)
 
 
 def test_enable_is_idempotent(tmp_path, monkeypatch):
@@ -36,16 +41,16 @@ def test_enable_is_idempotent(tmp_path, monkeypatch):
     jax_cache.enable()
 
     assert not (tmp_path / "other").exists()
-    assert jax.config.jax_compilation_cache_dir == str(cache)
+    assert _cache_dir() == str(cache)
 
 
 def test_empty_dir_disables_without_touching_config(monkeypatch):
     monkeypatch.setattr(config, "JAX_COMPILE_CACHE_DIR", "")
-    before = jax.config.jax_compilation_cache_dir
+    before = _cache_dir()
 
     jax_cache.enable()
 
-    assert jax.config.jax_compilation_cache_dir == before
+    assert _cache_dir() == before
 
 
 def test_unwritable_dir_is_non_fatal(monkeypatch):

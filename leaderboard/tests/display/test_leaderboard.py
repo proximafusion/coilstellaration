@@ -42,7 +42,9 @@ def test_style_frame_marks_column_maxima_and_rounds():
     assert "0.500" in html
     assert "0.512" in html
     # One highlighted cell per metric column: b's mean and a's p10.
-    ctx = styled._compute().ctx
+    # Private pandas API, so not in pandas-stubs; it's how pandas' own tests
+    # read a Styler's per-cell CSS.
+    ctx = styled._compute().ctx  # pyright: ignore[reportAttributeAccessIssue]
     highlighted = {cell for cell, props in ctx.items() if props}
     assert highlighted == {(1, 1), (0, 2)}
     # Bolder than the Medium headers, on a pale surface; never teal text.

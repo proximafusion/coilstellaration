@@ -9,7 +9,9 @@ the tab is first shown.
 
 import functools
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import cast
 
 import gradio as gr
 
@@ -50,7 +52,7 @@ class ExploreTab:
 
     pareto_inputs: list
     pareto_outputs: list
-    draw_pareto: callable
+    draw_pareto: Callable
     # The Pareto controls' values on a freshly loaded page.
     pareto_defaults: tuple
 
@@ -134,7 +136,11 @@ def render(records: list[dict]) -> ExploreTab:
         if not raw_scores_file:
             return gr.Dropdown(choices=[], value=None)
         df = instance_frame(raw_scores_file, track)
-        choices = [(coilsets.instance_label(i, row), i) for i, row in df.iterrows()]
+        # The index is each instance's row number in the parquet file.
+        choices = [
+            (coilsets.instance_label(cast(int, i), row), cast(int, i))
+            for i, row in df.iterrows()
+        ]
         return gr.Dropdown(choices=choices, value=choices[0][1] if choices else None)
 
     def list_instances_once(raw_scores_file, track, instance):

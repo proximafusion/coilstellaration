@@ -4,10 +4,10 @@ import numpy as np
 import onnxruntime as ort
 import pytest
 from flax import nnx
-from scripts import export_coilstellaration_onnx as export
 
 from coilstellaration import flax_nnx_checkpoint_util, types
 from coilstellaration.machine_learning import model_definition
+from leaderboard.scripts import export_coilstellaration_onnx as export
 from leaderboard.src.backend import onnx_model
 
 _COMMON = dict(

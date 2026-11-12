@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 import numpy as np
 
@@ -93,7 +94,8 @@ def test_figure_draws_the_front_as_the_second_trace():
         _record("c.onnx", 0.3, 0.05, 2e-3),
     ]
     df, _ = pareto.points(records, "fixed_shape", "all", "mean", "inference time")
-    fig = pareto.figure(df, "inference time", "mean")
+    # plotly builds trace and layout attributes at runtime; pyright can't see them.
+    fig: Any = pareto.figure(df, "inference time", "mean")
     assert [t.name for t in fig.data] == [pareto.DOMINATED, pareto.FRONT]
     assert list(fig.data[1].customdata[:, 0]) == [  # front, cheapest first
         "org/models · b.onnx",

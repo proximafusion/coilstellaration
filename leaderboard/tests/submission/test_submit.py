@@ -17,7 +17,7 @@ def _wire(
     tmp_path,
     captured,
     existing=(),
-    size=1024,
+    size: int | None = 1024,
     supported_tracks="fixed_shape",
 ):
     """Stub all Hub I/O; `existing` seeds the requests-dataset file list.

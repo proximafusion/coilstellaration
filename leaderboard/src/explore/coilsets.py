@@ -135,6 +135,7 @@ def figure(coilset) -> go.Figure:
         # Predicted coils often nearly touch; the score already accounts for it.
         warnings.simplefilter("ignore", UserWarning)
         fig = plot_coils(desc_coilset, color=STEEL_BLUE, lw=4)
+    assert isinstance(fig, go.Figure)
     hidden = {"visible": False}
     fig.update_layout(
         height=560,

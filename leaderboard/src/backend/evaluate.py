@@ -172,7 +172,7 @@ def _time_stats(times: list[float]) -> dict[str, float | None]:
 
 def _summarize_instances(
     instances: list[scoring_types.InstanceScore],
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Aggregate a set of instance scores into the summary keys plus `n`."""
     summary: dict[str, Any] = {
         k: float(v)
@@ -388,7 +388,8 @@ def evaluate_model(
         else " [no timeout]",
     )
     model_start = time.perf_counter()
-    track_results: dict[str, dict[str, float | dict[str, float]]] = {}
+    # Per track: the summary stats, `n`, `inference_time` and per-stratum `strata`.
+    track_results: dict[str, dict[str, Any]] = {}
     track_scores: dict[str, list[scoring_types.InstanceScore]] = {}
     track_inference_times: dict[str, list[float]] = {}
     instance_rows: list[dict] = []

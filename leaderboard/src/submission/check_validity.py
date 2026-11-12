@@ -12,7 +12,7 @@ def check_model_card(repo_id: str) -> tuple[bool, str]:
     logger.debug("Checking model card for %s", repo_id)
     try:
         card = ModelCard.load(repo_id)
-    except huggingface_hub.utils.EntryNotFoundError:
+    except huggingface_hub.errors.EntryNotFoundError:
         logger.info("No model card found for %s", repo_id)
         return (
             False,
@@ -21,7 +21,7 @@ def check_model_card(repo_id: str) -> tuple[bool, str]:
         )
 
     # Enforce license metadata
-    if card.data.license is None:
+    if card.data.get("license") is None:
         if not ("license_name" in card.data and "license_link" in card.data):
             return False, (
                 "License not found. Please add a license to your model card using "
