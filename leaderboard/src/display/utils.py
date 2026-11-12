@@ -85,6 +85,9 @@ TRACK_LABELS = {"fixed_shape": "fixed", "variable_shape": "variable"}
 # all-strata pool (the paper's headline); the others slice a single stratum.
 STRATUM_VIEWS = ["all", "tight", "medium", "loose"]
 
+# The `(track, stratum)` view the leaderboard and Explore tab open on.
+DEFAULT_VIEW = ("variable_shape", "all")
+
 # Metric columns, each of whose best (maximum) value is highlighted.
 METRIC_COLS = [
     AutoEvalColumn.mean.name,

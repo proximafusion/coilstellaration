@@ -5,6 +5,7 @@ import pandas as pd
 
 from leaderboard.src.display.formatting import make_clickable_model
 from leaderboard.src.display.utils import (
+    DEFAULT_VIEW,
     SORT_COLS,
     STRATUM_VIEWS,
     TRACKS,
@@ -13,9 +14,6 @@ from leaderboard.src.display.utils import (
 from leaderboard.src.leaderboard.read_evals import get_raw_eval_results, result_to_row
 
 logger = logging.getLogger(__name__)
-
-# The leaderboard's default view: variable track, all-strata pool.
-DEFAULT_VIEW = ("variable_shape", "all")
 
 
 def _frame_for_view(
@@ -61,7 +59,7 @@ def get_leaderboard_frames(
 
 
 def get_leaderboard_df(results_path: str, cols: list) -> pd.DataFrame:
-    """The default display frame (fixed track, all strata)."""
+    """The default display frame (`DEFAULT_VIEW`)."""
     return get_leaderboard_frames(results_path, cols)[DEFAULT_VIEW]
 
 
