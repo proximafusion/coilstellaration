@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -319,6 +320,32 @@ def test_evaluate_with_timeout_hides_hub_tokens_from_child(monkeypatch):
         "HF_API_TOKEN": None,
         "KEEP_ME": "yes",
     }
+
+
+_STUB_PYTHONPATH = [
+    sys.executable,
+    "-c",
+    "import sys, json, os; "
+    "json.dump({'pythonpath': os.environ['PYTHONPATH'].split(os.pathsep)}, "
+    "open(sys.argv[2], 'w'))",
+]
+
+
+def test_evaluate_with_timeout_puts_repo_root_and_src_on_child_path(monkeypatch):
+    # The Spaces install only the dependencies, so the child imports
+    # `coilstellaration` from src/, like `leaderboard/app.py` does.
+    monkeypatch.setattr(runner, "_EVAL_CMD", _STUB_PYTHONPATH)
+    monkeypatch.setenv("PYTHONPATH", "/somewhere/else")
+    rec, _parquet, _model = runner._evaluate_with_timeout(
+        {"model": "org/m"}, timeout=30
+    )
+    repo_root = Path(runner.__file__).resolve().parents[3]
+    assert rec["pythonpath"] == [
+        str(repo_root),
+        str(repo_root / "src"),
+        "/somewhere/else",
+    ]
+    assert (repo_root / "src" / "coilstellaration").is_dir()
 
 
 def test_evaluate_with_timeout_kills_hung_eval(monkeypatch):
