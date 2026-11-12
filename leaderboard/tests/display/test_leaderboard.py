@@ -79,3 +79,35 @@ def test_write_csv_turns_links_into_urls():
     assert list(out["user"]) == ["alice", "bob"]
     assert list(out["model id"]) == ["org/alpha", "lab/beta"]
     assert list(out["mean"]) == [0.5, 0.5]
+
+
+def test_leaderboard_opens_on_default_view():
+    import gradio as gr
+
+    from leaderboard.src.display.leaderboard import Leaderboard
+    from leaderboard.src.display.utils import DEFAULT_VIEW, STRATUM_VIEWS, TRACKS
+
+    # Each frame names its own view, so the rendered table shows which one loaded.
+    frames = {
+        (t, s): pd.DataFrame({"view": [f"{t}/{s}"]})
+        for t in TRACKS
+        for s in STRATUM_VIEWS
+    }
+    with gr.Blocks() as demo:
+        table = Leaderboard(
+            value=frames[DEFAULT_VIEW],
+            frames=frames,
+            tracks=TRACKS,
+            strata=STRATUM_VIEWS,
+            track_labels={t: t for t in TRACKS},
+            default_view=DEFAULT_VIEW,
+        )
+    assert table.value["data"] == [["/".join(DEFAULT_VIEW)]]
+    radios = {b.label: b.value for b in demo.blocks.values() if isinstance(b, gr.Radio)}
+    assert radios == {"Track": DEFAULT_VIEW[0], "Stratum": DEFAULT_VIEW[1]}
+
+
+def test_default_view_is_variable_track_all_strata():
+    from leaderboard.src.display.utils import DEFAULT_VIEW
+
+    assert DEFAULT_VIEW == ("variable_shape", "all")
