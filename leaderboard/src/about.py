@@ -178,27 +178,28 @@ EVALUATION_QUEUE_TEXT = """
    evaluator. Its progress shows in the queue below.
 """
 
-CITATION_TEXT = r"""@inproceedings{ewers2026coilstellaration,
-  title         = {{CoilStellaration}: A Dataset and Benchmark for Engineering-Aware Stellarator Coilset Generation},
-  author        = {Ewers, Jan-Hendrik and Cadena, Santiago A. and Foppiani, Nicol{\`o} and Merlo, Andrea},
-  booktitle     = {40th Conference on Neural Information Processing Systems (NeurIPS 2026), Track on Evaluations and Datasets},
-  year          = {2026},
-  doi           = {10.48550/arXiv.2611.12689},
-  eprint        = {2611.12689},
-  archivePrefix = {arXiv},
-  url           = {https://arxiv.org/abs/2611.12689}
+CITATION_TEXT = r"""
+@inproceedings{ewers2026coilstellaration,
+	title        = {{CoilStellaration}: A Dataset and Benchmark for Engineering-Aware Stellarator Coilset Generation},
+	author       = {Ewers, Jan-Hendrik and Cadena, Santiago A. and Foppiani, Nicol{\`o} and Merlo, Andrea},
+	year         = 2026,
+	booktitle    = {40th Conference on Neural Information Processing Systems (NeurIPS 2026), Track on Evaluations and Datasets},
+	doi          = {10.48550/arXiv.2611.12689},
+	url          = {https://arxiv.org/abs/2611.12689},
+	eprint       = {2611.12689},
+	archiveprefix = {arXiv}
 }
-
 @inproceedings{cadena2025constellaration,
-      title={ConStellaration: A dataset of QI-like stellarator plasma boundaries and optimization benchmarks},
-      author={Santiago A. Cadena and Andrea Merlo and Emanuel Laude and Alexander Bauer and Atul Agrawal and Maria Pascu and Marija Savtchouk and Enrico Guiraud and Lukas Bonauer and Stuart Hudson and Markus Kaiser},
-      booktitle     = {The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
-      year={2025},
-      eprint={2506.19583},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2506.19583},
-}"""
+	title        = {ConStellaration: A dataset of QI-like stellarator plasma boundaries and optimization benchmarks},
+	author       = {Santiago A. Cadena and Andrea Merlo and Emanuel Laude and Alexander Bauer and Atul Agrawal and Maria Pascu and Marija Savtchouk and Enrico Guiraud and Lukas Bonauer and Stuart Hudson and Markus Kaiser},
+	year         = 2025,
+	booktitle    = {The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
+	url          = {https://arxiv.org/abs/2506.19583},
+	eprint       = {2506.19583},
+	archiveprefix = {arXiv},
+	primaryclass = {cs.LG}
+}
+"""
 
 CITATION_INTRO_TEXT = """
 ## Citation
