@@ -1,8 +1,6 @@
 # Markdown tables and BibTeX entries cannot be wrapped without changing how they render.
 # ruff: noqa: E501
 
-from coilstellaration.data_utils import COILSTELLARATION_REPO_REVISION
-from leaderboard.src.backend.config import BENCH_VERSION
 
 # The page title, two-tone: the lead in steel-blue, the rest in navy. Sentence case.
 TITLE_LEAD = "Coilstellaration"
@@ -154,15 +152,15 @@ is in the [paper]({PAPER_URL}) and the
 """
 
 # Newest first. Add an entry whenever `BENCH_VERSION` is bumped.
-CHANGELOG_TEXT = f"""
+CHANGELOG_TEXT = """
 ## Changelog
 The **version** column (hidden by default) shows the benchmark version a result was produced with.
 Results with different versions are not directly comparable. Older results
 without a version are blank.
 
-- **{BENCH_VERSION}**: First versioned release. Every model is scored once per
+- **1.0.0**: First versioned release. Every model is scored once per
   instance on the full eval split of both declared tracks, over all strata, on
-  dataset revision `{COILSTELLARATION_REPO_REVISION[:7]}`.
+  dataset revision `f505cc890`.
 """
 
 EVALUATION_QUEUE_TEXT = """
