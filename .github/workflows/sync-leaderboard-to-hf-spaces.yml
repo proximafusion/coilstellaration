@@ -25,11 +25,16 @@ concurrency:
   group: sync-leaderboard-to-hf-spaces
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   sync-evaluator:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
@@ -47,7 +52,7 @@ jobs:
           printf '%s\n' cmake gfortran libnetcdf-dev libnetcdf-c++4-dev \
             ninja-build pkg-config > packages.txt
 
-      - uses: huggingface/hub-sync@v0.3.0
+      - uses: huggingface/hub-sync@fdffea8e04104d0bd4e3181c5feb3025f0433ff5 # v0.3.0
         name: "Updated proxima-fusion/coilstellaration-bench-evaluator"
         with:
           github_repo_id: ${{ github.repository }}
@@ -79,7 +84,9 @@ jobs:
   sync-leaderboard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
@@ -97,7 +104,7 @@ jobs:
           printf '%s\n' cmake gfortran libnetcdf-dev libnetcdf-c++4-dev \
             ninja-build pkg-config > packages.txt
 
-      - uses: huggingface/hub-sync@v0.3.0
+      - uses: huggingface/hub-sync@fdffea8e04104d0bd4e3181c5feb3025f0433ff5 # v0.3.0
         name: "Updated proxima-fusion/coilstellaration-bench"
         with:
           github_repo_id: ${{ github.repository }}

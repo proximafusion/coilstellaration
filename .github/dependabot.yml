@@ -1,14 +1,30 @@
-# Keeps the GitHub Actions in .github/workflows up to date, including the ones
-# pinned to a commit SHA. Python dependencies aren't covered: pyproject.toml
-# holds several back on purpose (onnx, equinox, pandas-stubs), so they're
-# bumped by hand with `uv lock --upgrade-package`.
+# Keeps the GitHub Actions in .github/workflows and the hook revs in
+# .pre-commit-config.yaml up to date, including the ones pinned to a commit SHA.
+# Python dependencies aren't covered: pyproject.toml holds several back on
+# purpose (onnx, equinox, pandas-stubs), so they're bumped by hand with
+# `uv lock --upgrade-package`. When a ruff-pre-commit or uv-pre-commit PR lands,
+# bump ruff/uv to match.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    # Skip releases younger than a week, so a compromised or broken release is
+    # likely to be pulled before it gets here.
+    cooldown:
+      default-days: 7
     # One PR per month for all actions instead of one per action.
     groups:
       github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      pre-commit:
         patterns: ["*"]
