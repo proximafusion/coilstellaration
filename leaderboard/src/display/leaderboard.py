@@ -8,6 +8,7 @@ filter. Built entirely from stock gradio components.
 import re
 import tempfile
 from pathlib import Path
+from typing import Any, cast
 
 import gradio as gr
 import pandas as pd
@@ -154,7 +155,9 @@ def Leaderboard(
     default_track, default_stratum = default_view or (tracks[0], strata[0])
 
     all_columns = list(value.columns)
-    type_of = dict(zip(all_columns, datatype or ["str"] * len(all_columns)))
+    type_of: dict[str, Any] = dict(
+        zip(all_columns, datatype or ["str"] * len(all_columns))
+    )
 
     select_columns = select_columns or SelectColumns(default_selection=all_columns)
     search_columns = search_columns or []
@@ -218,7 +221,8 @@ def Leaderboard(
         )
         stratum_radio = (
             gr.Radio(
-                choices=strata,
+                # Only built for real strata, so never the `[None]` placeholder.
+                choices=cast(list[str], strata),
                 value=default_stratum,
                 label=stratum_label,
                 info=stratum_info,

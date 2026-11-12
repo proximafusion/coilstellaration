@@ -24,7 +24,7 @@ def build_dummy_onnx(
         "n_coils_per_half_period",
     ),
     output_names=("coil_x_n", "coil_y_n", "coil_z_n", "currents"),
-    supported_tracks="fixed_shape",
+    supported_tracks: str | None = "fixed_shape",
 ):
     """A contract-conforming ONNX graph whose outputs are zeros of the right shape.
 

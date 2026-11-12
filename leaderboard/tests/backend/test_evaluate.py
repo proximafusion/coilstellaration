@@ -1,9 +1,12 @@
+from typing import cast
+
 import numpy as np
 import pytest
 from constellaration.geometry import surface_rz_fourier
 
 from coilstellaration import types
 from leaderboard.src.backend import evaluate
+from leaderboard.src.backend.onnx_model import OnnxModel
 
 
 class FakeModel:
@@ -81,7 +84,9 @@ def test_evaluate_model_summarizes_each_stratum_and_keeps_unscored_tracks(monkey
         lambda coilset, desc_equilibrium: datas["tight"].requirement_metrics,
     )
 
-    record, rows = evaluate.evaluate_model(model=FakeModel(), tracks=["fixed_shape"])
+    record, rows = evaluate.evaluate_model(
+        model=cast(OnnxModel, FakeModel()), tracks=["fixed_shape"]
+    )
 
     assert record["tracks"]["variable_shape"] == {}
     fixed = record["tracks"]["fixed_shape"]

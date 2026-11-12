@@ -1,0 +1,99 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch or PR supersedes a run that is still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # Every hook but pyright, which needs the project's .venv and runs in its
+      # own job. pre-commit comes from uvx, not the project, so this job
+      # doesn't build booz-xform. Keep its version in step with uv.lock.
+      # no-commit-to-branch is for local commits; a push to main runs on main.
+      - name: Run pre-commit
+        env:
+          SKIP: pyright,no-commit-to-branch
+        run: uvx pre-commit@4.6.0 run --all-files --show-diff-on-failure
+
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      # booz-xform has no wheels and builds from source against NetCDF with CMake.
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake libnetcdf-dev ninja-build pkg-config
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      # pyright resolves imports from .venv (see [tool.pyright] in pyproject.toml).
+      - name: Install the project
+        run: uv sync --locked
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # The pyright hook from .pre-commit-config.yaml, so CI and local runs use
+      # the same pyright version.
+      - name: Run pyright
+        run: uv run --locked pre-commit run pyright --all-files
+
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      # booz-xform has no wheels and builds from source against NetCDF with CMake.
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake libnetcdf-dev ninja-build pkg-config
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked
+
+      # testpaths and pythonpath come from [tool.pytest.ini_options].
+      - name: Run pytest
+        run: uv run --locked pytest --durations=20

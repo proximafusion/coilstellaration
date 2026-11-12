@@ -10,7 +10,7 @@ tier. Corners are tight (4 px) and the UI is flat (no shadows).
 
 from pathlib import Path
 
-import gradio as gr
+from gradio import themes
 
 # Design-system tokens.
 NAVY = "#00102E"
@@ -44,15 +44,15 @@ CONTROL_BORDER_ON_DARK = STEEL_BLUE
 # and 600 (the best value in each table column). Gradio loads only 400 and 600 by
 # default, which renders every Medium as 400.
 _FONT = (
-    gr.themes.GoogleFont("Inter Tight", weights=(400, 500, 600)),
+    themes.GoogleFont("Inter Tight", weights=(400, 500, 600)),
     "system-ui",
     "sans-serif",
 )
 
-theme = gr.themes.Base(
+theme = themes.Base(
     font=_FONT,
-    font_mono=(gr.themes.GoogleFont("JetBrains Mono"), "ui-monospace", "monospace"),
-    radius_size=gr.themes.sizes.radius_sm,
+    font_mono=(themes.GoogleFont("JetBrains Mono"), "ui-monospace", "monospace"),
+    radius_size=themes.sizes.radius_sm,
 ).set(
     # Page and blocks: white, flat, hairline borders.
     body_background_fill=WHITE,
