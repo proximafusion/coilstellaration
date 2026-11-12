@@ -10,6 +10,9 @@ repos:
     -   id: check-added-large-files
     -   id: pretty-format-json
         args: ["--autofix", "--indent", "4", "--no-sort-keys"]
+        # Tool-written JSON: Jupyter and the devcontainer CLI pick their own
+        # indent and rewrite these files on every save.
+        exclude: ^(.*\.ipynb|\.devcontainer/devcontainer-lock\.json)$
 -   repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
     hooks:

@@ -70,6 +70,9 @@ dev = [
   # onnx >=1.23 writes IR v14, which onnxruntime (<=1.31) cannot load yet.
   "onnx<1.23",
   "jax2onnx",
+  # Types pandas for pyright. Keep the minor version in step with pandas
+  # (uv.lock): 3.x stubs drop APIs that pandas 2.2 still has.
+  "pandas-stubs>=2.2,<2.3",
 ]
 # The HF Spaces app in leaderboard/. The sync workflow exports this group
 # (plus the package's dependencies) as the Spaces' requirements.txt.
