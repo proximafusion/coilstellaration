@@ -39,7 +39,7 @@ def test_points_reads_the_view_and_marks_the_front():
         _record("b.onnx", mean=0.4, strict=0.2, time=1e-4),
         _record("c.onnx", mean=0.3, strict=0.05, time=2e-3),
     ]
-    df, missing = pareto.points(records, "fixed_shape", "All", "mean", "inference time")
+    df, missing = pareto.points(records, "fixed_shape", "all", "mean", "inference time")
     assert missing == 0
     assert list(df["x"]) == [1.0, 0.1, 2.0]  # milliseconds
     assert dict(zip(df["name"].str.split(" · ").str[1], df["on_front"])) == {
@@ -47,7 +47,7 @@ def test_points_reads_the_view_and_marks_the_front():
         "b.onnx": True,
         "c.onnx": False,
     }
-    df, _ = pareto.points(records, "fixed_shape", "All", "strict", "inference time")
+    df, _ = pareto.points(records, "fixed_shape", "all", "strict", "inference time")
     assert dict(zip(df["name"].str.split(" · ").str[1], df["on_front"])) == {
         "a.onnx": False,
         "b.onnx": True,
@@ -60,7 +60,7 @@ def test_points_counts_results_without_a_cost():
         _record("a.onnx", 0.5, 0.1, 1e-3, n_parameters=1000),
         _record("b.onnx", 0.4, 0.2, 1e-4),
     ]
-    df, missing = pareto.points(records, "fixed_shape", "All", "mean", "params")
+    df, missing = pareto.points(records, "fixed_shape", "all", "mean", "params")
     assert list(df["name"].str.split(" · ").str[1]) == ["a.onnx"]
     assert df["x"].iloc[0] == 1000
     assert missing == 1
@@ -80,7 +80,7 @@ def test_points_skips_tracks_and_strata_without_data():
     df, missing = pareto.points(records, "fixed_shape", "tight", "mean", "params")
     assert df.empty
     assert missing == 0
-    df, missing = pareto.points(records, "variable_shape", "All", "mean", "params")
+    df, missing = pareto.points(records, "variable_shape", "all", "mean", "params")
     assert df.empty
     assert missing == 0
 
@@ -92,7 +92,7 @@ def test_figure_draws_the_front_as_the_second_trace():
         _record("b.onnx", 0.4, 0.2, 1e-4),
         _record("c.onnx", 0.3, 0.05, 2e-3),
     ]
-    df, _ = pareto.points(records, "fixed_shape", "All", "mean", "inference time")
+    df, _ = pareto.points(records, "fixed_shape", "all", "mean", "inference time")
     fig = pareto.figure(df, "inference time", "mean")
     assert [t.name for t in fig.data] == [pareto.DOMINATED, pareto.FRONT]
     assert list(fig.data[1].customdata[:, 0]) == [  # front, cheapest first

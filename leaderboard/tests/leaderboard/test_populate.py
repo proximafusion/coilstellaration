@@ -77,8 +77,8 @@ def test_frames_keyed_by_track_and_stratum(tmp_path):
     _write(tmp_path, "m1", 0.8, with_strata=True)
     frames = get_leaderboard_frames(str(tmp_path), COLS)
     assert set(frames) == set(ALL_KEYS)
-    # 'All' shows the headline mean; 'tight' shows the tight breakdown.
-    assert frames[("fixed_shape", "All")][AutoEvalColumn.mean.name].iloc[0] == 0.8
+    # 'all' shows the headline mean; 'tight' shows the tight breakdown.
+    assert frames[("fixed_shape", "all")][AutoEvalColumn.mean.name].iloc[0] == 0.8
     assert frames[("fixed_shape", "tight")][AutoEvalColumn.mean.name].iloc[0] == 0.08
 
 
@@ -87,16 +87,16 @@ def test_fixed_only_absent_from_variable_frames(tmp_path):
     # none of the variable frames (no data there).
     _write(tmp_path, "fixedonly", 0.7, tracks=("fixed_shape",))
     frames = get_leaderboard_frames(str(tmp_path), COLS)
-    assert not frames[("fixed_shape", "All")].empty
-    assert frames[("variable_shape", "All")].empty
+    assert not frames[("fixed_shape", "all")].empty
+    assert frames[("variable_shape", "all")].empty
 
 
 def test_frame_drops_rows_missing_stratum(tmp_path):
-    # A record with no per-stratum breakdown appears in 'All' but not in a
+    # A record with no per-stratum breakdown appears in 'all' but not in a
     # specific-stratum view (no data there).
     _write(tmp_path, "m1", 0.8, with_strata=False)
     frames = get_leaderboard_frames(str(tmp_path), COLS)
-    assert not frames[("fixed_shape", "All")].empty
+    assert not frames[("fixed_shape", "all")].empty
     assert frames[("fixed_shape", "tight")].empty
 
 
@@ -106,7 +106,7 @@ def test_rows_sorted_by_strict_then_mean(tmp_path):
     _write(tmp_path, "lo_strict_hi_mean", 0.9, strict=0.2)
     _write(tmp_path, "lo_strict_lo_mean", 0.5, strict=0.2)
     frames = get_leaderboard_frames(str(tmp_path), COLS)
-    models = frames[("fixed_shape", "All")][AutoEvalColumn.model.name].tolist()
+    models = frames[("fixed_shape", "all")][AutoEvalColumn.model.name].tolist()
     order = [
         m
         for name in ["hi_strict", "lo_strict_hi_mean", "lo_strict_lo_mean"]

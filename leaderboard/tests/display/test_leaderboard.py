@@ -14,7 +14,7 @@ def _frame():
         }
         for model, submitter in [("org/alpha", "alice"), ("lab/beta", "bob")]
     ]
-    return pd.DataFrame([result_to_row(r, "fixed_shape", "All") for r in records])
+    return pd.DataFrame([result_to_row(r, "fixed_shape", "all") for r in records])
 
 
 def test_search_matches_plain_names_not_link_markup():
@@ -67,8 +67,8 @@ def test_write_csv_turns_links_into_urls():
     from leaderboard.src.envs import RESULTS_REPO
 
     df = _frame()[["user", "full results", "model id", "mean"]]
-    path = write_csv(df, "board-fixed_shape-All")
-    assert path.endswith("board-fixed_shape-All.csv")
+    path = write_csv(df, "board-fixed_shape-all")
+    assert path.endswith("board-fixed_shape-all.csv")
     out = pd.read_csv(path)
     # A "link" cell becomes the URL it points to; other links become their text.
     base = f"https://huggingface.co/datasets/{RESULTS_REPO}/blob/main"

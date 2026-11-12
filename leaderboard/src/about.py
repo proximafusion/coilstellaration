@@ -83,7 +83,7 @@ field error that the data-generation pipeline achieved on that row:
 - `medium`
 - `loose`: the most permissive requirements.
 
-Every model is scored on all three strata. **`All`**, the pool of all three strata,
+Every model is scored on all three strata. **`all`**, the pool of all three strata,
 is the headline view (as in the paper). The other options in the stratum selector
 show a single stratum.
 
