@@ -13,19 +13,29 @@ from dataclasses import dataclass
 
 import gradio as gr
 
-from leaderboard.src.display.utils import STRATUM_VIEWS, TRACK_LABELS, TRACKS
+from leaderboard.src.display.utils import (
+    DEFAULT_VIEW,
+    STRATUM_VIEWS,
+    TRACK_LABELS,
+    TRACKS,
+)
 from leaderboard.src.explore import coilsets, model_graph, pareto
 from leaderboard.src.leaderboard.read_evals import track_summary
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_TRACK, DEFAULT_STRATUM = DEFAULT_VIEW
+
 
 def _ranked(records: list[dict]) -> list[dict]:
     """Results in the leaderboard's default order: strict feasibility, then mean,
-    on the fixed track over all strata."""
+    in the default view (`DEFAULT_VIEW`)."""
 
     def key(record):
-        summary = track_summary(record["tracks"].get(TRACKS[0], {}), "all") or {}
+        summary = (
+            track_summary(record["tracks"].get(DEFAULT_TRACK, {}), DEFAULT_STRATUM)
+            or {}
+        )
         return (
             summary.get("strict_feasibility", -1),
             summary.get("mean", -1),
@@ -60,9 +70,11 @@ def render(records: list[dict]) -> ExploreTab:
                 cost_radio = gr.Radio(
                     list(pareto.X_AXES), value="inference time", label="Cost"
                 )
-                pareto_track = gr.Radio(track_choices, value=TRACKS[0], label="Track")
+                pareto_track = gr.Radio(
+                    track_choices, value=DEFAULT_TRACK, label="Track"
+                )
                 pareto_stratum = gr.Radio(
-                    STRATUM_VIEWS, value="all", label="Stratum", scale=2
+                    STRATUM_VIEWS, value=DEFAULT_STRATUM, label="Stratum", scale=2
                 )
             pareto_plot = gr.Plot(show_label=False, elem_id="pareto-plot")
             pareto_note = gr.Markdown(elem_classes="markdown-text")
@@ -73,7 +85,7 @@ def render(records: list[dict]) -> ExploreTab:
                     result_choices, value=default_result, label="Result", scale=3
                 )
                 coil_track = gr.Radio(
-                    track_choices, value=TRACKS[0], label="Track", scale=1
+                    track_choices, value=DEFAULT_TRACK, label="Track", scale=1
                 )
             coil_instance = gr.Dropdown(
                 [],

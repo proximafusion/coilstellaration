@@ -119,6 +119,7 @@ def Leaderboard(
     frames=None,
     tracks=None,
     strata=None,
+    default_view=None,
     track_labels=None,
     track_label="Track",
     stratum_label="Stratum",
@@ -142,13 +143,15 @@ def Leaderboard(
     `frames` (optional) maps a `(track, stratum)` key to a same-columns frame;
     with `tracks`/`strata` giving the axis orders, a Track radio and a Stratum
     radio let the user pick which frame the table shows. `track_labels` maps a
-    track key to the label shown on the radio. `value` is the default frame.
+    track key to the label shown on the radio. `default_view` (optional) is the
+    `(track, stratum)` selected on load; it defaults to the first of each.
+    `value` is the default frame.
     """
     frames = dict(frames) if frames else {(None, None): value}
     tracks = list(tracks) if tracks else [None]
     strata = list(strata) if strata else [None]
     track_labels = track_labels or {t: str(t) for t in tracks}
-    default_track, default_stratum = tracks[0], strata[0]
+    default_track, default_stratum = default_view or (tracks[0], strata[0])
 
     all_columns = list(value.columns)
     type_of = dict(zip(all_columns, datatype or ["str"] * len(all_columns)))

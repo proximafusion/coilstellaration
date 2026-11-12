@@ -23,6 +23,7 @@ from leaderboard.src.display.css_html_js import custom_css, header_html, theme
 from leaderboard.src.display.leaderboard import Leaderboard, SelectColumns
 from leaderboard.src.display.utils import (
     COLS,
+    DEFAULT_VIEW,
     EVAL_COLS,
     EVAL_TYPES,
     INTEGER_COLS,
@@ -100,10 +101,11 @@ def init_leaderboard(frames):
             if f is None or f.empty:
                 frames[(track, stratum)] = pd.DataFrame(columns=COLS)
     return Leaderboard(
-        value=frames[(TRACKS[0], "all")],
+        value=frames[DEFAULT_VIEW],
         frames=frames,
         tracks=TRACKS,
         strata=STRATUM_VIEWS,
+        default_view=DEFAULT_VIEW,
         track_labels=TRACK_LABELS,
         track_label="Track",
         stratum_label="Stratum",
