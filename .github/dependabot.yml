@@ -1,9 +1,7 @@
-# Keeps the GitHub Actions in .github/workflows and the hook revs in
-# .pre-commit-config.yaml up to date, including the ones pinned to a commit SHA.
-# Python dependencies aren't covered: pyproject.toml holds several back on
-# purpose (onnx, equinox, pandas-stubs), so they're bumped by hand with
-# `uv lock --upgrade-package`. When a ruff-pre-commit or uv-pre-commit PR lands,
-# bump ruff/uv to match.
+# Keeps the GitHub Actions in .github/workflows, the hook revs in
+# .pre-commit-config.yaml (including the ones pinned to a commit SHA) and
+# uv.lock up to date. The ruff-pre-commit rev and ruff in uv.lock come in
+# separate PRs; land them together so the two stay in step.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -27,4 +25,18 @@ updates:
       default-days: 7
     groups:
       pre-commit:
+        patterns: ["*"]
+
+  # Only uv.lock: pyproject.toml holds several dependencies back on purpose
+  # (onnx, equinox, pandas-stubs), so Dependabot upgrades within those bounds,
+  # like `uv lock --upgrade`. Moving a bound stays a manual change.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    versioning-strategy: lockfile-only
+    cooldown:
+      default-days: 7
+    groups:
+      uv:
         patterns: ["*"]
