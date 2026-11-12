@@ -1,0 +1,62 @@
+name: Space smoke test
+
+# Installs what the Hugging Face Spaces install (the same requirements.txt the
+# sync workflow generates, on the Spaces' Python) and imports every module they
+# run. Catches a dependency that is only in the `dev` group before the sync
+# workflow ships it to a Space that then fails to start.
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "leaderboard/**"
+      - "!leaderboard/tests/**"
+      - "src/**"
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/space-smoke-test.yml
+      - .github/scripts/import_space_modules.py
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+# A newer push to the same branch or PR supersedes a run that is still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  import-modules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # The Spaces' packages.txt: booz-xform builds from source against NetCDF.
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake gfortran libnetcdf-dev libnetcdf-c++4-dev ninja-build pkg-config
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      # Same export as sync-leaderboard-to-hf-spaces.yml; python_version is in
+      # leaderboard/space.*.md.
+      - name: Install the Spaces' requirements
+        run: |
+          uv export --frozen --no-default-groups --group leaderboard \
+            --no-emit-project --no-hashes --no-editable --no-header \
+            -o "$RUNNER_TEMP/requirements.txt"
+          uv venv --python 3.12 "$RUNNER_TEMP/space-venv"
+          VIRTUAL_ENV="$RUNNER_TEMP/space-venv" \
+            uv pip install -r "$RUNNER_TEMP/requirements.txt"
+
+      - name: Import every module the Spaces run
+        run: |
+          "$RUNNER_TEMP/space-venv/bin/python" -I \
+            .github/scripts/import_space_modules.py
