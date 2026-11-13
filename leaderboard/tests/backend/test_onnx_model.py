@@ -153,6 +153,7 @@ def test_sessions_size_their_thread_pool_to_the_available_cpus(
     inference_session = onnx_model.ort.InferenceSession
 
     def spy(path, sess_options=None, **kwargs):
+        assert sess_options is not None
         threads.append(sess_options.intra_op_num_threads)
         return inference_session(path, sess_options=sess_options, **kwargs)
 
