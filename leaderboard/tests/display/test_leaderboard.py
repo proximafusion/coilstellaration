@@ -64,12 +64,12 @@ def test_style_frame_formats_counts_as_integers_and_other_numbers_to_3dp():
     assert "nan" not in html
 
 
-def test_write_csv_turns_links_into_urls():
+def test_write_csv_turns_links_into_urls(tmp_path):
     from leaderboard.src.display.leaderboard import write_csv
     from leaderboard.src.envs import RESULTS_REPO
 
     df = _frame()[["user", "full results", "model id", "mean"]]
-    path = write_csv(df, "board-fixed_shape-all")
+    path = write_csv(df, "board-fixed_shape-all", root=tmp_path)
     assert path.endswith("board-fixed_shape-all.csv")
     out = pd.read_csv(path)
     # A "link" cell becomes the URL it points to; other links become their text.
@@ -179,3 +179,33 @@ def test_leaderboard_reads_frames_from_a_function_on_each_view():
     assert view is not None
     update, _csv = view(["model id"], "", None, None)
     assert len(update["value"].data) == 2
+
+
+def test_write_csv_reuses_one_file_per_table(tmp_path):
+    from leaderboard.src.display.leaderboard import write_csv
+
+    df = _frame()[["model id", "mean"]]
+    first = write_csv(df, "board", root=tmp_path)
+    assert write_csv(df.copy(), "board", root=tmp_path) == first
+    other = write_csv(df.head(1), "board", root=tmp_path)
+    assert other != first
+    assert pd.read_csv(first)["model id"].tolist() == ["org/alpha", "lab/beta"]
+    assert pd.read_csv(other)["model id"].tolist() == ["org/alpha"]
+    assert len(list(tmp_path.iterdir())) == 2
+    assert not list(tmp_path.rglob("*.part"))
+
+
+def test_write_csv_prunes_tables_over_an_hour_old(tmp_path):
+    import os
+    import time
+    from pathlib import Path
+
+    from leaderboard.src.display.leaderboard import CSV_MAX_AGE, write_csv
+
+    df = _frame()[["model id", "mean"]]
+    old = Path(write_csv(df, "old", root=tmp_path))
+    stale = time.time() - CSV_MAX_AGE - 60
+    os.utime(old.parent, (stale, stale))
+    new = Path(write_csv(df.head(1), "new", root=tmp_path))
+    assert not old.exists()
+    assert new.exists()

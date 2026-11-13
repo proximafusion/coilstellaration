@@ -103,7 +103,12 @@ TAB_IDS = ("leaderboard", "explore", "about", "submit")
 # Passed to `app_leaderboard.launch()` (here and in app.py).
 LAUNCH_KWARGS = {"css": custom_css, "theme": theme}
 
-app_leaderboard = gr.Blocks(title="Coilstellaration benchmark | Proxima Fusion")
+# Every hour, delete the files Gradio has cached (the leaderboard's CSV downloads)
+# that are over a day old. A component's initial value is never deleted.
+app_leaderboard = gr.Blocks(
+    title="Coilstellaration benchmark | Proxima Fusion",
+    delete_cache=(3600, 86400),
+)
 with app_leaderboard:
     gr.HTML(header_html(TITLE_LEAD, TITLE_CONT, lead_url=DATASET_URL, logo_url=ORG_URL))
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
