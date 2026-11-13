@@ -41,6 +41,12 @@ def _proportion_se(p: float, n) -> float:
     return math.sqrt(p * (1 - p) / n)
 
 
+def _mean_time_ms(summary: dict) -> float:
+    """Mean inference time per instance in ms; NaN when it wasn't recorded."""
+    seconds = (summary.get("inference_time") or {}).get("mean")
+    return math.nan if seconds is None else seconds * 1e3
+
+
 def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
     """Map one result record (spec §6) to a leaderboard row for one track+stratum view,
     or `None` when the record has no data for that view.
@@ -68,6 +74,7 @@ def result_to_row(record: dict, track: str, stratum: str) -> dict | None:
         AutoEvalColumn.strict_se.name: _proportion_se(
             _get(summary, "strict_feasibility"), summary.get("n")
         ),
+        AutoEvalColumn.time_ms.name: _mean_time_ms(summary),
         AutoEvalColumn.median.name: _get(summary, "median"),
         AutoEvalColumn.p10.name: _get(summary, "p10"),
         AutoEvalColumn.n.name: summary.get("n", math.nan),

@@ -37,6 +37,8 @@ _column("submitted", "submission time", "date", True)
 _column("user", "user", "markdown", True)
 _column("strict", "strict", "number", True)
 _column("mean", "mean", "number", True)
+# Mean inference time per instance, in milliseconds. Not highlighted: lower is better.
+_column("time_ms", "time (ms)", "number", True)
 # "link" to the per-instance scores parquet in the results dataset.
 _column("full_results", "full results", "markdown", True)
 

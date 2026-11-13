@@ -155,6 +155,27 @@ def test_result_to_row_without_n_has_no_standard_error():
     assert math.isnan(row[AutoEvalColumn.n.name])
 
 
+def test_result_to_row_reports_mean_inference_time_in_ms():
+    rec = {
+        "model": "org/m",
+        "tracks": {
+            "fixed_shape": {"mean": 0.5, "inference_time": {"mean": 0.0012}},
+            "variable_shape": {"mean": 0.5, "inference_time": {"mean": None}},
+        },
+    }
+    row = result_to_row(rec, "fixed_shape", "all")
+    assert row is not None
+    assert abs(row[AutoEvalColumn.time_ms.name] - 1.2) < 1e-12
+    # No completed inference, or a record predating the timing: blank.
+    var = result_to_row(rec, "variable_shape", "all")
+    assert var is not None
+    assert math.isnan(var[AutoEvalColumn.time_ms.name])
+    rec["tracks"]["fixed_shape"].pop("inference_time")
+    row = result_to_row(rec, "fixed_shape", "all")
+    assert row is not None
+    assert math.isnan(row[AutoEvalColumn.time_ms.name])
+
+
 def test_result_to_row_links_user_profile_and_full_results(tmp_path):
     from leaderboard.src.envs import RESULTS_REPO
 
