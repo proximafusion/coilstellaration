@@ -113,3 +113,44 @@ def test_default_view_is_variable_track_tight_stratum():
     from leaderboard.src.display.utils import DEFAULT_VIEW
 
     assert DEFAULT_VIEW == ("variable_shape", "tight")
+
+
+def _named_endpoints(demo):
+    """The API endpoints `demo` publishes: name to (parameters, returns)."""
+    info = demo.get_api_info(all_endpoints=True)["named_endpoints"]
+    return {
+        name: (
+            [p["parameter_name"] for p in api["parameters"]],
+            [r["label"] for r in api["returns"]],
+        )
+        for name, api in info.items()
+    }
+
+
+def test_leaderboard_publishes_one_view_endpoint():
+    import gradio as gr
+
+    from leaderboard.src.display.leaderboard import Leaderboard
+    from leaderboard.src.display.utils import DEFAULT_VIEW, STRATUM_VIEWS, TRACKS
+
+    frames = {
+        (t, s): pd.DataFrame({"model id": ["org/alpha"]})
+        for t in TRACKS
+        for s in STRATUM_VIEWS
+    }
+    with gr.Blocks() as demo:
+        Leaderboard(
+            value=frames[DEFAULT_VIEW],
+            frames=frames,
+            tracks=TRACKS,
+            strata=STRATUM_VIEWS,
+            default_view=DEFAULT_VIEW,
+            search_columns=["model id"],
+            label="Leaderboard",
+        )
+    assert _named_endpoints(demo) == {
+        "/leaderboard": (
+            ["columns", "search", "track", "stratum"],
+            ["Leaderboard", "Download CSV"],
+        )
+    }

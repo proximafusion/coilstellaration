@@ -190,7 +190,9 @@ with app_leaderboard:
                         value=False,
                     )
                     submit_button = gr.Button("Submit model", variant="primary")
-                    submission_result = gr.Markdown(elem_classes="markdown-text")
+                    submission_result = gr.Markdown(
+                        label="Submission result", elem_classes="markdown-text"
+                    )
                 with gr.Column(scale=2):
                     gr.Markdown(EVALUATION_QUEUE_TEXT, elem_classes="markdown-text")
 
@@ -203,19 +205,24 @@ with app_leaderboard:
             ]
             # Format checks run first and are shown on the fields. The button is
             # disabled while the submission runs, and re-enabled however it ends.
+            # Only the submission itself is an API endpoint, `/submit`; API
+            # callers skip the validator, so `add_new_eval` repeats its checks.
             submit_button.click(
                 lambda *_: gr.Button(interactive=False),
                 submission_inputs,
                 submit_button,
                 validator=validate_submission,
+                api_visibility="private",
             ).then(
                 add_new_eval,
                 submission_inputs,
                 submission_result,
+                api_name="submit",
             ).then(
                 lambda: gr.Button(interactive=True),
                 None,
                 submit_button,
+                api_visibility="private",
             )
 
             gr.Markdown("## Evaluation queue", elem_classes="markdown-text")
@@ -241,6 +248,7 @@ with app_leaderboard:
         explore_view.draw_pareto,
         explore_view.pareto_inputs,
         explore_view.pareto_outputs,
+        api_visibility="private",
     )
 
     def select_tab_from_url(request: gr.Request):
@@ -262,7 +270,10 @@ with app_leaderboard:
 
     # `?tab=explore`, `?tab=about` or `?tab=submit` in the URL opens that tab.
     app_leaderboard.load(
-        select_tab_from_url, None, [tabs, *explore_view.pareto_outputs]
+        select_tab_from_url,
+        None,
+        [tabs, *explore_view.pareto_outputs],
+        api_visibility="private",
     )
 
 if os.environ.get("SPACE_ID") is not None:

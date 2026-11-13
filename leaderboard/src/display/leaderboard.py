@@ -129,6 +129,7 @@ def Leaderboard(
     integer_columns=None,
     label=None,
     download_name="leaderboard",
+    api_name="leaderboard",
 ):
     """Render the leaderboard controls and table, returning the table component.
 
@@ -140,6 +141,10 @@ def Leaderboard(
     value is highlighted. `integer_columns` (optional) are shown as whole numbers.
     `label` is the table's label. A download button offers the displayed table as
     `<download_name>-<track>-<stratum>.csv`.
+
+    Every control drives one event, published as the `api_name` endpoint: it takes
+    the columns, search text, track label and stratum, and returns the table and
+    the CSV.
 
     `frames` (optional) maps a `(track, stratum)` key to a same-columns frame;
     with `tracks`/`strata` giving the axis orders, a Track radio and a Stratum
@@ -175,17 +180,18 @@ def Leaderboard(
     def csv_name(track, stratum):
         return "-".join(str(p) for p in (download_name, track, stratum) if p)
 
-    def view(selected, query, track_choice, stratum, *filter_values):
-        track = label_to_track.get(track_choice, track_choice)
+    # The parameter names are the API endpoint's parameter names.
+    def view(columns, search, track, stratum, *filter_values):
+        track = label_to_track.get(track, track)
         df = frames.get((track, stratum), value)
-        df = search_rows(df, query, search_columns)
+        df = search_rows(df, search, search_columns)
         for flt, chosen in zip(filter_columns, filter_values):
             if chosen and flt.column in df.columns:
                 df = df[df[flt.column].astype(str).isin(chosen)]
         # Honour the selection but keep the canonical column order, and never
         # drop columns the user isn't allowed to deselect.
         keep = [
-            c for c in all_columns if c in selected or c in select_columns.cant_deselect
+            c for c in all_columns if c in columns or c in select_columns.cant_deselect
         ]
         df = df[keep]
         return (
@@ -202,6 +208,7 @@ def Leaderboard(
     with gr.Row(equal_height=True):
         search_box = (
             gr.Textbox(
+                value="",
                 label="Search",
                 placeholder="Model or user",
                 scale=2,
@@ -294,7 +301,12 @@ def Leaderboard(
         track_radio or gr.State(track_labels[default_track]),
         stratum_radio or gr.State(default_stratum),
     ] + filter_boxes
-    for control in controls:
-        control.change(view, inputs=inputs, outputs=[table, download])
+    gr.on(
+        [control.change for control in controls],
+        view,
+        inputs=inputs,
+        outputs=[table, download],
+        api_name=api_name,
+    )
 
     return table
