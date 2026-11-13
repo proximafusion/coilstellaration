@@ -7,6 +7,7 @@ filter. Built entirely from stock gradio components.
 
 import re
 import tempfile
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -117,7 +118,7 @@ def Leaderboard(
     hide_columns=None,
     filter_columns=None,
     interactive=False,
-    frames=None,
+    frames: Mapping | Callable[[], Mapping] | None = None,
     tracks=None,
     strata=None,
     default_view=None,
@@ -130,6 +131,7 @@ def Leaderboard(
     label=None,
     download_name="leaderboard",
     api_name="leaderboard",
+    reload_on=None,
 ):
     """Render the leaderboard controls and table, returning the table component.
 
@@ -152,8 +154,21 @@ def Leaderboard(
     track key to the label shown on the radio. `default_view` (optional) is the
     `(track, stratum)` selected on load; it defaults to the first of each.
     `value` is the default frame.
+
+    `frames` may also be a function returning that mapping, called on every view
+    change, so the table can show data that changes while the app runs. Then pass
+    `reload_on` (an event such as `demo.load`) to redraw the table from it.
     """
-    frames = dict(frames) if frames else {(None, None): value}
+    live_frames = frames if callable(frames) else None
+    fixed_frames = dict(frames) if frames and not callable(frames) else None
+
+    def current_frames() -> Mapping:
+        """The frames to show now."""
+        if live_frames is not None:
+            return live_frames()
+        return fixed_frames or {(None, None): value}
+
+    frames = dict(current_frames())
     tracks = list(tracks) if tracks else [None]
     strata = list(strata) if strata else [None]
     track_labels = track_labels or {t: str(t) for t in tracks}
@@ -183,7 +198,7 @@ def Leaderboard(
     # The parameter names are the API endpoint's parameter names.
     def view(columns, search, track, stratum, *filter_values):
         track = label_to_track.get(track, track)
-        df = frames.get((track, stratum), value)
+        df = current_frames().get((track, stratum), value)
         df = search_rows(df, search, search_columns)
         for flt, chosen in zip(filter_columns, filter_values):
             if chosen and flt.column in df.columns:
@@ -308,5 +323,9 @@ def Leaderboard(
         outputs=[table, download],
         api_name=api_name,
     )
+    if reload_on is not None:
+        reload_on(
+            view, inputs=inputs, outputs=[table, download], api_visibility="private"
+        )
 
     return table

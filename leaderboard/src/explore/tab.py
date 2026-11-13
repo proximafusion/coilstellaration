@@ -6,6 +6,10 @@ downloaded when the Coilsets sub-tab is first opened, and Netron is framed only
 when the Model graph sub-tab is. Gradio also mounts a tab's components only when
 the tab is first shown.
 
+The results come from a function, called on every event, so the tab follows data
+that is refreshed while the app runs. The Coilsets and Model graph pickers are
+filled with the current results when their sub-tab is first opened.
+
 The events that load a sub-tab on first visit are UI-only (`api_visibility=
 "private"`). The rest are published as API endpoints: `/pareto`,
 `/coilset_instances`, `/coilset` and `/model_graph`.
@@ -61,12 +65,17 @@ class ExploreTab:
     pareto_defaults: tuple
 
 
-def render(records: list[dict]) -> ExploreTab:
-    """Lay out the Explore tab's sub-tabs in the current Blocks context."""
-    records = _ranked(records)
-    # Results in the pickers: (full name, scores parquet path in the results repo).
-    result_choices = [(pareto.result_name(r), r["raw_scores_file"]) for r in records]
-    default_result = result_choices[0][1] if result_choices else None
+def _result_choices(records: list[dict]) -> list[tuple[str, str]]:
+    """The pickers' results, best first: (full name, scores parquet path in the
+    results repo)."""
+    return [(pareto.result_name(r), r["raw_scores_file"]) for r in _ranked(records)]
+
+
+def render(get_records: Callable[[], list[dict]]) -> ExploreTab:
+    """Lay out the Explore tab's sub-tabs in the current Blocks context.
+
+    `get_records` returns the current result records.
+    """
     track_choices = [(TRACK_LABELS[t], t) for t in TRACKS]
 
     with gr.Tabs():
@@ -90,9 +99,7 @@ def render(records: list[dict]) -> ExploreTab:
 
         with gr.Tab("Coilsets", id="coilsets") as coilsets_tab:
             with gr.Row(equal_height=True):
-                coil_result = gr.Dropdown(
-                    result_choices, value=default_result, label="Result", scale=3
-                )
+                coil_result = gr.Dropdown([], value=None, label="Result", scale=3)
                 coil_track = gr.Radio(
                     track_choices, value=DEFAULT_TRACK, label="Track", scale=1
                 )
@@ -113,16 +120,14 @@ def render(records: list[dict]) -> ExploreTab:
                     )
 
         with gr.Tab("Model graph", id="model-graph") as graph_tab:
-            graph_result = gr.Dropdown(
-                result_choices, value=default_result, label="Result"
-            )
+            graph_result = gr.Dropdown([], value=None, label="Result")
             graph_view = gr.HTML(label="Model graph")
 
     # Pareto front.
     # Handler parameter names are the API endpoints' parameter names.
     def draw_pareto(score, cost, track, stratum):
         y, x = score, cost
-        df, missing = pareto.points(records, track, stratum, y, x)
+        df, missing = pareto.points(get_records(), track, stratum, y, x)
         note = ""
         if missing:
             what = "parameter count" if x == "params" else "inference time"
@@ -161,11 +166,16 @@ def render(records: list[dict]) -> ExploreTab:
         ]
         return gr.Dropdown(choices=choices, value=choices[0][1] if choices else None)
 
-    def list_instances_once(result, track, instance):
-        # Only the first visit loads; later visits keep the user's choice.
-        if instance is not None:
+    def pick_result_once(current):
+        """On a sub-tab's first visit, offer the current results and pick the best.
+
+        Picking it fires the picker's change event, which loads that result. Later
+        visits keep the user's choice.
+        """
+        if current is not None:
             return gr.skip()
-        return list_instances(result, track)
+        choices = _result_choices(get_records())
+        return gr.Dropdown(choices=choices, value=choices[0][1] if choices else None)
 
     def draw_coilset(result, track, instance):
         if not result or instance is None:
@@ -178,10 +188,7 @@ def render(records: list[dict]) -> ExploreTab:
         return coilsets.figure(coilset), summary
 
     coilsets_tab.select(
-        list_instances_once,
-        [coil_result, coil_track, coil_instance],
-        coil_instance,
-        api_visibility="private",
+        pick_result_once, coil_result, coil_result, api_visibility="private"
     )
     gr.on(
         [coil_result.change, coil_track.change],
@@ -203,14 +210,8 @@ def render(records: list[dict]) -> ExploreTab:
             return ""
         return model_graph.viewer_html(result)
 
-    def show_graph_once(result, current):
-        return gr.skip() if current else show_graph(result)
-
     graph_tab.select(
-        show_graph_once,
-        [graph_result, graph_view],
-        graph_view,
-        api_visibility="private",
+        pick_result_once, graph_result, graph_result, api_visibility="private"
     )
     graph_result.change(show_graph, graph_result, graph_view, api_name="model_graph")
 
