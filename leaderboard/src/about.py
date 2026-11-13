@@ -83,7 +83,8 @@ field error that the data-generation pipeline achieved on that row:
 
 Every model is scored on all three strata. **`all`**, the pool of all three strata,
 is the headline view (as in the paper). The other options in the stratum selector
-show a single stratum.
+show a single stratum. The leaderboard opens on the `variable` track and the `tight`
+stratum.
 
 ## ONNX contract
 All tensors are **raw**: no scaling or normalization. Your model owns any internal

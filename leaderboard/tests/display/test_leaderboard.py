@@ -109,7 +109,7 @@ def test_leaderboard_opens_on_default_view():
     assert radios == {"Track": DEFAULT_VIEW[0], "Stratum": DEFAULT_VIEW[1]}
 
 
-def test_default_view_is_variable_track_all_strata():
+def test_default_view_is_variable_track_tight_stratum():
     from leaderboard.src.display.utils import DEFAULT_VIEW
 
-    assert DEFAULT_VIEW == ("variable_shape", "all")
+    assert DEFAULT_VIEW == ("variable_shape", "tight")
