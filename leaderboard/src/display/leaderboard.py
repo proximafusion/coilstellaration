@@ -5,8 +5,12 @@ read-only table with column selection, free-text search and a checkbox
 filter. Built entirely from stock gradio components.
 """
 
+import hashlib
+import os
 import re
+import shutil
 import tempfile
+import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, cast
@@ -93,20 +97,51 @@ def _plain(value):
     return _HTML_TAG.sub("", value)
 
 
-def write_csv(df: pd.DataFrame, name: str) -> str:
-    """Write `df` to a new CSV file called `<name>.csv`; return its path.
+# Where `write_csv` writes. Gradio copies each file it is given into its own
+# cache straight away, so files here are only kept for `CSV_MAX_AGE` seconds.
+CSV_DIR = Path(tempfile.gettempdir()) / "leaderboard-csv"
+CSV_MAX_AGE = 3600
+
+
+def _prune(root: Path, max_age: float) -> None:
+    """Delete the entries in `root` last modified over `max_age` seconds ago."""
+    cutoff = time.time() - max_age
+    for entry in root.iterdir():
+        try:
+            if entry.stat().st_mtime < cutoff:
+                shutil.rmtree(entry, ignore_errors=True)
+        except FileNotFoundError:
+            pass  # Pruned by a concurrent call.
+
+
+def write_csv(df: pd.DataFrame, name: str, root: Path = CSV_DIR) -> str:
+    """Write `df` as CSV to a file called `<name>.csv`; return its path.
 
     "link" cells become their URL, and other HTML links are reduced to their
     text.
-    Each call gets its own directory, so concurrent users don't overwrite each
-    other's files.
+    The file's directory is named by a hash of its contents, so the same table
+    always gets the same file, and users with different tables never share one.
+    Each call also deletes the files older than `CSV_MAX_AGE`, so the directory
+    holds only the tables written in the last hour.
     """
     plain = df.copy()
     for col in plain.columns:
         if plain[col].dtype == object:
             plain[col] = plain[col].map(_plain)
-    path = Path(tempfile.mkdtemp(prefix="leaderboard-csv-")) / f"{name}.csv"
-    plain.to_csv(path, index=False)
+    data = plain.to_csv(index=False).encode()
+    root.mkdir(parents=True, exist_ok=True)
+    _prune(root, CSV_MAX_AGE)
+    folder = root / hashlib.sha256(data).hexdigest()[:16]
+    folder.mkdir(exist_ok=True)
+    # Mark it fresh first, so a concurrent call doesn't prune it while it's
+    # written to. Writing the same table again keeps it for another hour.
+    os.utime(folder)
+    path = folder / f"{name}.csv"
+    # Write then rename, so a concurrent call never sees a partial file.
+    fd, tmp = tempfile.mkstemp(dir=folder, suffix=".part")
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    Path(tmp).replace(path)
     return str(path)
 
 
