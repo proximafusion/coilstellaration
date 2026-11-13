@@ -88,7 +88,7 @@ TRACK_LABELS = {"fixed_shape": "fixed", "variable_shape": "variable"}
 STRATUM_VIEWS = ["all", "tight", "medium", "loose"]
 
 # The `(track, stratum)` view the leaderboard and Explore tab open on.
-DEFAULT_VIEW = ("variable_shape", "all")
+DEFAULT_VIEW = ("variable_shape", "tight")
 
 # Metric columns, each of whose best (maximum) value is highlighted.
 METRIC_COLS = [
