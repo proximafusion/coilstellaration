@@ -48,7 +48,16 @@ def get_leaderboard_frames(
     the selected stratum. The leaderboard's track and stratum selectors together pick
     which frame the table renders.
     """
-    records = get_raw_eval_results(results_path)
+    return frames_from_records(get_raw_eval_results(results_path), cols)
+
+
+def frames_from_records(
+    records: Sequence[dict], cols: list
+) -> dict[tuple[str, str], pd.DataFrame]:
+    """One display frame per `(track, stratum)` view, from raw result records.
+
+    Every view has a frame, empty (with `cols`) when no record has data for it.
+    """
     frames = {
         (track, stratum): _frame_for_view(records, track, stratum, cols)
         for track in TRACKS

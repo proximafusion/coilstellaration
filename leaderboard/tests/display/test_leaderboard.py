@@ -154,3 +154,28 @@ def test_leaderboard_publishes_one_view_endpoint():
             ["Leaderboard", "Download CSV"],
         )
     }
+
+
+def test_leaderboard_reads_frames_from_a_function_on_each_view():
+    import gradio as gr
+
+    from leaderboard.src.display.leaderboard import Leaderboard
+
+    current = {(None, None): pd.DataFrame({"model id": ["org/alpha"]})}
+    with gr.Blocks() as demo:
+        table = Leaderboard(
+            value=current[(None, None)],
+            frames=lambda: current,
+            reload_on=demo.load,
+        )
+    assert table.value["data"] == [["org/alpha"]]
+    # The data changes while the app runs; the next view shows it.
+    current[(None, None)] = pd.DataFrame({"model id": ["org/alpha", "lab/beta"]})
+    view = next(
+        fn.fn
+        for fn in demo.fns.values()
+        if any(trigger == "load" for _, trigger in fn.targets)
+    )
+    assert view is not None
+    update, _csv = view(["model id"], "", None, None)
+    assert len(update["value"].data) == 2
