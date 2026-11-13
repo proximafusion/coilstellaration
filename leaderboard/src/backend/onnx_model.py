@@ -2,6 +2,8 @@
 
 import logging
 import math
+import os
+from pathlib import Path
 from typing import Literal, Mapping
 
 import numpy as np
@@ -12,6 +14,52 @@ from leaderboard.src.backend import config
 
 logger = logging.getLogger(__name__)
 
+_CGROUP_V2_CPU_MAX = Path("/sys/fs/cgroup/cpu.max")
+_CGROUP_V1_CPU_QUOTA = Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+_CGROUP_V1_CPU_PERIOD = Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+
+
+def _cgroup_cpu_limit() -> float | None:
+    """CPUs the container's cgroup allows (quota / period), or None if unlimited."""
+    try:
+        quota, period = _CGROUP_V2_CPU_MAX.read_text().split()
+        if quota != "max":
+            return int(quota) / int(period)
+    except (OSError, ValueError):
+        pass
+    try:
+        quota = int(_CGROUP_V1_CPU_QUOTA.read_text())
+        period = int(_CGROUP_V1_CPU_PERIOD.read_text())
+        if quota > 0 and period > 0:
+            return quota / period
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def available_cpus() -> int:
+    """CPUs this process may use: the affinity mask, capped by the cgroup quota.
+
+    onnxruntime sizes its thread pool from the host's cores. In a container with a CPU
+    quota, a pool of that size spends the quota on spinning threads and the kernel
+    throttles the process for the rest of each period.
+    """
+    try:
+        cpus = len(os.sched_getaffinity(0))
+    except AttributeError:  # not available on every platform
+        cpus = os.cpu_count() or 1
+    limit = _cgroup_cpu_limit()
+    if limit is not None:
+        cpus = min(cpus, math.ceil(limit))
+    return max(1, cpus)
+
+
+def session_options() -> ort.SessionOptions:
+    """Session options with the intra-op thread pool sized to `available_cpus()`."""
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = available_cpus()
+    return options
+
 
 class OnnxModel:
     """Thin wrapper around an onnxruntime InferenceSession."""
@@ -19,7 +67,9 @@ class OnnxModel:
     def __init__(self, model_path: str):
         logger.debug("Loading ONNX model from %s", model_path)
         self.session = ort.InferenceSession(
-            model_path, providers=["CPUExecutionProvider"]
+            model_path,
+            sess_options=session_options(),
+            providers=["CPUExecutionProvider"],
         )
         self.input_names = [i.name for i in self.session.get_inputs()]
         self.output_names = [o.name for o in self.session.get_outputs()]
@@ -98,7 +148,11 @@ def inspect_onnx(
     """
     logger.debug("Inspecting ONNX graph %s", model_path)
     try:
-        session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+        session = ort.InferenceSession(
+            model_path,
+            sess_options=session_options(),
+            providers=["CPUExecutionProvider"],
+        )
     except Exception as exc:  # noqa: BLE001 - surface any load failure to the user
         logger.warning("Could not load ONNX model %s: %s", model_path, exc)
         return [f"Could not load ONNX model: {exc}"], []

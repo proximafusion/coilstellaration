@@ -120,3 +120,46 @@ def test_count_parameters_sums_initializers_and_constants(tmp_path):
     onnx.save(helper.make_model(graph), path)
 
     assert onnx_model.count_parameters(str(path)) == 12 + 4
+
+
+def test_available_cpus_is_capped_by_the_cgroup_quota(monkeypatch, tmp_path):
+    cpu_max = tmp_path / "cpu.max"
+    cpu_max.write_text("800000 100000\n")
+    monkeypatch.setattr(onnx_model, "_CGROUP_V2_CPU_MAX", cpu_max)
+    monkeypatch.setattr(
+        onnx_model.os, "sched_getaffinity", lambda _pid: set(range(96)), raising=False
+    )
+
+    assert onnx_model.available_cpus() == 8
+
+
+def test_available_cpus_without_a_quota_is_the_affinity_mask(monkeypatch, tmp_path):
+    cpu_max = tmp_path / "cpu.max"
+    cpu_max.write_text("max 100000\n")
+    monkeypatch.setattr(onnx_model, "_CGROUP_V2_CPU_MAX", cpu_max)
+    monkeypatch.setattr(onnx_model, "_CGROUP_V1_CPU_QUOTA", tmp_path / "missing")
+    monkeypatch.setattr(
+        onnx_model.os, "sched_getaffinity", lambda _pid: set(range(6)), raising=False
+    )
+
+    assert onnx_model.available_cpus() == 6
+
+
+def test_sessions_size_their_thread_pool_to_the_available_cpus(
+    monkeypatch, dummy_onnx_path
+):
+    monkeypatch.setattr(onnx_model, "available_cpus", lambda: 3)
+    threads = []
+    inference_session = onnx_model.ort.InferenceSession
+
+    def spy(path, sess_options=None, **kwargs):
+        assert sess_options is not None
+        threads.append(sess_options.intra_op_num_threads)
+        return inference_session(path, sess_options=sess_options, **kwargs)
+
+    monkeypatch.setattr(onnx_model.ort, "InferenceSession", spy)
+
+    onnx_model.OnnxModel(dummy_onnx_path)
+    onnx_model.inspect_onnx(dummy_onnx_path)
+
+    assert threads == [3, 3]
