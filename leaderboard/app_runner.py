@@ -79,13 +79,16 @@ STATUS_REFRESH = 30
 
 with gr.Blocks(title="Coilstellaration evaluator | Proxima Fusion") as app_runner:
     gr.HTML(header_html("Coilstellaration", "evaluator"))
-    status = gr.Markdown(_status_md(), elem_classes="markdown-text")
+    status = gr.Markdown(_status_md(), label="Status", elem_classes="markdown-text")
     refresh = gr.Button("Refresh status", variant="secondary", size="sm")
-    refresh.click(_status_md, outputs=status)
+    # The button's event is the one API endpoint, `/status`.
+    refresh.click(_status_md, outputs=status, api_name="status")
     # The Markdown value above is computed once, when the app starts. Recompute it
     # for each page load and keep open pages current.
-    app_runner.load(_status_md, outputs=status)
-    gr.Timer(STATUS_REFRESH).tick(_status_md, outputs=status, show_progress="hidden")
+    app_runner.load(_status_md, outputs=status, api_visibility="private")
+    gr.Timer(STATUS_REFRESH).tick(
+        _status_md, outputs=status, show_progress="hidden", api_visibility="private"
+    )
 
 if __name__ == "__main__":
     app_runner.launch(**LAUNCH_KWARGS)

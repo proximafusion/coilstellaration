@@ -5,6 +5,10 @@ front is drawn when the Explore tab is selected, a result's coilsets are
 downloaded when the Coilsets sub-tab is first opened, and Netron is framed only
 when the Model graph sub-tab is. Gradio also mounts a tab's components only when
 the tab is first shown.
+
+The events that load a sub-tab on first visit are UI-only (`api_visibility=
+"private"`). The rest are published as API endpoints: `/pareto`,
+`/coilset_instances`, `/coilset` and `/model_graph`.
 """
 
 import functools
@@ -78,8 +82,11 @@ def render(records: list[dict]) -> ExploreTab:
                 pareto_stratum = gr.Radio(
                     STRATUM_VIEWS, value=DEFAULT_STRATUM, label="Stratum", scale=2
                 )
-            pareto_plot = gr.Plot(show_label=False, elem_id="pareto-plot")
-            pareto_note = gr.Markdown(elem_classes="markdown-text")
+            # Labels name the API outputs; they aren't shown.
+            pareto_plot = gr.Plot(
+                label="Pareto front", show_label=False, elem_id="pareto-plot"
+            )
+            pareto_note = gr.Markdown(label="Notes", elem_classes="markdown-text")
 
         with gr.Tab("Coilsets", id="coilsets") as coilsets_tab:
             with gr.Row(equal_height=True):
@@ -97,18 +104,24 @@ def render(records: list[dict]) -> ExploreTab:
             )
             with gr.Row():
                 with gr.Column(scale=3):
-                    coil_plot = gr.Plot(show_label=False, elem_id="coilset-plot")
+                    coil_plot = gr.Plot(
+                        label="Coilset", show_label=False, elem_id="coilset-plot"
+                    )
                 with gr.Column(scale=2):
-                    coil_summary = gr.Markdown(elem_classes="markdown-text")
+                    coil_summary = gr.Markdown(
+                        label="Summary", elem_classes="markdown-text"
+                    )
 
         with gr.Tab("Model graph", id="model-graph") as graph_tab:
             graph_result = gr.Dropdown(
                 result_choices, value=default_result, label="Result"
             )
-            graph_view = gr.HTML()
+            graph_view = gr.HTML(label="Model graph")
 
     # Pareto front.
-    def draw_pareto(y, x, track, stratum):
+    # Handler parameter names are the API endpoints' parameter names.
+    def draw_pareto(score, cost, track, stratum):
+        y, x = score, cost
         df, missing = pareto.points(records, track, stratum, y, x)
         note = ""
         if missing:
@@ -124,18 +137,23 @@ def render(records: list[dict]) -> ExploreTab:
 
     pareto_inputs = [score_radio, cost_radio, pareto_track, pareto_stratum]
     pareto_outputs = [pareto_plot, pareto_note]
-    for control in pareto_inputs:
-        control.change(draw_pareto, pareto_inputs, pareto_outputs)
+    gr.on(
+        [control.change for control in pareto_inputs],
+        draw_pareto,
+        pareto_inputs,
+        pareto_outputs,
+        api_name="pareto",
+    )
 
     # Coilsets.
     @functools.lru_cache(maxsize=8)
-    def instance_frame(raw_scores_file, track):
-        return coilsets.instances(coilsets.parquet_path(raw_scores_file), track)
+    def instance_frame(result, track):
+        return coilsets.instances(coilsets.parquet_path(result), track)
 
-    def list_instances(raw_scores_file, track):
-        if not raw_scores_file:
+    def list_instances(result, track):
+        if not result:
             return gr.Dropdown(choices=[], value=None)
-        df = instance_frame(raw_scores_file, track)
+        df = instance_frame(result, track)
         # The index is each instance's row number in the parquet file.
         choices = [
             (coilsets.instance_label(cast(int, i), row), cast(int, i))
@@ -143,46 +161,58 @@ def render(records: list[dict]) -> ExploreTab:
         ]
         return gr.Dropdown(choices=choices, value=choices[0][1] if choices else None)
 
-    def list_instances_once(raw_scores_file, track, instance):
+    def list_instances_once(result, track, instance):
         # Only the first visit loads; later visits keep the user's choice.
         if instance is not None:
             return gr.skip()
-        return list_instances(raw_scores_file, track)
+        return list_instances(result, track)
 
-    def draw_coilset(raw_scores_file, track, instance):
-        if not raw_scores_file or instance is None:
+    def draw_coilset(result, track, instance):
+        if not result or instance is None:
             return None, "This result has no instances in the selected track."
-        row = instance_frame(raw_scores_file, track).loc[instance]
+        row = instance_frame(result, track).loc[instance]
         summary = coilsets.summary_markdown(row)
-        coilset = coilsets.load_coilset(
-            coilsets.parquet_path(raw_scores_file), instance
-        )
+        coilset = coilsets.load_coilset(coilsets.parquet_path(result), instance)
         if coilset is None:
             return None, summary + "\n\nThe model produced no coilset here."
         return coilsets.figure(coilset), summary
 
     coilsets_tab.select(
-        list_instances_once, [coil_result, coil_track, coil_instance], coil_instance
+        list_instances_once,
+        [coil_result, coil_track, coil_instance],
+        coil_instance,
+        api_visibility="private",
     )
-    coil_result.change(list_instances, [coil_result, coil_track], coil_instance)
-    coil_track.change(list_instances, [coil_result, coil_track], coil_instance)
+    gr.on(
+        [coil_result.change, coil_track.change],
+        list_instances,
+        [coil_result, coil_track],
+        coil_instance,
+        api_name="coilset_instances",
+    )
     coil_instance.change(
         draw_coilset,
         [coil_result, coil_track, coil_instance],
         [coil_plot, coil_summary],
+        api_name="coilset",
     )
 
     # Model graph.
-    def show_graph(raw_scores_file):
-        if not raw_scores_file:
+    def show_graph(result):
+        if not result:
             return ""
-        return model_graph.viewer_html(raw_scores_file)
+        return model_graph.viewer_html(result)
 
-    def show_graph_once(raw_scores_file, current):
-        return gr.skip() if current else show_graph(raw_scores_file)
+    def show_graph_once(result, current):
+        return gr.skip() if current else show_graph(result)
 
-    graph_tab.select(show_graph_once, [graph_result, graph_view], graph_view)
-    graph_result.change(show_graph, graph_result, graph_view)
+    graph_tab.select(
+        show_graph_once,
+        [graph_result, graph_view],
+        graph_view,
+        api_visibility="private",
+    )
+    graph_result.change(show_graph, graph_result, graph_view, api_name="model_graph")
 
     pareto_defaults = tuple(c.value for c in pareto_inputs)
     return ExploreTab(pareto_inputs, pareto_outputs, draw_pareto, pareto_defaults)
