@@ -29,8 +29,7 @@ EVALUATOR_URL = (
 
 INTRODUCTION_TEXT = """
 A benchmark for ML models that predict a stellarator coilset from a plasma boundary
-and a set of engineering requirements. Rows are ranked by strict feasibility, then
-mean.
+and a set of engineering requirements.
 """
 
 ABOUT_TEXT = f"""

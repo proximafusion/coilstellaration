@@ -17,10 +17,6 @@ def test_explore_tab_publishes_named_endpoints_only():
         for name, api in info["named_endpoints"].items()
     }
     assert endpoints == {
-        "/pareto": (
-            ["score", "cost", "track", "stratum"],
-            ["Pareto front", "Notes"],
-        ),
         "/coilset_instances": (["result", "track"], ["Instance"]),
         "/coilset": (["result", "track", "instance"], ["Coilset", "Summary"]),
         "/model_graph": (["result"], ["Model graph"]),
