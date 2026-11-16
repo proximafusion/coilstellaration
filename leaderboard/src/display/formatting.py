@@ -42,3 +42,8 @@ def has_no_nan_values(df, columns):
 
 def has_nan_values(df, columns):
     return df[columns].isna().any(axis=1)
+
+
+def result_name(model: str, onnx_file: str | None) -> str:
+    """A result's full name: the model repo and its ONNX file."""
+    return f"{model} · {onnx_file or 'model.onnx'}"

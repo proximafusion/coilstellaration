@@ -1,9 +1,8 @@
 """The Explore tab's layout and events.
 
-Nothing here runs until someone opens the tab or one of its sub-tabs: the Pareto
-front is drawn when the Explore tab is selected, a result's coilsets are
-downloaded when the Coilsets sub-tab is first opened, and Netron is framed only
-when the Model graph sub-tab is. Gradio also mounts a tab's components only when
+Nothing here runs until someone opens one of its sub-tabs: a result's coilsets
+are downloaded when the Coilsets sub-tab is first opened, and Netron is framed
+only when the Model graph sub-tab is. Gradio also mounts a tab's components only when
 the tab is first shown.
 
 The results come from a function, called on every event, so the tab follows data
@@ -11,25 +10,24 @@ that is refreshed while the app runs. The Coilsets and Model graph pickers are
 filled with the current results when their sub-tab is first opened.
 
 The events that load a sub-tab on first visit are UI-only (`api_visibility=
-"private"`). The rest are published as API endpoints: `/pareto`,
-`/coilset_instances`, `/coilset` and `/model_graph`.
+"private"`). The rest are published as API endpoints: `/coilset_instances`,
+`/coilset` and `/model_graph`.
 """
 
 import functools
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import cast
 
 import gradio as gr
 
+from leaderboard.src.display.formatting import result_name
 from leaderboard.src.display.utils import (
     DEFAULT_VIEW,
-    STRATUM_VIEWS,
     TRACK_LABELS,
     TRACKS,
 )
-from leaderboard.src.explore import coilsets, model_graph, pareto
+from leaderboard.src.explore import coilsets, model_graph
 from leaderboard.src.leaderboard.read_evals import track_summary
 
 logger = logging.getLogger(__name__)
@@ -54,24 +52,16 @@ def _ranked(records: list[dict]) -> list[dict]:
     return sorted(records, key=key, reverse=True)
 
 
-@dataclass
-class ExploreTab:
-    """The components and handler that the app wires to the Explore tab itself."""
-
-    pareto_inputs: list
-    pareto_outputs: list
-    draw_pareto: Callable
-    # The Pareto controls' values on a freshly loaded page.
-    pareto_defaults: tuple
-
-
 def _result_choices(records: list[dict]) -> list[tuple[str, str]]:
     """The pickers' results, best first: (full name, scores parquet path in the
     results repo)."""
-    return [(pareto.result_name(r), r["raw_scores_file"]) for r in _ranked(records)]
+    return [
+        (result_name(r["model"], r.get("onnx_path")), r["raw_scores_file"])
+        for r in _ranked(records)
+    ]
 
 
-def render(get_records: Callable[[], list[dict]]) -> ExploreTab:
+def render(get_records: Callable[[], list[dict]]) -> None:
     """Lay out the Explore tab's sub-tabs in the current Blocks context.
 
     `get_records` returns the current result records.
@@ -79,24 +69,6 @@ def render(get_records: Callable[[], list[dict]]) -> ExploreTab:
     track_choices = [(TRACK_LABELS[t], t) for t in TRACKS]
 
     with gr.Tabs():
-        with gr.Tab("Pareto front", id="pareto"):
-            with gr.Row(equal_height=True):
-                score_radio = gr.Radio(list(pareto.Y_AXES), value="mean", label="Score")
-                cost_radio = gr.Radio(
-                    list(pareto.X_AXES), value="inference time", label="Cost"
-                )
-                pareto_track = gr.Radio(
-                    track_choices, value=DEFAULT_TRACK, label="Track"
-                )
-                pareto_stratum = gr.Radio(
-                    STRATUM_VIEWS, value=DEFAULT_STRATUM, label="Stratum", scale=2
-                )
-            # Labels name the API outputs; they aren't shown.
-            pareto_plot = gr.Plot(
-                label="Pareto front", show_label=False, elem_id="pareto-plot"
-            )
-            pareto_note = gr.Markdown(label="Notes", elem_classes="markdown-text")
-
         with gr.Tab("Coilsets", id="coilsets") as coilsets_tab:
             with gr.Row(equal_height=True):
                 coil_result = gr.Dropdown([], value=None, label="Result", scale=3)
@@ -122,33 +94,6 @@ def render(get_records: Callable[[], list[dict]]) -> ExploreTab:
         with gr.Tab("Model graph", id="model-graph") as graph_tab:
             graph_result = gr.Dropdown([], value=None, label="Result")
             graph_view = gr.HTML(label="Model graph")
-
-    # Pareto front.
-    # Handler parameter names are the API endpoints' parameter names.
-    def draw_pareto(score, cost, track, stratum):
-        y, x = score, cost
-        df, missing = pareto.points(get_records(), track, stratum, y, x)
-        note = ""
-        if missing:
-            what = "parameter count" if x == "params" else "inference time"
-            note = (
-                f"Not shown: {missing} result{'s' if missing != 1 else ''} "
-                f"without a recorded {what}."
-            )
-        if df.empty:
-            return None, note
-        note = "\n\n".join(filter(None, [pareto.front_markdown(df, x, y), note]))
-        return pareto.figure(df, x, y), note
-
-    pareto_inputs = [score_radio, cost_radio, pareto_track, pareto_stratum]
-    pareto_outputs = [pareto_plot, pareto_note]
-    gr.on(
-        [control.change for control in pareto_inputs],
-        draw_pareto,
-        pareto_inputs,
-        pareto_outputs,
-        api_name="pareto",
-    )
 
     # Coilsets.
     @functools.lru_cache(maxsize=8)
@@ -214,6 +159,3 @@ def render(get_records: Callable[[], list[dict]]) -> ExploreTab:
         pick_result_once, graph_result, graph_result, api_visibility="private"
     )
     graph_result.change(show_graph, graph_result, graph_view, api_name="model_graph")
-
-    pareto_defaults = tuple(c.value for c in pareto_inputs)
-    return ExploreTab(pareto_inputs, pareto_outputs, draw_pareto, pareto_defaults)

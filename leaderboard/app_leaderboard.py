@@ -31,6 +31,7 @@ from leaderboard.src.display.utils import (
     fields,
 )
 from leaderboard.src.explore import tab as explore
+from leaderboard.src.frontpage import tab as frontpage
 from leaderboard.src.live import QUEUE_STATUSES, LiveData
 from leaderboard.src.submission.submit import (
     NO_EVAL_TRAINING_DECLARATION,
@@ -97,7 +98,7 @@ def show_queue():
     ]
 
 
-TAB_IDS = ("leaderboard", "explore", "about", "submit")
+TAB_IDS = ("leaderboard", "score-ranking", "explore", "about", "submit")
 
 
 # Passed to `app_leaderboard.launch()` (here and in app.py).
@@ -114,12 +115,22 @@ with app_leaderboard:
     gr.Markdown(INTRODUCTION_TEXT, elem_classes="markdown-text")
 
     with gr.Tabs(elem_classes="tab-buttons") as tabs:
-        with gr.TabItem("Leaderboard", elem_id="benchmark-tab-table", id="leaderboard"):
-            init_leaderboard(reload_on=app_leaderboard.load)
+        # The front page: the Pareto plot over the Pareto-ranked table.
+        with gr.TabItem("Leaderboard", elem_id="pareto-tab", id="leaderboard"):
+            frontpage.render(
+                lambda: LIVE.current.records, reload_on=app_leaderboard.load
+            )
 
-        # Loaded lazily: nothing in it is computed until the tab is opened.
-        with gr.TabItem("Explore", elem_id="explore-tab", id="explore") as explore_tab:
-            explore_view = explore.render(lambda: LIVE.current.records)
+        # Redrawn from the latest data when opened, not on page load: inputs from
+        # a tab that isn't shown yet stall the page's first render.
+        with gr.TabItem(
+            "Score ranking", elem_id="benchmark-tab-table", id="score-ranking"
+        ) as score_tab:
+            init_leaderboard(reload_on=score_tab.select)
+
+        # Loaded lazily: nothing in it is computed until a sub-tab is opened.
+        with gr.TabItem("Explore", elem_id="explore-tab", id="explore"):
+            explore.render(lambda: LIVE.current.records)
 
         with gr.TabItem("About", elem_id="about-tab", id="about"):
             gr.Markdown(ABOUT_TEXT, elem_classes="markdown-text")
@@ -217,29 +228,10 @@ with app_leaderboard:
 
     gr.Markdown(FOOTER_TEXT, elem_id="pf-footer")
 
-    explore_tab.select(
-        explore_view.draw_pareto,
-        explore_view.pareto_inputs,
-        explore_view.pareto_outputs,
-        api_visibility="private",
-    )
-
     def select_tab_from_url(request: gr.Request):
-        """Open the tab named by the `tab` query parameter, if it names one.
-
-        Selecting a tab this way doesn't fire its select event, so the Explore
-        tab's Pareto front is drawn here too, for the controls' default values:
-        the page has only just loaded, so nobody has changed them. The controls
-        aren't passed as inputs, because inputs from a tab that isn't shown yet
-        stall the page's first render by tens of seconds.
-        """
+        """Open the tab named by the `tab` query parameter, if it names one."""
         tab = request.query_params.get("tab")
-        if tab not in TAB_IDS:
-            return gr.skip(), gr.skip(), gr.skip()
-        if tab == "explore":
-            pareto = explore_view.draw_pareto(*explore_view.pareto_defaults)
-            return gr.Tabs(selected=tab), *pareto
-        return gr.Tabs(selected=tab), gr.skip(), gr.skip()
+        return gr.Tabs(selected=tab) if tab in TAB_IDS else gr.skip()
 
     app_leaderboard.load(
         show_queue,
@@ -248,13 +240,9 @@ with app_leaderboard:
         api_visibility="private",
     )
 
-    # `?tab=explore`, `?tab=about` or `?tab=submit` in the URL opens that tab.
-    app_leaderboard.load(
-        select_tab_from_url,
-        None,
-        [tabs, *explore_view.pareto_outputs],
-        api_visibility="private",
-    )
+    # `?tab=score-ranking`, `?tab=explore`, `?tab=about` or `?tab=submit` in the
+    # URL opens that tab.
+    app_leaderboard.load(select_tab_from_url, None, tabs, api_visibility="private")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(

@@ -332,19 +332,23 @@ custom_css = """
 }
 
 /* Leaderboard table: Medium header with a single hairline under it. */
-#leaderboard-table th {
+#leaderboard-table th, #pareto-table th {
     font-weight: 500;
     background: #E1EAF2;
     border-bottom: 1px solid #6293A0;
 }
-.dark #leaderboard-table th {
+.dark #leaderboard-table th, .dark #pareto-table th {
     background: #14233F;
 }
-#leaderboard-table td, #leaderboard-table th { font-size: 15px; }
+#leaderboard-table td, #leaderboard-table th,
+#pareto-table td, #pareto-table th { font-size: 15px; }
 
 /* Best value per metric column (set by the table's Styler). */
 :root { --pf-best-bg: #CEDDE8; }  /* Darker than the #E1EAF2 zebra rows. */
 .dark { --pf-best-bg: #143F5F; }
+
+/* Pareto ranking: unranked rows and rows over the budget (set by its Styler). */
+:root { --pf-muted: #6293A0; }
 
 /* The accent (selected tab, loader) is navy on light; on navy it is teal.
    The theme has no dark variant for it, so set it here. */
@@ -369,8 +373,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 /* Pareto plot in dark mode. Plotly can't follow the page's colour scheme, so
-   the figure is drawn for light mode (see `explore/pareto.py`) and recoloured
-   here: white text, navy-tint grid, and the front (the second trace) in teal.
+   the figure is drawn for light mode (see `frontpage/pareto.py`) and recoloured
+   here: white text, navy-tint grid, and the front (the second trace) and the
+   best-within-budget ring (the third) in teal.
    Plotly sets colours as inline styles, hence `!important`. */
 .dark #pareto-plot .main-svg text { fill: #FFFFFF !important; }
 .dark #pareto-plot .gridlayer path { stroke: #14233F !important; }
@@ -383,6 +388,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .dark #pareto-plot .scatterlayer .trace:nth-child(2) .point,
 .dark #pareto-plot .legend .traces:nth-child(2) .scatterpts {
     fill: #34CEB7 !important;
+}
+.dark #pareto-plot .scatterlayer .trace:nth-child(3) .point,
+.dark #pareto-plot .legend .traces:nth-child(3) .scatterpts {
+    stroke: #34CEB7 !important;
 }
 
 /* Footer line, bottom left. */
